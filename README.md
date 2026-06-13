@@ -10,7 +10,7 @@
 
 [![青蛙王子 — 演示视频](https://img.shields.io/badge/▶%20观看演示-FF0050?style=for-the-badge&logo=tiktok&logoColor=white)](https://v.douyin.com/L4F6KdGnD6U/)
 
-<sub>点击在抖音观看。更多示例：[女生扣篮](https://v.douyin.com/L4F6KdGnD6U/) · [沙滩热舞](https://v.douyin.com/L4F6KdGnD6U/)</sub>
+<sub>点击在抖音观看</sub>
 
 ## ✨ 特性
 

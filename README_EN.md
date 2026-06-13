@@ -10,7 +10,7 @@ Built upon [ViMax](https://github.com/HKUDS/ViMax) and [vimax-agnes](https://git
 
 [![The Frog Prince — Demo Video](https://img.shields.io/badge/▶%20Watch%20Demo-FF0050?style=for-the-badge&logo=tiktok&logoColor=white)](https://v.douyin.com/L4F6KdGnD6U/)
 
-<sub>Click to watch on Douyin. More examples: [Girl Dunk](https://v.douyin.com/L4F6KdGnD6U/) · [Beach Dance](https://v.douyin.com/L4F6KdGnD6U/)</sub>
+<sub>Click to watch on Douyin</sub>
 
 ## ✨ Features
 
