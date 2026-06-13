@@ -98,16 +98,6 @@
           </select>
         </div>
         <div>
-          <label class="block text-sm text-gray-400 mb-1.5" data-i18n="videoDuration">每场景时长</label>
-          <select id="video_duration" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition">
-            <option value="5" data-i18n="duration5">5 秒</option>
-            <option value="10" selected data-i18n="duration10">10 秒</option>
-            <option value="15" data-i18n="duration15">15 秒</option>
-            <option value="18" data-i18n="duration18">18 秒</option>
-            <option value="20" data-i18n="duration20">20 秒</option>
-          </select>
-        </div>
-        <div>
           <label class="block text-sm text-gray-400 mb-1.5" data-i18n="videoWidth">视频宽度</label>
           <input id="video_width" type="number" value="768" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition">
         </div>
@@ -273,12 +263,6 @@ const T = {
     modeKeyframes: 'keyframes (推荐)',
     modeTi2vid: 'ti2vid (过渡帧)',
     modeNone: 'none (独立场景)',
-    videoDuration: '每场景时长',
-    duration5: '5 秒',
-    duration10: '10 秒',
-    duration15: '15 秒',
-    duration18: '18 秒',
-    duration20: '20 秒',
     videoWidth: '视频宽度',
     videoHeight: '视频高度',
     referenceImage: '参考图 (可选)',
@@ -372,12 +356,6 @@ const T = {
     modeKeyframes: 'keyframes (recommended)',
     modeTi2vid: 'ti2vid (transition frames)',
     modeNone: 'none (independent scenes)',
-    videoDuration: 'Duration per Scene',
-    duration5: '5 sec',
-    duration10: '10 sec',
-    duration15: '15 sec',
-    duration18: '18 sec',
-    duration20: '20 sec',
     videoWidth: 'Video Width',
     videoHeight: 'Video Height',
     referenceImage: 'Reference Image (Optional)',
@@ -471,12 +449,6 @@ const T = {
     modeKeyframes: 'keyframes (рекомендуется)',
     modeTi2vid: 'ti2vid (переходные кадры)',
     modeNone: 'none (независимые сцены)',
-    videoDuration: 'Длительность сцены',
-    duration5: '5 сек',
-    duration10: '10 сек',
-    duration15: '15 сек',
-    duration18: '18 сек',
-    duration20: '20 сек',
     videoWidth: 'Ширина видео',
     videoHeight: 'Высота видео',
     referenceImage: 'Референс (необязательно)',
@@ -570,12 +542,6 @@ const T = {
     modeKeyframes: 'keyframes (推奨)',
     modeTi2vid: 'ti2vid (遷移フレーム)',
     modeNone: 'none (独立シーン)',
-    videoDuration: 'シーン時間',
-    duration5: '5 秒',
-    duration10: '10 秒',
-    duration15: '15 秒',
-    duration18: '18 秒',
-    duration20: '20 秒',
     videoWidth: '動画幅',
     videoHeight: '動画高さ',
     referenceImage: '参照画像 (任意)',
@@ -669,12 +635,6 @@ const T = {
     modeKeyframes: 'keyframes (권장)',
     modeTi2vid: 'ti2vid (전환 프레임)',
     modeNone: 'none (독립 장면)',
-    videoDuration: '장면 길이',
-    duration5: '5 초',
-    duration10: '10 초',
-    duration15: '15 초',
-    duration18: '18 초',
-    duration20: '20 초',
     videoWidth: '비디오 너비',
     videoHeight: '비디오 높이',
     referenceImage: '참조 이미지 (선택사항)',
@@ -768,12 +728,6 @@ const T = {
     modeKeyframes: 'keyframes (disyorkan)',
     modeTi2vid: 'ti2vid (bingkai peralihan)',
     modeNone: 'none (babak bebas)',
-    videoDuration: 'Tempoh Babak',
-    duration5: '5 saat',
-    duration10: '10 saat',
-    duration15: '15 saat',
-    duration18: '18 saat',
-    duration20: '20 saat',
     videoWidth: 'Lebar Video',
     videoHeight: 'Tinggi Video',
     referenceImage: 'Imej Rujukan (Pilihan)',
@@ -867,12 +821,6 @@ const T = {
     modeKeyframes: 'keyframes (direkomendasikan)',
     modeTi2vid: 'ti2vid (bingkai transisi)',
     modeNone: 'none (adegan independen)',
-    videoDuration: 'Durasi per Adegan',
-    duration5: '5 detik',
-    duration10: '10 detik',
-    duration15: '15 detik',
-    duration18: '18 detik',
-    duration20: '20 detik',
     videoWidth: 'Lebar Video',
     videoHeight: 'Tinggi Video',
     referenceImage: 'Gambar Referensi (Opsional)',
@@ -1197,7 +1145,6 @@ async function createTask() {
   form.append('user_requirement', document.getElementById('user_requirement').value);
   form.append('style', document.getElementById('style').value);
   form.append('chaining_mode', document.getElementById('chaining_mode').value);
-  form.append('video_duration', document.getElementById('video_duration').value);
   form.append('video_width', document.getElementById('video_width').value);
   form.append('video_height', document.getElementById('video_height').value);
   form.append('use_custom_end_frames', document.getElementById('use_custom_end_frames').checked);

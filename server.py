@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import signal
 import uuid
 from contextlib import asynccontextmanager
@@ -243,6 +244,16 @@ async def stop_task(task_id: str):
     return {"ok": True, "task_id": task_id}
 
 
+def _parse_duration(user_requirement: str) -> int:
+    match = re.search(r'(?:每个场景|每段|每节|每)(?:约)?(\d+)\s*(?:秒|s)', user_requirement)
+    if match:
+        return int(match.group(1))
+    match = re.search(r'(\d+)\s*(?:秒|s)\s*(?:每|/)', user_requirement)
+    if match:
+        return int(match.group(1))
+    return 5
+
+
 @app.post("/api/tasks")
 async def create_task(
     idea: str = Form(...),
@@ -252,7 +263,6 @@ async def create_task(
     chaining_mode: str = Form("keyframes"),
     video_width: int = Form(768),
     video_height: int = Form(1152),
-    video_duration: int = Form(5),
     reference_image: UploadFile = File(None),
     end_frame_images: list = None,
     use_custom_end_frames: bool = Form(False),
@@ -265,6 +275,8 @@ async def create_task(
     task_id = uuid.uuid4().hex[:12]
     name = creative_name.strip() if creative_name else f"video_{task_id}"
     dir_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{task_id}"
+
+    video_duration = _parse_duration(user_requirement)
 
     state = TaskState(
         task_id=task_id,
@@ -279,6 +291,8 @@ async def create_task(
         use_custom_end_frames=use_custom_end_frames,
         generate_end_frames_from_ref=generate_end_frames_from_ref,
     )
+
+    logger.info(f"[TaskManager] Parsed video_duration={video_duration}s from user_requirement={user_requirement!r}")
 
     if reference_image:
         upload_path = os.path.join(UPLOAD_DIR, f"{task_id}_ref_{reference_image.filename}")
