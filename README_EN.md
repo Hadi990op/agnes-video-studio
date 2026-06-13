@@ -1,5 +1,7 @@
 # 🎬 Agnes Video Generator — ✨ Completely Free AI Video Generation Tool
 
+[![中文](https://img.shields.io/badge/CN-中文-red)](/README.md)
+
 > 🆓 A completely free AI video generator powered by Agnes AI. Turn text ideas into multi-scene AI videos automatically. Supports text-to-video, image-to-video, and keyframes video generation.
 
 Built upon [ViMax](https://github.com/HKUDS/ViMax) and [vimax-agnes](https://github.com/easyeye163/vimax-agnes), this project upgrades the command-line AI video generation tool into an all-in-one video generator with a Web UI.

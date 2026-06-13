@@ -1,5 +1,7 @@
 # 🎬 Agnes Video Generator — ✨ 完全免费的 AI 视频生成工具
 
+[![English](https://img.shields.io/badge/EN-English-blue)](/README_EN.md)
+
 > 🆓 完全免费的 AI 视频生成工具。基于 Agnes AI 免费模型，输入文字创意，自动生成多场景 AI 视频。支持 text-to-video、image-to-video、keyframes 视频生成。
 
 本项目基于 [ViMax](https://github.com/HKUDS/ViMax) 和 [vimax-agnes](https://github.com/easyeye163/vimax-agnes) 改造而来，将命令行 AI 视频生成工具升级为带 Web UI 的一站式视频生成器。
