@@ -37,17 +37,19 @@ class ImageGeneratorAgnesAPI:
             "Content-Type": "application/json",
         }
 
-    def _path_to_b64(self, path: str) -> str:
-        with open(path, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode("utf-8")
+    async def _path_to_b64(self, path: str) -> str:
+        def _read():
+            with open(path, "rb") as f:
+                return base64.b64encode(f.read()).decode("utf-8")
+        b64 = await asyncio.to_thread(_read)
         mime = mimetypes.guess_type(path)[0] or "image/png"
         return f"data:{mime};base64,{b64}"
 
-    def _resolve_image_ref(self, ref: str) -> str:
+    async def _resolve_image_ref(self, ref: str) -> str:
         if ref.startswith(("http://", "https://", "data:")):
             return ref
         if os.path.exists(ref):
-            return self._path_to_b64(ref)
+            return await self._path_to_b64(ref)
         return ref
 
     async def generate_single_image(
@@ -67,7 +69,7 @@ class ImageGeneratorAgnesAPI:
         }
 
         if reference_image_paths:
-            resolved = [self._resolve_image_ref(p) for p in reference_image_paths]
+            resolved = [await self._resolve_image_ref(p) for p in reference_image_paths]
             extra_body: dict = {"response_format": "url"}
             if len(resolved) == 1:
                 extra_body["image"] = resolved[0]
@@ -83,7 +85,7 @@ class ImageGeneratorAgnesAPI:
                 f"{BASE_URL}/images/generations",
                 headers=self.headers,
                 json=payload,
-                timeout=60,
+                timeout=(30, 120),
             )
             resp.raise_for_status()
         except requests.exceptions.HTTPError as e:

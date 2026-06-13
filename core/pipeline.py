@@ -353,6 +353,8 @@ class VideoPipeline:
                 await self._emit("end_frame_gen", "running", f"场景 {scene_idx+1}/{len(scenes)}: 基于参考图生成尾帧 (i2i)", 0.25 + 0.05 * scene_idx / len(scenes))
                 end_frame_prompt = end_frame_prompts[scene_idx] if scene_idx < len(end_frame_prompts) else "cinematic end frame"
                 for attempt in range(3):
+                    if self._is_shutdown():
+                        raise PipelineShutdown(f"interrupted during end frame gen scene {scene_idx}")
                     try:
                         img_output = await self.image_generator.generate_single_image(
                             prompt=end_frame_prompt,
@@ -365,7 +367,7 @@ class VideoPipeline:
                         break
                     except Exception as e:
                         if attempt < 2:
-                            wait = (attempt + 1) * 10
+                            wait = (attempt + 1) * 20
                             logger.warning(f"[EndFrame] Scene {scene_idx} attempt {attempt+1} failed: {e}, retrying in {wait}s...")
                             await asyncio.sleep(wait)
                         else:
