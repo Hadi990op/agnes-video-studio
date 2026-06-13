@@ -19,29 +19,40 @@
 <div class="max-w-4xl mx-auto px-4 py-8">
 
   <!-- Header -->
-  <div class="text-center mb-10">
+  <div class="text-center mb-10 relative">
+    <div class="absolute right-0 top-0">
+      <select id="lang-selector" onchange="switchLang(this.value)" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-purple-500 transition cursor-pointer">
+        <option value="zh">🇨🇳 中文</option>
+        <option value="en">🇺🇸 English</option>
+        <option value="ru">🇷🇺 Русский</option>
+        <option value="ja">🇯🇵 日本語</option>
+        <option value="ko">🇰🇷 한국어</option>
+        <option value="ms">🇲🇾 Bahasa Melayu</option>
+        <option value="id">🇮🇩 Bahasa Indonesia</option>
+      </select>
+    </div>
     <h1 class="text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">
       Agnes Video Generator
     </h1>
-    <p class="text-gray-400 mt-2">创意 → 视频，一键生成</p>
+    <p class="text-gray-400 mt-2" data-i18n="subtitle">创意 → 视频，一键生成</p>
   </div>
 
   <!-- API Key -->
   <div id="apikey-section" class="bg-gray-900 rounded-2xl p-6 mb-6 border border-gray-800">
     <div class="flex items-center justify-between mb-3">
-      <h2 class="text-lg font-semibold text-purple-300">API Key 配置</h2>
-      <span id="apikey-status" class="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400">未配置</span>
+      <h2 class="text-lg font-semibold text-purple-300" data-i18n="apiKeyTitle">API Key 配置</h2>
+      <span id="apikey-status" class="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400" data-i18n="apiKeyNotConfigured">未配置</span>
     </div>
     <div class="flex gap-3">
-      <input id="apikey-input" type="password" placeholder="输入 Agnes API Key" class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition">
-      <button id="apikey-save" class="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm font-medium transition">保存</button>
+      <input id="apikey-input" type="password" data-i18n-placeholder="apiKeyPlaceholder" placeholder="输入 Agnes API Key" class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition">
+      <button id="apikey-save" class="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm font-medium transition" data-i18n="save">保存</button>
     </div>
   </div>
 
   <!-- Main Tabs -->
   <div class="flex gap-2 mb-6">
-    <button onclick="switchTab('create')" id="tab-create" class="tab-btn px-5 py-2.5 rounded-lg text-sm font-medium bg-purple-600 text-white transition">新建任务</button>
-    <button onclick="switchTab('list')" id="tab-list" class="tab-btn px-5 py-2.5 rounded-lg text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition">任务列表</button>
+    <button onclick="switchTab('create')" id="tab-create" class="tab-btn px-5 py-2.5 rounded-lg text-sm font-medium bg-purple-600 text-white transition" data-i18n="tabCreate">新建任务</button>
+    <button onclick="switchTab('list')" id="tab-list" class="tab-btn px-5 py-2.5 rounded-lg text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition" data-i18n="tabList">任务列表</button>
   </div>
 
   <!-- Create Tab -->
@@ -49,25 +60,25 @@
 
     <!-- Basic Config -->
     <div class="bg-gray-900 rounded-2xl p-6 mb-4 border border-gray-800">
-      <h2 class="text-lg font-semibold text-purple-300 mb-4">创意设置</h2>
+      <h2 class="text-lg font-semibold text-purple-300 mb-4" data-i18n="creativeSettings">创意设置</h2>
 
       <div class="mb-4">
-        <label class="block text-sm text-gray-400 mb-1.5">任务名称</label>
-        <input id="creative_name" placeholder="可选，留空自动生成" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition">
+        <label class="block text-sm text-gray-400 mb-1.5" data-i18n="taskName">任务名称</label>
+        <input id="creative_name" data-i18n-placeholder="taskNamePlaceholder" placeholder="可选，留空自动生成" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition">
       </div>
 
       <div class="mb-4">
-        <label class="block text-sm text-gray-400 mb-1.5">创意描述 (idea) <span class="text-red-400">*</span></label>
-        <textarea id="idea" rows="4" placeholder="描述你心中的故事、场景和角色..." class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition resize-y"></textarea>
+        <label class="block text-sm text-gray-400 mb-1.5"><span data-i18n="ideaLabel">创意描述</span> (idea) <span class="text-red-400">*</span></label>
+        <textarea id="idea" rows="4" data-i18n-placeholder="ideaPlaceholder" placeholder="描述你心中的故事、场景和角色..." class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition resize-y"></textarea>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div>
-          <label class="block text-sm text-gray-400 mb-1.5">用户要求</label>
+          <label class="block text-sm text-gray-400 mb-1.5" data-i18n="userRequirement">用户要求</label>
           <input id="user_requirement" value="3个场景，每个场景5秒，电影质感" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition">
         </div>
         <div>
-          <label class="block text-sm text-gray-400 mb-1.5">视觉风格</label>
+          <label class="block text-sm text-gray-400 mb-1.5" data-i18n="visualStyle">视觉风格</label>
           <input id="style" value="电影质感写实风格" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition">
         </div>
       </div>
@@ -75,23 +86,23 @@
 
     <!-- Advanced Config -->
     <div class="bg-gray-900 rounded-2xl p-6 mb-4 border border-gray-800">
-      <h2 class="text-lg font-semibold text-purple-300 mb-4">高级设置</h2>
+      <h2 class="text-lg font-semibold text-purple-300 mb-4" data-i18n="advancedSettings">高级设置</h2>
 
       <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
         <div>
-          <label class="block text-sm text-gray-400 mb-1.5">串联模式</label>
+          <label class="block text-sm text-gray-400 mb-1.5" data-i18n="chainingMode">串联模式</label>
           <select id="chaining_mode" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition">
-            <option value="keyframes">keyframes (推荐)</option>
-            <option value="ti2vid">ti2vid (过渡帧)</option>
-            <option value="none">none (独立场景)</option>
+            <option value="keyframes" data-i18n="modeKeyframes">keyframes (推荐)</option>
+            <option value="ti2vid" data-i18n="modeTi2vid">ti2vid (过渡帧)</option>
+            <option value="none" data-i18n="modeNone">none (独立场景)</option>
           </select>
         </div>
         <div>
-          <label class="block text-sm text-gray-400 mb-1.5">视频宽度</label>
+          <label class="block text-sm text-gray-400 mb-1.5" data-i18n="videoWidth">视频宽度</label>
           <input id="video_width" type="number" value="768" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition">
         </div>
         <div>
-          <label class="block text-sm text-gray-400 mb-1.5">视频高度</label>
+          <label class="block text-sm text-gray-400 mb-1.5" data-i18n="videoHeight">视频高度</label>
           <input id="video_height" type="number" value="1152" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition">
         </div>
       </div>
@@ -99,46 +110,46 @@
 
     <!-- Reference Image -->
     <div class="bg-gray-900 rounded-2xl p-6 mb-4 border border-gray-800">
-      <h2 class="text-lg font-semibold text-purple-300 mb-4">参考图 (可选)</h2>
+      <h2 class="text-lg font-semibold text-purple-300 mb-4" data-i18n="referenceImage">参考图 (可选)</h2>
       <div class="flex items-center gap-4">
         <label class="cursor-pointer px-4 py-2.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-sm transition inline-block">
-          <span id="ref-label">选择参考图</span>
+          <span id="ref-label" data-i18n="chooseImage">选择参考图</span>
           <input id="reference_image" type="file" accept="image/*" class="hidden" onchange="updateRefLabel()">
         </label>
-        <span id="ref-name" class="text-sm text-gray-500">未选择</span>
+        <span id="ref-name" class="text-sm text-gray-500" data-i18n="notSelected">未选择</span>
       </div>
-      <p class="text-xs text-gray-500 mt-2">可选。提供后所有场景将以该图为视觉锚点；不提供则自动从故事中生成角色参考图</p>
+      <p class="text-xs text-gray-500 mt-2" data-i18n="refDescription">可选。提供后所有场景将以该图为视觉锚点；不提供则自动从故事中生成角色参考图</p>
     </div>
 
     <!-- End Frames -->
     <div class="bg-gray-900 rounded-2xl p-6 mb-4 border border-gray-800">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold text-purple-300">自定义尾帧 (可选)</h2>
+        <h2 class="text-lg font-semibold text-purple-300" data-i18n="customEndFrames">自定义尾帧 (可选)</h2>
         <div class="flex gap-3">
           <label class="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
             <input type="checkbox" id="use_custom_end_frames" onchange="toggleEndFrames()" class="rounded bg-gray-800 border-gray-600">
-            启用自定义尾帧
+            <span data-i18n="enableCustomEndFrames">启用自定义尾帧</span>
           </label>
           <label class="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
             <input type="checkbox" id="generate_end_frames_from_ref" onchange="toggleEndFrameMode()" class="rounded bg-gray-800 border-gray-600">
-            基于参考图生成尾帧 (i2i)
+            <span data-i18n="genEndFramesFromRef">基于参考图生成尾帧 (i2i)</span>
           </label>
         </div>
       </div>
       <div id="end-frames-container" class="hidden space-y-2">
-        <p class="text-xs text-gray-500 mb-2">每个场景一张尾帧图，按顺序对应。多余场景自动生成尾帧。</p>
+        <p class="text-xs text-gray-500 mb-2" data-i18n="endFrameDesc">每个场景一张尾帧图，按顺序对应。多余场景自动生成尾帧。</p>
         <div id="end-frame-inputs">
           <div class="flex items-center gap-3 mb-2">
-            <span class="text-xs text-gray-500 w-16">场景 1</span>
+            <span class="text-xs text-gray-500 w-16" data-i18n-prefix="scene_" data-i18n-arg="1">场景 1</span>
             <input type="file" accept="image/*" class="end-frame-file flex-1 text-sm text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-gray-700 file:text-gray-200 hover:file:bg-gray-600">
           </div>
         </div>
-        <button onclick="addEndFrameInput()" class="text-xs text-purple-400 hover:text-purple-300 mt-2">+ 添加尾帧</button>
+        <button onclick="addEndFrameInput()" class="text-xs text-purple-400 hover:text-purple-300 mt-2" data-i18n="addEndFrame">+ 添加尾帧</button>
       </div>
     </div>
 
     <!-- Submit -->
-    <button id="btn-submit" onclick="createTask()" class="w-full py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-xl text-base font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed">
+    <button id="btn-submit" onclick="createTask()" class="w-full py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-xl text-base font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed" data-i18n="startGenerate">
       开始生成视频
     </button>
   </div>
@@ -146,17 +157,17 @@
   <!-- List Tab -->
   <div id="panel-list" class="hidden">
     <div id="task-list-container" class="space-y-3">
-      <p class="text-gray-500 text-sm">加载中...</p>
+      <p class="text-gray-500 text-sm" data-i18n="loading">加载中...</p>
     </div>
   </div>
 
   <!-- Progress Panel -->
   <div id="progress-panel" class="hidden bg-gray-900 rounded-2xl p-6 mt-6 border border-gray-800">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-semibold text-purple-300">生成进度</h2>
+      <h2 class="text-lg font-semibold text-purple-300" data-i18n="progress">生成进度</h2>
       <div class="flex items-center gap-3">
         <span id="progress-pct" class="text-sm text-gray-400">0%</span>
-        <button id="btn-stop" onclick="stopTask()" class="hidden text-xs px-3 py-1.5 bg-red-700 hover:bg-red-600 text-red-100 rounded-lg transition">中断任务</button>
+        <button id="btn-stop" onclick="stopTask()" class="hidden text-xs px-3 py-1.5 bg-red-700 hover:bg-red-600 text-red-100 rounded-lg transition" data-i18n="stopTask">中断任务</button>
       </div>
     </div>
 
@@ -169,39 +180,39 @@
     <div class="space-y-2" id="steps-container">
       <div class="step-item flex items-center gap-3 text-sm" data-step="init">
         <span class="step-icon w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-xs">○</span>
-        <span class="step-label text-gray-500">初始化</span>
+        <span class="step-label text-gray-500" data-i18n="stepInit">初始化</span>
       </div>
       <div class="step-item flex items-center gap-3 text-sm" data-step="image_analysis">
         <span class="step-icon w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-xs">○</span>
-        <span class="step-label text-gray-500">图片分析</span>
+        <span class="step-label text-gray-500" data-i18n="stepImageAnalysis">图片分析</span>
       </div>
       <div class="step-item flex items-center gap-3 text-sm" data-step="story">
         <span class="step-icon w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-xs">○</span>
-        <span class="step-label text-gray-500">故事生成</span>
+        <span class="step-label text-gray-500" data-i18n="stepStory">故事生成</span>
       </div>
       <div class="step-item flex items-center gap-3 text-sm" data-step="character_ref">
         <span class="step-icon w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-xs">○</span>
-        <span class="step-label text-gray-500">角色参考图</span>
+        <span class="step-label text-gray-500" data-i18n="stepCharacterRef">角色参考图</span>
       </div>
       <div class="step-item flex items-center gap-3 text-sm" data-step="script">
         <span class="step-icon w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-xs">○</span>
-        <span class="step-label text-gray-500">脚本编写</span>
+        <span class="step-label text-gray-500" data-i18n="stepScript">脚本编写</span>
       </div>
       <div class="step-item flex items-center gap-3 text-sm" data-step="end_frame_prompts">
         <span class="step-icon w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-xs">○</span>
-        <span class="step-label text-gray-500">尾帧提示词</span>
+        <span class="step-label text-gray-500" data-i18n="stepEndFramePrompts">尾帧提示词</span>
       </div>
       <div class="step-item flex items-center gap-3 text-sm" data-step="end_frame_gen">
         <span class="step-icon w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-xs">○</span>
-        <span class="step-label text-gray-500">尾帧生成</span>
+        <span class="step-label text-gray-500" data-i18n="stepEndFrameGen">尾帧生成</span>
       </div>
       <div class="step-item flex items-center gap-3 text-sm" data-step="video_gen">
         <span class="step-icon w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-xs">○</span>
-        <span class="step-label text-gray-500">视频生成</span>
+        <span class="step-label text-gray-500" data-i18n="stepVideoGen">视频生成</span>
       </div>
       <div class="step-item flex items-center gap-3 text-sm" data-step="concatenate">
         <span class="step-icon w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-xs">○</span>
-        <span class="step-label text-gray-500">视频拼接</span>
+        <span class="step-label text-gray-500" data-i18n="stepConcatenate">视频拼接</span>
       </div>
     </div>
 
@@ -210,7 +221,7 @@
 
     <!-- Result -->
     <div id="result-area" class="hidden mt-4 p-4 bg-gray-800 rounded-lg">
-      <p class="text-green-400 text-sm font-medium mb-2">视频生成完成!</p>
+      <p class="text-green-400 text-sm font-medium mb-2" data-i18n="videoComplete">视频生成完成!</p>
       <video id="result-video" controls class="w-full rounded-lg max-h-96"></video>
     </div>
   </div>
@@ -218,6 +229,701 @@
 </div>
 
 <script>
+// ── i18n ──
+const LANGUAGES = {
+  zh: { name: '中文', flag: '🇨🇳' },
+  en: { name: 'English', flag: '🇺🇸' },
+  ru: { name: 'Русский', flag: '🇷🇺' },
+  ja: { name: '日本語', flag: '🇯🇵' },
+  ko: { name: '한국어', flag: '🇰🇷' },
+  ms: { name: 'Bahasa Melayu', flag: '🇲🇾' },
+  id: { name: 'Bahasa Indonesia', flag: '🇮🇩' },
+};
+
+const T = {
+  zh: {
+    subtitle: '创意 → 视频，一键生成',
+    apiKeyTitle: 'API Key 配置',
+    apiKeyNotConfigured: '未配置',
+    apiKeyConfigured: '已配置',
+    apiKeyPlaceholder: '输入 Agnes API Key',
+    apiKeyMasked: '已配置 (●●●)',
+    save: '保存',
+    tabCreate: '新建任务',
+    tabList: '任务列表',
+    creativeSettings: '创意设置',
+    taskName: '任务名称',
+    taskNamePlaceholder: '可选，留空自动生成',
+    ideaLabel: '创意描述',
+    ideaPlaceholder: '描述你心中的故事、场景和角色...',
+    userRequirement: '用户要求',
+    visualStyle: '视觉风格',
+    advancedSettings: '高级设置',
+    chainingMode: '串联模式',
+    modeKeyframes: 'keyframes (推荐)',
+    modeTi2vid: 'ti2vid (过渡帧)',
+    modeNone: 'none (独立场景)',
+    videoWidth: '视频宽度',
+    videoHeight: '视频高度',
+    referenceImage: '参考图 (可选)',
+    chooseImage: '选择参考图',
+    notSelected: '未选择',
+    refDescription: '可选。提供后所有场景将以该图为视觉锚点；不提供则自动从故事中生成角色参考图',
+    customEndFrames: '自定义尾帧 (可选)',
+    enableCustomEndFrames: '启用自定义尾帧',
+    genEndFramesFromRef: '基于参考图生成尾帧 (i2i)',
+    endFrameDesc: '每个场景一张尾帧图，按顺序对应。多余场景自动生成尾帧。',
+    scene_: '场景',
+    addEndFrame: '+ 添加尾帧',
+    startGenerate: '开始生成视频',
+    submitting: '提交中...',
+    taskRunning: '任务进行中...',
+    loading: '加载中...',
+    noTasks: '暂无任务',
+    loadFailed: '加载失败',
+    progress: '生成进度',
+    stopTask: '中断任务',
+    stepInit: '初始化',
+    stepImageAnalysis: '图片分析',
+    stepStory: '故事生成',
+    stepCharacterRef: '角色参考图',
+    stepScript: '脚本编写',
+    stepEndFramePrompts: '尾帧提示词',
+    stepEndFrameGen: '尾帧生成',
+    stepVideoGen: '视频生成',
+    stepConcatenate: '视频拼接',
+    videoComplete: '视频生成完成!',
+    taskComplete: '任务已完成',
+    taskId: '任务ID',
+    dir: '目录',
+    idea_: '创意',
+    sceneCount: '场景数',
+    chainingMode_: '串联模式',
+    artifact: '产物',
+    statusCompleted: '已完成',
+    statusRunning: '进行中',
+    statusFailed: '失败',
+    statusPending: '待处理',
+    btnView: '查看',
+    btnViewProgress: '查看进度',
+    btnResume: '续传',
+    btnStop: '中断',
+    sceneUnit: '个场景',
+    stopConfirm: '确定要中断当前任务吗？中断后可到任务列表续传。',
+    stopConfirmById: '确定要中断该任务吗？中断后可续传。',
+    stopped: '任务已中断，可在任务列表中续传',
+    stoppedById: '任务已中断',
+    enterApiKey: '请输入 API Key',
+    enterIdea: '请输入创意描述',
+    taskRunningWarn: '已有任务正在运行中，请等待完成',
+    taskRunningSwitch: '任务正在运行中，可在下方进度面板查看实时状态',
+    failCreate: '创建失败',
+    failResume: '续传失败',
+    failLoad: '加载任务详情失败',
+    failStop: '中断失败',
+    stopping: '正在中断...',
+    submitted: '任务已提交，请观察控制台日志（启动 server.py 的终端）耐心等待',
+    resumed: '续传已开始，请观察控制台日志（启动 server.py 的终端）耐心等待',
+    watchLog: '提示：请观察控制台日志（启动 server.py 的终端），耐心等待生成完成。关键操作均有日志输出，便于排查问题。',
+    task_: '任务',
+    genFailed: '任务生成失败',
+    genFailedMsg: '请查看控制台日志排查问题，然后到任务列表点击"续传"恢复。',
+    gotoResume: '前往任务列表续传',
+    connLost: '连接中断',
+    connLostMsg: '与服务端的实时连接已断开。请检查控制台日志，服务可能仍在后台运行。可到任务列表查看状态并续传。',
+    gotoList: '前往任务列表',
+    reconnecting: '⚠️ 实时连接断开，正在重试...',
+  },
+  en: {
+    subtitle: 'Idea → Video, One Click',
+    apiKeyTitle: 'API Key Configuration',
+    apiKeyNotConfigured: 'Not configured',
+    apiKeyConfigured: 'Configured',
+    apiKeyPlaceholder: 'Enter Agnes API Key',
+    apiKeyMasked: 'Configured (●●●)',
+    save: 'Save',
+    tabCreate: 'New Task',
+    tabList: 'Task List',
+    creativeSettings: 'Creative Settings',
+    taskName: 'Task Name',
+    taskNamePlaceholder: 'Optional, leave blank for auto-generation',
+    ideaLabel: 'Idea Description',
+    ideaPlaceholder: 'Describe your story, scenes, and characters...',
+    userRequirement: 'Requirements',
+    visualStyle: 'Visual Style',
+    advancedSettings: 'Advanced Settings',
+    chainingMode: 'Chaining Mode',
+    modeKeyframes: 'keyframes (recommended)',
+    modeTi2vid: 'ti2vid (transition frames)',
+    modeNone: 'none (independent scenes)',
+    videoWidth: 'Video Width',
+    videoHeight: 'Video Height',
+    referenceImage: 'Reference Image (Optional)',
+    chooseImage: 'Choose Image',
+    notSelected: 'Not selected',
+    refDescription: 'Optional. All scenes will use this image as a visual anchor. If not provided, a character reference will be auto-generated from the story.',
+    customEndFrames: 'Custom End Frames (Optional)',
+    enableCustomEndFrames: 'Enable custom end frames',
+    genEndFramesFromRef: 'Generate end frames from reference (i2i)',
+    endFrameDesc: 'One end frame per scene, in order. Extra scenes will auto-generate end frames.',
+    scene_: 'Scene',
+    addEndFrame: '+ Add end frame',
+    startGenerate: 'Start Generating Video',
+    submitting: 'Submitting...',
+    taskRunning: 'Task in progress...',
+    loading: 'Loading...',
+    noTasks: 'No tasks',
+    loadFailed: 'Load failed',
+    progress: 'Progress',
+    stopTask: 'Stop Task',
+    stepInit: 'Initialization',
+    stepImageAnalysis: 'Image Analysis',
+    stepStory: 'Story Generation',
+    stepCharacterRef: 'Character Reference',
+    stepScript: 'Script Writing',
+    stepEndFramePrompts: 'End Frame Prompts',
+    stepEndFrameGen: 'End Frame Generation',
+    stepVideoGen: 'Video Generation',
+    stepConcatenate: 'Video Concatenation',
+    videoComplete: 'Video generation complete!',
+    taskComplete: 'Task completed',
+    taskId: 'Task ID',
+    dir: 'Directory',
+    idea_: 'Idea',
+    sceneCount: 'Scenes',
+    chainingMode_: 'Chaining Mode',
+    artifact: 'Output',
+    statusCompleted: 'Completed',
+    statusRunning: 'Running',
+    statusFailed: 'Failed',
+    statusPending: 'Pending',
+    btnView: 'View',
+    btnViewProgress: 'View Progress',
+    btnResume: 'Resume',
+    btnStop: 'Stop',
+    sceneUnit: ' scenes',
+    stopConfirm: 'Are you sure you want to stop the current task? It can be resumed from the task list.',
+    stopConfirmById: 'Are you sure you want to stop this task? It can be resumed later.',
+    stopped: 'Task stopped, can be resumed from the task list',
+    stoppedById: 'Task stopped',
+    enterApiKey: 'Please enter your API Key',
+    enterIdea: 'Please describe your idea',
+    taskRunningWarn: 'A task is already running, please wait for it to complete',
+    taskRunningSwitch: 'A task is running, check the progress panel below for real-time status',
+    failCreate: 'Failed to create task',
+    failResume: 'Failed to resume task',
+    failLoad: 'Failed to load task details',
+    failStop: 'Failed to stop task',
+    stopping: 'Stopping...',
+    submitted: 'Task submitted. Please check the console logs (terminal running server.py) and be patient.',
+    resumed: 'Task resumed. Please check the console logs (terminal running server.py) and be patient.',
+    watchLog: 'Please observe the console logs (terminal running server.py) and wait patiently. All key operations are logged for debugging.',
+    task_: 'Task',
+    genFailed: 'Task failed',
+    genFailedMsg: 'Check the console logs for details, then click "Resume" in the task list to retry.',
+    gotoResume: 'Go to task list to resume',
+    connLost: 'Connection Lost',
+    connLostMsg: 'Real-time connection to the server was lost. The server may still be running in the background. Check the task list for status.',
+    gotoList: 'Go to task list',
+    reconnecting: '⚠️ Connection lost, retrying...',
+  },
+  ru: {
+    subtitle: 'Идея → Видео, Один клик',
+    apiKeyTitle: 'Настройка API Key',
+    apiKeyNotConfigured: 'Не настроен',
+    apiKeyConfigured: 'Настроен',
+    apiKeyPlaceholder: 'Введите Agnes API Key',
+    apiKeyMasked: 'Настроен (●●●)',
+    save: 'Сохранить',
+    tabCreate: 'Новая задача',
+    tabList: 'Список задач',
+    creativeSettings: 'Настройки сценария',
+    taskName: 'Название задачи',
+    taskNamePlaceholder: 'Необязательно, оставьте пустым для автогенерации',
+    ideaLabel: 'Описание идеи',
+    ideaPlaceholder: 'Опишите вашу историю, сцены и персонажей...',
+    userRequirement: 'Требования',
+    visualStyle: 'Визуальный стиль',
+    advancedSettings: 'Расширенные настройки',
+    chainingMode: 'Режим связывания',
+    modeKeyframes: 'keyframes (рекомендуется)',
+    modeTi2vid: 'ti2vid (переходные кадры)',
+    modeNone: 'none (независимые сцены)',
+    videoWidth: 'Ширина видео',
+    videoHeight: 'Высота видео',
+    referenceImage: 'Референс (необязательно)',
+    chooseImage: 'Выбрать изображение',
+    notSelected: 'Не выбрано',
+    refDescription: 'Необязательно. Все сцены будут использовать это изображение как визуальный якорь. Если не указано, референс будет создан автоматически.',
+    customEndFrames: 'Финальные кадры (необязательно)',
+    enableCustomEndFrames: 'Включить финальные кадры',
+    genEndFramesFromRef: 'Создать финальные кадры из референса (i2i)',
+    endFrameDesc: 'Один финальный кадр на сцену, по порядку. Лишние сцены создадут кадры автоматически.',
+    scene_: 'Сцена',
+    addEndFrame: '+ Добавить кадр',
+    startGenerate: 'Начать генерацию видео',
+    submitting: 'Отправка...',
+    taskRunning: 'Задача выполняется...',
+    loading: 'Загрузка...',
+    noTasks: 'Нет задач',
+    loadFailed: 'Ошибка загрузки',
+    progress: 'Прогресс',
+    stopTask: 'Остановить',
+    stepInit: 'Инициализация',
+    stepImageAnalysis: 'Анализ изображения',
+    stepStory: 'Генерация сюжета',
+    stepCharacterRef: 'Референс персонажа',
+    stepScript: 'Написание сценария',
+    stepEndFramePrompts: 'Промпты финальных кадров',
+    stepEndFrameGen: 'Генерация финальных кадров',
+    stepVideoGen: 'Генерация видео',
+    stepConcatenate: 'Сборка видео',
+    videoComplete: 'Видео готово!',
+    taskComplete: 'Задача выполнена',
+    taskId: 'ID задачи',
+    dir: 'Папка',
+    idea_: 'Идея',
+    sceneCount: 'Сцены',
+    chainingMode_: 'Режим связывания',
+    artifact: 'Результат',
+    statusCompleted: 'Завершено',
+    statusRunning: 'Выполняется',
+    statusFailed: 'Ошибка',
+    statusPending: 'Ожидание',
+    btnView: 'Просмотр',
+    btnViewProgress: 'Прогресс',
+    btnResume: 'Продолжить',
+    btnStop: 'Остановить',
+    sceneUnit: ' сцен',
+    stopConfirm: 'Остановить текущую задачу? Её можно будет продолжить из списка задач.',
+    stopConfirmById: 'Остановить эту задачу? Её можно будет продолжить позже.',
+    stopped: 'Задача остановлена, можно продолжить из списка задач',
+    stoppedById: 'Задача остановлена',
+    enterApiKey: 'Пожалуйста, введите API Key',
+    enterIdea: 'Пожалуйста, опишите идею',
+    taskRunningWarn: 'Задача уже выполняется, дождитесь завершения',
+    taskRunningSwitch: 'Задача выполняется, проверьте прогресс на панели ниже',
+    failCreate: 'Ошибка создания задачи',
+    failResume: 'Ошибка возобновления задачи',
+    failLoad: 'Ошибка загрузки деталей задачи',
+    failStop: 'Ошибка остановки задачи',
+    stopping: 'Остановка...',
+    submitted: 'Задача отправлена. Следите за логами в консоли (терминал с server.py).',
+    resumed: 'Задача возобновлена. Следите за логами в консоли (терминал с server.py).',
+    watchLog: 'Следите за логами в консоли (терминал с server.py). Все ключевые операции логируются.',
+    task_: 'Задача',
+    genFailed: 'Ошибка генерации',
+    genFailedMsg: 'Проверьте логи консоли, затем нажмите "Продолжить" в списке задач.',
+    gotoResume: 'Перейти к списку задач',
+    connLost: 'Соединение потеряно',
+    connLostMsg: 'Соединение с сервером потеряно. Сервер может всё ещё работать. Проверьте список задач.',
+    gotoList: 'Перейти к списку задач',
+    reconnecting: '⚠️ Соединение потеряно, повторная попытка...',
+  },
+  ja: {
+    subtitle: 'アイデア → 動画、ワンクリック',
+    apiKeyTitle: 'API Key 設定',
+    apiKeyNotConfigured: '未設定',
+    apiKeyConfigured: '設定済み',
+    apiKeyPlaceholder: 'Agnes API Key を入力',
+    apiKeyMasked: '設定済み (●●●)',
+    save: '保存',
+    tabCreate: '新規タスク',
+    tabList: 'タスク一覧',
+    creativeSettings: 'クリエイティブ設定',
+    taskName: 'タスク名',
+    taskNamePlaceholder: '任意、空欄で自動生成',
+    ideaLabel: 'アイデア説明',
+    ideaPlaceholder: 'ストーリー、シーン、キャラクターを記述してください...',
+    userRequirement: '要件',
+    visualStyle: 'ビジュアルスタイル',
+    advancedSettings: '詳細設定',
+    chainingMode: '連鎖モード',
+    modeKeyframes: 'keyframes (推奨)',
+    modeTi2vid: 'ti2vid (遷移フレーム)',
+    modeNone: 'none (独立シーン)',
+    videoWidth: '動画幅',
+    videoHeight: '動画高さ',
+    referenceImage: '参照画像 (任意)',
+    chooseImage: '画像を選択',
+    notSelected: '未選択',
+    refDescription: '任意。全シーンでこの画像を視覚的なアンカーとして使用します。指定しない場合はストーリーから自動生成されます。',
+    customEndFrames: 'カスタム最終フレーム (任意)',
+    enableCustomEndFrames: '最終フレームを有効化',
+    genEndFramesFromRef: '参照画像から最終フレームを生成 (i2i)',
+    endFrameDesc: 'シーンごとに1枚の最終フレーム画像を順番に指定。余剰シーンは自動生成されます。',
+    scene_: 'シーン',
+    addEndFrame: '+ フレーム追加',
+    startGenerate: '動画生成を開始',
+    submitting: '送信中...',
+    taskRunning: 'タスク実行中...',
+    loading: '読み込み中...',
+    noTasks: 'タスクがありません',
+    loadFailed: '読み込み失敗',
+    progress: '進捗',
+    stopTask: '中断',
+    stepInit: '初期化',
+    stepImageAnalysis: '画像分析',
+    stepStory: 'ストーリー生成',
+    stepCharacterRef: 'キャラクター参照',
+    stepScript: '脚本作成',
+    stepEndFramePrompts: '最終フレームプロンプト',
+    stepEndFrameGen: '最終フレーム生成',
+    stepVideoGen: '動画生成',
+    stepConcatenate: '動画結合',
+    videoComplete: '動画生成完了!',
+    taskComplete: 'タスク完了',
+    taskId: 'タスクID',
+    dir: 'ディレクトリ',
+    idea_: 'アイデア',
+    sceneCount: 'シーン数',
+    chainingMode_: '連鎖モード',
+    artifact: '出力',
+    statusCompleted: '完了',
+    statusRunning: '実行中',
+    statusFailed: '失敗',
+    statusPending: '保留中',
+    btnView: '表示',
+    btnViewProgress: '進捗表示',
+    btnResume: '再開',
+    btnStop: '停止',
+    sceneUnit: ' シーン',
+    stopConfirm: '現在のタスクを中断しますか？タスク一覧から再開できます。',
+    stopConfirmById: 'このタスクを中断しますか？後で再開できます。',
+    stopped: 'タスクを中断しました。タスク一覧から再開できます。',
+    stoppedById: 'タスクを中断しました',
+    enterApiKey: 'API Key を入力してください',
+    enterIdea: 'アイデアを記述してください',
+    taskRunningWarn: 'タスクが実行中です。完了をお待ちください',
+    taskRunningSwitch: 'タスクが実行中です。下の進捗パネルで確認できます',
+    failCreate: 'タスク作成に失敗しました',
+    failResume: 'タスク再開に失敗しました',
+    failLoad: 'タスク詳細の読み込みに失敗しました',
+    failStop: 'タスク停止に失敗しました',
+    stopping: '停止中...',
+    submitted: 'タスクを送信しました。コンソールログ（server.py のターミナル）をご確認ください。',
+    resumed: 'タスクを再開しました。コンソールログ（server.py のターミナル）をご確認ください。',
+    watchLog: 'コンソールログ（server.py のターミナル）をご確認の上、しばらくお待ちください。',
+    task_: 'タスク',
+    genFailed: '生成に失敗しました',
+    genFailedMsg: 'コンソールログを確認し、タスク一覧から「再開」をクリックしてください。',
+    gotoResume: 'タスク一覧へ',
+    connLost: '接続が切れました',
+    connLostMsg: 'サーバーとの接続が切れました。サーバーはバックグラウンドで動作中の場合があります。タスク一覧で状態を確認してください。',
+    gotoList: 'タスク一覧へ',
+    reconnecting: '⚠️ 接続が切れました、再接続中...',
+  },
+  ko: {
+    subtitle: '아이디어 → 영상, 원클릭',
+    apiKeyTitle: 'API Key 설정',
+    apiKeyNotConfigured: '미설정',
+    apiKeyConfigured: '설정됨',
+    apiKeyPlaceholder: 'Agnes API Key 입력',
+    apiKeyMasked: '설정됨 (●●●)',
+    save: '저장',
+    tabCreate: '새 작업',
+    tabList: '작업 목록',
+    creativeSettings: '크리에이티브 설정',
+    taskName: '작업 이름',
+    taskNamePlaceholder: '선택사항, 비워두면 자동 생성',
+    ideaLabel: '아이디어 설명',
+    ideaPlaceholder: '스토리, 장면, 캐릭터를 설명하세요...',
+    userRequirement: '요구사항',
+    visualStyle: '비주얼 스타일',
+    advancedSettings: '고급 설정',
+    chainingMode: '체인 모드',
+    modeKeyframes: 'keyframes (권장)',
+    modeTi2vid: 'ti2vid (전환 프레임)',
+    modeNone: 'none (독립 장면)',
+    videoWidth: '비디오 너비',
+    videoHeight: '비디오 높이',
+    referenceImage: '참조 이미지 (선택사항)',
+    chooseImage: '이미지 선택',
+    notSelected: '선택 안 됨',
+    refDescription: '선택사항. 모든 장면이 이 이미지를 시각적 기준으로 사용합니다. 제공하지 않으면 스토리에서 자동 생성됩니다.',
+    customEndFrames: '커스텀 엔드 프레임 (선택사항)',
+    enableCustomEndFrames: '엔드 프레임 활성화',
+    genEndFramesFromRef: '참조 이미지로 엔드 프레임 생성 (i2i)',
+    endFrameDesc: '장면별로 하나의 엔드 프레임 이미지를 순서대로 지정합니다. 추가 장면은 자동 생성됩니다.',
+    scene_: '장면',
+    addEndFrame: '+ 프레임 추가',
+    startGenerate: '영상 생성 시작',
+    submitting: '제출 중...',
+    taskRunning: '작업 실행 중...',
+    loading: '로딩 중...',
+    noTasks: '작업 없음',
+    loadFailed: '로딩 실패',
+    progress: '진행 상황',
+    stopTask: '중단',
+    stepInit: '초기화',
+    stepImageAnalysis: '이미지 분석',
+    stepStory: '스토리 생성',
+    stepCharacterRef: '캐릭터 참조',
+    stepScript: '대본 작성',
+    stepEndFramePrompts: '엔드 프레임 프롬프트',
+    stepEndFrameGen: '엔드 프레임 생성',
+    stepVideoGen: '영상 생성',
+    stepConcatenate: '영상 편집',
+    videoComplete: '영상 생성 완료!',
+    taskComplete: '작업 완료',
+    taskId: '작업 ID',
+    dir: '디렉토리',
+    idea_: '아이디어',
+    sceneCount: '장면 수',
+    chainingMode_: '체인 모드',
+    artifact: '출력물',
+    statusCompleted: '완료',
+    statusRunning: '실행 중',
+    statusFailed: '실패',
+    statusPending: '대기 중',
+    btnView: '보기',
+    btnViewProgress: '진행 보기',
+    btnResume: '재개',
+    btnStop: '중지',
+    sceneUnit: '개 장면',
+    stopConfirm: '현재 작업을 중단하시겠습니까? 작업 목록에서 재개할 수 있습니다.',
+    stopConfirmById: '이 작업을 중단하시겠습니까? 나중에 재개할 수 있습니다.',
+    stopped: '작업이 중단되었습니다. 작업 목록에서 재개할 수 있습니다.',
+    stoppedById: '작업이 중단되었습니다',
+    enterApiKey: 'API Key를 입력하세요',
+    enterIdea: '아이디어를 입력하세요',
+    taskRunningWarn: '이미 실행 중인 작업이 있습니다. 완료될 때까지 기다려주세요.',
+    taskRunningSwitch: '작업이 실행 중입니다. 아래 진행 패널에서 상태를 확인하세요.',
+    failCreate: '작업 생성 실패',
+    failResume: '작업 재개 실패',
+    failLoad: '작업 상세 로딩 실패',
+    failStop: '작업 중단 실패',
+    stopping: '중단 중...',
+    submitted: '작업이 제출되었습니다. 콘솔 로그(server.py 터미널)를 확인하고 기다려주세요.',
+    resumed: '작업이 재개되었습니다. 콘솔 로그(server.py 터미널)를 확인하고 기다려주세요.',
+    watchLog: '콘솔 로그(server.py 터미널)를 확인하고 기다려주세요. 모든 주요 작업이 로그에 기록됩니다.',
+    task_: '작업',
+    genFailed: '생성 실패',
+    genFailedMsg: '콘솔 로그를 확인한 후 작업 목록에서 "재개"를 클릭하세요.',
+    gotoResume: '작업 목록으로 이동',
+    connLost: '연결 끊김',
+    connLostMsg: '서버와의 연결이 끊어졌습니다. 서버는 백그라운드에서 계속 실행 중일 수 있습니다. 작업 목록에서 상태를 확인하세요.',
+    gotoList: '작업 목록으로 이동',
+    reconnecting: '⚠️ 연결 끊김, 재시도 중...',
+  },
+  ms: {
+    subtitle: 'Idea → Video, Satu Klik',
+    apiKeyTitle: 'Konfigurasi API Key',
+    apiKeyNotConfigured: 'Belum dikonfigurasi',
+    apiKeyConfigured: 'Sudah dikonfigurasi',
+    apiKeyPlaceholder: 'Masukkan Agnes API Key',
+    apiKeyMasked: 'Sudah dikonfigurasi (●●●)',
+    save: 'Simpan',
+    tabCreate: 'Tugas Baru',
+    tabList: 'Senarai Tugas',
+    creativeSettings: 'Tetapan Kreatif',
+    taskName: 'Nama Tugas',
+    taskNamePlaceholder: 'Pilihan, biarkan kosong untuk auto-generasi',
+    ideaLabel: 'Penerangan Idea',
+    ideaPlaceholder: 'Terangkan cerita, babak, dan watak anda...',
+    userRequirement: 'Keperluan',
+    visualStyle: 'Gaya Visual',
+    advancedSettings: 'Tetapan Lanjutan',
+    chainingMode: 'Mod Rantai',
+    modeKeyframes: 'keyframes (disyorkan)',
+    modeTi2vid: 'ti2vid (bingkai peralihan)',
+    modeNone: 'none (babak bebas)',
+    videoWidth: 'Lebar Video',
+    videoHeight: 'Tinggi Video',
+    referenceImage: 'Imej Rujukan (Pilihan)',
+    chooseImage: 'Pilih Imej',
+    notSelected: 'Tidak dipilih',
+    refDescription: 'Pilihan. Semua babak akan menggunakan imej ini sebagai sauh visual. Jika tidak disediakan, rujukan akan dijana secara automatik daripada cerita.',
+    customEndFrames: 'Bingkai Akhir Tersuai (Pilihan)',
+    enableCustomEndFrames: 'Aktifkan bingkai akhir tersuai',
+    genEndFramesFromRef: 'Hasilkan bingkai akhir daripada rujukan (i2i)',
+    endFrameDesc: 'Satu bingkai akhir setiap babak, mengikut tertib. Babak lebihan akan menjana bingkai akhir secara automatik.',
+    scene_: 'Babak',
+    addEndFrame: '+ Tambah bingkai',
+    startGenerate: 'Mula Hasilkan Video',
+    submitting: 'Menghantar...',
+    taskRunning: 'Tugas sedang berjalan...',
+    loading: 'Memuatkan...',
+    noTasks: 'Tiada tugas',
+    loadFailed: 'Gagal memuatkan',
+    progress: 'Kemajuan',
+    stopTask: 'Henti',
+    stepInit: 'Permulaan',
+    stepImageAnalysis: 'Analisis Imej',
+    stepStory: 'Penjanaan Cerita',
+    stepCharacterRef: 'Rujukan Watak',
+    stepScript: 'Penulisan Skrip',
+    stepEndFramePrompts: 'Prompt Bingkai Akhir',
+    stepEndFrameGen: 'Penjanaan Bingkai Akhir',
+    stepVideoGen: 'Penjanaan Video',
+    stepConcatenate: 'Gabungan Video',
+    videoComplete: 'Penjanaan video selesai!',
+    taskComplete: 'Tugas selesai',
+    taskId: 'ID Tugas',
+    dir: 'Direktori',
+    idea_: 'Idea',
+    sceneCount: 'Bilangan Babak',
+    chainingMode_: 'Mod Rantai',
+    artifact: 'Hasil',
+    statusCompleted: 'Selesai',
+    statusRunning: 'Berjalan',
+    statusFailed: 'Gagal',
+    statusPending: 'Menunggu',
+    btnView: 'Lihat',
+    btnViewProgress: 'Lihat Kemajuan',
+    btnResume: 'Sambung Semula',
+    btnStop: 'Henti',
+    sceneUnit: ' babak',
+    stopConfirm: 'Pasti ingin menghentikan tugas semasa? Ia boleh disambung semula dari senarai tugas.',
+    stopConfirmById: 'Pasti ingin menghentikan tugas ini? Ia boleh disambung semula kemudian.',
+    stopped: 'Tugas dihentikan, boleh disambung semula dari senarai tugas',
+    stoppedById: 'Tugas dihentikan',
+    enterApiKey: 'Sila masukkan API Key',
+    enterIdea: 'Sila terangkan idea anda',
+    taskRunningWarn: 'Tugas sedang berjalan, sila tunggu sehingga selesai',
+    taskRunningSwitch: 'Tugas sedang berjalan, lihat panel kemajuan di bawah untuk status masa nyata',
+    failCreate: 'Gagal mencipta tugas',
+    failResume: 'Gagal menyambung semula tugas',
+    failLoad: 'Gagal memuatkan butiran tugas',
+    failStop: 'Gagal menghentikan tugas',
+    stopping: 'Memberhentikan...',
+    submitted: 'Tugas telah dihantar. Sila perhatikan log konsol (terminal yang menjalankan server.py) dan bersabar.',
+    resumed: 'Tugas disambung semula. Sila perhatikan log konsol (terminal yang menjalankan server.py) dan bersabar.',
+    watchLog: 'Sila perhatikan log konsol (terminal yang menjalankan server.py) dan tunggu dengan sabar. Semua operasi utama dicatat untuk debugging.',
+    task_: 'Tugas',
+    genFailed: 'Penjanaan gagal',
+    genFailedMsg: 'Periksa log konsol untuk butiran, kemudian klik "Sambung Semula" dalam senarai tugas.',
+    gotoResume: 'Pergi ke senarai tugas',
+    connLost: 'Sambungan Terputus',
+    connLostMsg: 'Sambungan masa nyata ke pelayan terputus. Pelayan mungkin masih berjalan di latar belakang. Periksa senarai tugas untuk status.',
+    gotoList: 'Pergi ke senarai tugas',
+    reconnecting: '⚠️ Sambungan terputus, mencuba semula...',
+  },
+  id: {
+    subtitle: 'Ide → Video, Satu Klik',
+    apiKeyTitle: 'Konfigurasi API Key',
+    apiKeyNotConfigured: 'Belum dikonfigurasi',
+    apiKeyConfigured: 'Terkonfigurasi',
+    apiKeyPlaceholder: 'Masukkan Agnes API Key',
+    apiKeyMasked: 'Terkonfigurasi (●●●)',
+    save: 'Simpan',
+    tabCreate: 'Tugas Baru',
+    tabList: 'Daftar Tugas',
+    creativeSettings: 'Pengaturan Kreatif',
+    taskName: 'Nama Tugas',
+    taskNamePlaceholder: 'Opsional, kosongkan untuk auto-generasi',
+    ideaLabel: 'Deskripsi Ide',
+    ideaPlaceholder: 'Jelaskan cerita, adegan, dan karakter Anda...',
+    userRequirement: 'Persyaratan',
+    visualStyle: 'Gaya Visual',
+    advancedSettings: 'Pengaturan Lanjutan',
+    chainingMode: 'Mode Rantai',
+    modeKeyframes: 'keyframes (direkomendasikan)',
+    modeTi2vid: 'ti2vid (bingkai transisi)',
+    modeNone: 'none (adegan independen)',
+    videoWidth: 'Lebar Video',
+    videoHeight: 'Tinggi Video',
+    referenceImage: 'Gambar Referensi (Opsional)',
+    chooseImage: 'Pilih Gambar',
+    notSelected: 'Belum dipilih',
+    refDescription: 'Opsional. Semua adegan akan menggunakan gambar ini sebagai jangkar visual. Jika tidak disediakan, referensi akan dihasilkan secara otomatis dari cerita.',
+    customEndFrames: 'Bingkai Akhir Kustom (Opsional)',
+    enableCustomEndFrames: 'Aktifkan bingkai akhir kustom',
+    genEndFramesFromRef: 'Hasilkan bingkai akhir dari referensi (i2i)',
+    endFrameDesc: 'Satu bingkai akhir per adegan, sesuai urutan. Adegan berlebih akan menghasilkan bingkai akhir otomatis.',
+    scene_: 'Adegan',
+    addEndFrame: '+ Tambah bingkai',
+    startGenerate: 'Mulai Hasilkan Video',
+    submitting: 'Mengirim...',
+    taskRunning: 'Tugas berjalan...',
+    loading: 'Memuat...',
+    noTasks: 'Tidak ada tugas',
+    loadFailed: 'Gagal memuat',
+    progress: 'Kemajuan',
+    stopTask: 'Hentikan',
+    stepInit: 'Inisialisasi',
+    stepImageAnalysis: 'Analisis Gambar',
+    stepStory: 'Pembuatan Cerita',
+    stepCharacterRef: 'Referensi Karakter',
+    stepScript: 'Penulisan Skenario',
+    stepEndFramePrompts: 'Prompt Bingkai Akhir',
+    stepEndFrameGen: 'Pembuatan Bingkai Akhir',
+    stepVideoGen: 'Pembuatan Video',
+    stepConcatenate: 'Penggabungan Video',
+    videoComplete: 'Pembuatan video selesai!',
+    taskComplete: 'Tugas selesai',
+    taskId: 'ID Tugas',
+    dir: 'Direktori',
+    idea_: 'Ide',
+    sceneCount: 'Jumlah Adegan',
+    chainingMode_: 'Mode Rantai',
+    artifact: 'Hasil',
+    statusCompleted: 'Selesai',
+    statusRunning: 'Berjalan',
+    statusFailed: 'Gagal',
+    statusPending: 'Menunggu',
+    btnView: 'Lihat',
+    btnViewProgress: 'Lihat Kemajuan',
+    btnResume: 'Lanjutkan',
+    btnStop: 'Henti',
+    sceneUnit: ' adegan',
+    stopConfirm: 'Yakin ingin menghentikan tugas saat ini? Dapat dilanjutkan dari daftar tugas.',
+    stopConfirmById: 'Yakin ingin menghentikan tugas ini? Dapat dilanjutkan nanti.',
+    stopped: 'Tugas dihentikan, dapat dilanjutkan dari daftar tugas',
+    stoppedById: 'Tugas dihentikan',
+    enterApiKey: 'Silakan masukkan API Key',
+    enterIdea: 'Silakan jelaskan ide Anda',
+    taskRunningWarn: 'Tugas sedang berjalan, harap tunggu hingga selesai',
+    taskRunningSwitch: 'Tugas sedang berjalan, lihat panel kemajuan di bawah untuk status real-time',
+    failCreate: 'Gagal membuat tugas',
+    failResume: 'Gagal melanjutkan tugas',
+    failLoad: 'Gagal memuat detail tugas',
+    failStop: 'Gagal menghentikan tugas',
+    stopping: 'Menghentikan...',
+    submitted: 'Tugas telah dikirim. Silakan amati log konsol (terminal yang menjalankan server.py) dan bersabar.',
+    resumed: 'Tugas dilanjutkan. Silakan amati log konsol (terminal yang menjalankan server.py) dan bersabar.',
+    watchLog: 'Silakan amati log konsol (terminal yang menjalankan server.py) dan tunggu dengan sabar. Semua operasi kunci dicatat untuk debugging.',
+    task_: 'Tugas',
+    genFailed: 'Pembuatan gagal',
+    genFailedMsg: 'Periksa log konsol untuk detail, lalu klik "Lanjutkan" di daftar tugas.',
+    gotoResume: 'Pergi ke daftar tugas',
+    connLost: 'Koneksi Terputus',
+    connLostMsg: 'Koneksi real-time ke server terputus. Server mungkin masih berjalan di latar belakang. Periksa daftar tugas untuk status.',
+    gotoList: 'Pergi ke daftar tugas',
+    reconnecting: '⚠️ Koneksi terputus, mencoba ulang...',
+  },
+};
+
+let currentLang = localStorage.getItem('lang') || 'zh';
+
+function t(key, arg) {
+  let val = (T[currentLang] && T[currentLang][key]);
+  if (val === undefined) val = (T['zh'] && T['zh'][key]) || key;
+  if (arg !== undefined) val = val + ' ' + arg;
+  return val;
+}
+
+function applyLanguage(lang) {
+  currentLang = lang || localStorage.getItem('lang') || 'zh';
+  localStorage.setItem('lang', currentLang);
+  document.documentElement.lang = currentLang === 'zh' ? 'zh-CN' : currentLang;
+  document.getElementById('lang-selector').value = currentLang;
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    const arg = el.dataset.i18nArg;
+    el.textContent = t(key, arg);
+  });
+
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+}
+
+function switchLang(lang) {
+  applyLanguage(lang);
+}
+
 // ── State ──
 let currentTaskId = null;
 let currentDirName = null;
@@ -237,12 +943,13 @@ const ALL_STEPS = ['init', 'image_analysis', 'story', 'character_ref', 'script',
     const d = await r.json();
     if (d.api_key) {
       document.getElementById('apikey-input').value = '';
-      document.getElementById('apikey-input').placeholder = '已配置 (●●●)';
-      document.getElementById('apikey-status').textContent = '已配置';
+      document.getElementById('apikey-input').placeholder = t('apiKeyMasked');
+      document.getElementById('apikey-status').textContent = t('apiKeyConfigured');
       document.getElementById('apikey-status').className = 'text-xs px-2 py-1 rounded-full bg-green-900 text-green-300';
     }
   } catch(e) {}
 
+  applyLanguage(localStorage.getItem('lang') || 'zh');
   autoReconnectRunningTask();
 })();
 
@@ -270,14 +977,14 @@ function setRunning(taskId) {
   isTaskRunning = true;
   currentTaskId = taskId;
   document.getElementById('btn-submit').disabled = true;
-  document.getElementById('btn-submit').textContent = '任务进行中...';
+  document.getElementById('btn-submit').textContent = t('taskRunning');
 }
 
 function clearRunning() {
   isTaskRunning = false;
   currentTaskId = null;
   document.getElementById('btn-submit').disabled = false;
-  document.getElementById('btn-submit').textContent = '开始生成视频';
+  document.getElementById('btn-submit').textContent = t('startGenerate');
   document.getElementById('btn-stop').classList.add('hidden');
 }
 
@@ -352,24 +1059,24 @@ function showResult(videoPath) {
 // ── API Key ──
 document.getElementById('apikey-save').onclick = async () => {
   const key = document.getElementById('apikey-input').value.trim();
-  if (!key) return alert('请输入 API Key');
+  if (!key) return alert(t('enterApiKey'));
   const form = new FormData();
   form.append('api_key', key);
   await fetch('/api/config', { method: 'POST', body: form });
   document.getElementById('apikey-input').value = '';
-  document.getElementById('apikey-input').placeholder = '已配置 (●●●)';
-  document.getElementById('apikey-status').textContent = '已配置';
+  document.getElementById('apikey-input').placeholder = t('apiKeyMasked');
+  document.getElementById('apikey-status').textContent = t('apiKeyConfigured');
   document.getElementById('apikey-status').className = 'text-xs px-2 py-1 rounded-full bg-green-900 text-green-300';
 };
 
 // ── Tabs ──
 function switchTab(tab) {
   if (tab === 'create' && isTaskRunning) {
-    showToast('任务正在运行中，请等待完成后再创建新任务');
+    showToast(t('taskRunningWarn'));
     return;
   }
   if (tab === 'list' && isTaskRunning) {
-    showToast('任务正在运行中，可在下方进度面板查看实时状态');
+    showToast(t('taskRunningSwitch'));
   }
   document.querySelectorAll('.tab-btn').forEach(b => b.className = b.className.replace(/bg-purple-600 text-white/, 'bg-gray-800 text-gray-300 hover:bg-gray-700'));
   document.getElementById('tab-' + tab).className = 'tab-btn px-5 py-2.5 rounded-lg text-sm font-medium bg-purple-600 text-white transition';
@@ -408,28 +1115,28 @@ function addEndFrameInput() {
   const idx = container.children.length + 1;
   const div = document.createElement('div');
   div.className = 'flex items-center gap-3 mb-2';
-  div.innerHTML = `<span class="text-xs text-gray-500 w-16">场景 ${idx}</span><input type="file" accept="image/*" class="end-frame-file flex-1 text-sm text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-gray-700 file:text-gray-200 hover:file:bg-gray-600">`;
+  div.innerHTML = `<span class="text-xs text-gray-500 w-16">${t('scene_')} ${idx}</span><input type="file" accept="image/*" class="end-frame-file flex-1 text-sm text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-gray-700 file:text-gray-200 hover:file:bg-gray-600">`;
   container.appendChild(div);
 }
 
 function updateRefLabel() {
   const f = document.getElementById('reference_image').files[0];
-  document.getElementById('ref-name').textContent = f ? f.name : '未选择';
+  document.getElementById('ref-name').textContent = f ? f.name : t('notSelected');
 }
 
 // ── Create Task ──
 async function createTask() {
   const idea = document.getElementById('idea').value.trim();
-  if (!idea) return alert('请输入创意描述');
+  if (!idea) return alert(t('enterIdea'));
 
   if (isTaskRunning) {
-    showToast('已有任务正在运行中，请等待完成');
+    showToast(t('taskRunningWarn'));
     return;
   }
 
   const btn = document.getElementById('btn-submit');
   btn.disabled = true;
-  btn.textContent = '提交中...';
+  btn.textContent = t('submitting');
 
   const form = new FormData();
   form.append('idea', idea);
@@ -448,16 +1155,16 @@ async function createTask() {
   try {
     const r = await fetch('/api/tasks', { method: 'POST', body: form });
     const d = await r.json();
-    if (!d.ok) throw new Error(d.detail || '创建失败');
+    if (!d.ok) throw new Error(d.detail || t('failCreate'));
     setRunning(d.task_id);
     currentDirName = d.dir_name || d.task_id;
     showProgress(currentTaskId, currentDirName);
     connectWS(currentTaskId);
-    showToast('任务已提交，请观察控制台日志（启动 server.py 的终端）耐心等待', 5000);
+    showToast(t('submitted'), 5000);
   } catch(e) {
-    alert('创建失败: ' + e.message);
+    alert(t('failCreate') + ': ' + e.message);
     btn.disabled = false;
-    btn.textContent = '开始生成视频';
+    btn.textContent = t('startGenerate');
   }
 }
 
@@ -469,22 +1176,22 @@ async function loadTaskList() {
     const d = await r.json();
     const tasks = d.tasks || [];
     if (!tasks.length) {
-      container.innerHTML = '<p class="text-gray-500 text-sm">暂无任务</p>';
+      container.innerHTML = '<p class="text-gray-500 text-sm">' + t('noTasks') + '</p>';
       return;
     }
     container.innerHTML = tasks.map(t => {
       const statusColors = { completed: 'text-green-400', running: 'text-yellow-400', failed: 'text-red-400', pending: 'text-gray-400' };
-      const statusLabels = { completed: '已完成', running: '进行中', failed: '失败', pending: '待处理' };
+      const statusLabels = { completed: t('statusCompleted'), running: t('statusRunning'), failed: t('statusFailed'), pending: t('statusPending') };
       const isCompleted = t.status === 'completed';
       const isRunning = t.status === 'running';
-      const btnLabel = isCompleted ? '查看' : (isRunning ? '查看进度' : '续传');
+      const btnLabel = isCompleted ? t('btnView') : (isRunning ? t('btnViewProgress') : t('btnResume'));
       const btnAction = isCompleted ? `viewTask('${t.task_id}')` : (isRunning ? `viewRunningTask('${t.task_id}')` : `resumeTask('${t.task_id}')`);
-      const stopBtn = isRunning ? `<button onclick="stopTaskById('${t.task_id}')" class="text-xs px-3 py-1.5 bg-red-700 hover:bg-red-600 text-red-100 rounded-lg transition">中断</button>` : '';
+      const stopBtn = isRunning ? `<button onclick="stopTaskById('${t.task_id}')" class="text-xs px-3 py-1.5 bg-red-700 hover:bg-red-600 text-red-100 rounded-lg transition">${t('btnStop')}</button>` : '';
       return `<div class="bg-gray-900 rounded-xl p-4 border border-gray-800 flex items-center justify-between">
         <div>
           <p class="text-sm font-medium">${t.creative_name || t.task_id}</p>
-          <p class="text-xs text-gray-500 mt-1">${t.task_id} · ${t.chaining_mode || 'none'}${t.scene_count ? ' · ' + t.scene_count + '个场景' : ''}</p>
-          <p class="text-xs text-gray-600 mt-0.5">目录: <span class="font-mono">${t.dir_name || t.task_id}</span></p>
+          <p class="text-xs text-gray-500 mt-1">${t.task_id} · ${t.chaining_mode || 'none'}${t.scene_count ? ' · ' + t.scene_count + t('sceneUnit') : ''}</p>
+          <p class="text-xs text-gray-600 mt-0.5">${t('dir')}: <span class="font-mono">${t.dir_name || t.task_id}</span></p>
           ${t.idea ? `<p class="text-xs text-gray-600 mt-1 truncate max-w-xs">${t.idea}</p>` : ''}
         </div>
         <div class="flex items-center gap-3">
@@ -495,7 +1202,7 @@ async function loadTaskList() {
       </div>`;
     }).join('');
   } catch(e) {
-    container.innerHTML = '<p class="text-red-400 text-sm">加载失败</p>';
+    container.innerHTML = '<p class="text-red-400 text-sm">' + t('loadFailed') + '</p>';
   }
 }
 
@@ -505,7 +1212,7 @@ async function viewTask(taskId) {
     const state = await r.json();
     showTaskDetail(taskId, state);
   } catch(e) {
-    alert('加载任务详情失败: ' + e.message);
+    alert(t('failLoad') + ': ' + e.message);
   }
 }
 
@@ -523,53 +1230,53 @@ async function viewRunningTask(taskId) {
 
 async function resumeTask(taskId) {
   if (isTaskRunning) {
-    showToast('已有任务正在运行中，请等待完成');
+    showToast(t('taskRunningWarn'));
     return;
   }
   try {
     const r = await fetch('/api/tasks/' + taskId + '/resume', { method: 'POST' });
     const d = await r.json();
-    if (!d.ok) throw new Error(d.detail || '续传失败');
+    if (!d.ok) throw new Error(d.detail || t('failResume'));
     setRunning(taskId);
     currentDirName = d.dir_name || taskId;
     showProgress(taskId, currentDirName);
     connectWS(taskId);
     restoreProgressFromTask(taskId);
-    showToast('续传已开始，请观察控制台日志（启动 server.py 的终端）耐心等待', 5000);
+    showToast(t('resumed'), 5000);
   } catch(e) {
-    alert('续传失败: ' + e.message);
+    alert(t('failResume') + ': ' + e.message);
   }
 }
 
 // ── Stop Task ──
 async function stopTask() {
   if (!currentTaskId) return;
-  if (!confirm('确定要中断当前任务吗？中断后可到任务列表续传。')) return;
+  if (!confirm(t('stopConfirm'))) return;
   const btn = document.getElementById('btn-stop');
   btn.disabled = true;
-  btn.textContent = '正在中断...';
+  btn.textContent = t('stopping');
   try {
     const r = await fetch('/api/tasks/' + currentTaskId + '/stop', { method: 'POST' });
     const d = await r.json();
-    if (!d.ok) throw new Error(d.detail || '中断失败');
-    showToast('任务已中断，可在任务列表中续传', 4000);
+    if (!d.ok) throw new Error(d.detail || t('failStop'));
+    showToast(t('stopped'), 4000);
   } catch(e) {
-    alert('中断失败: ' + e.message);
+    alert(t('failStop') + ': ' + e.message);
     btn.disabled = false;
-    btn.textContent = '中断任务';
+    btn.textContent = t('stopTask');
   }
 }
 
 async function stopTaskById(taskId) {
-  if (!confirm('确定要中断该任务吗？中断后可续传。')) return;
+  if (!confirm(t('stopConfirmById'))) return;
   try {
     const r = await fetch('/api/tasks/' + taskId + '/stop', { method: 'POST' });
     const d = await r.json();
-    if (!d.ok) throw new Error(d.detail || '中断失败');
-    showToast('任务已中断', 3000);
+    if (!d.ok) throw new Error(d.detail || t('failStop'));
+    showToast(t('stoppedById'), 3000);
     loadTaskList();
   } catch(e) {
-    alert('中断失败: ' + e.message);
+    alert(t('failStop') + ': ' + e.message);
   }
 }
 
@@ -602,13 +1309,13 @@ function showTaskDetail(taskId, state) {
   document.getElementById('progress-pct').textContent = '100%';
   document.getElementById('progress-message').innerHTML = `
     <div class="space-y-2">
-      <p class="text-green-400 font-medium">任务已完成</p>
-      <p class="text-gray-500">任务ID: ${taskId}</p>
-      <p class="text-gray-500">目录: <code class="text-xs bg-gray-800 px-1 py-0.5 rounded font-mono">${state.dir_name || taskId}</code></p>
-      <p class="text-gray-500">创意: ${(state.idea || '').substring(0, 100)}</p>
-      <p class="text-gray-500">场景数: ${state.scene_count || 0}</p>
-      <p class="text-gray-500">串联模式: ${state.chaining_mode || 'none'}</p>
-      ${state.final_video_file ? `<p class="text-gray-500">产物: <code class="text-xs bg-gray-800 px-1 py-0.5 rounded">${state.final_video_file}</code></p>` : ''}
+      <p class="text-green-400 font-medium">${t('taskComplete')}</p>
+      <p class="text-gray-500">${t('taskId')}: ${taskId}</p>
+      <p class="text-gray-500">${t('dir')}: <code class="text-xs bg-gray-800 px-1 py-0.5 rounded font-mono">${state.dir_name || taskId}</code></p>
+      <p class="text-gray-500">${t('idea_')}: ${(state.idea || '').substring(0, 100)}</p>
+      <p class="text-gray-500">${t('sceneCount')}: ${state.scene_count || 0}</p>
+      <p class="text-gray-500">${t('chainingMode_')}: ${state.chaining_mode || 'none'}</p>
+      ${state.final_video_file ? `<p class="text-gray-500">${t('artifact')}: <code class="text-xs bg-gray-800 px-1 py-0.5 rounded">${state.final_video_file}</code></p>` : ''}
     </div>`;
 
   if (state.final_video_file) {
@@ -619,10 +1326,10 @@ function showTaskDetail(taskId, state) {
 
 function getStepLabel(step) {
   const labels = {
-    init: '初始化', image_analysis: '图片分析', story: '故事生成',
-    character_ref: '角色参考图', script: '脚本编写',
-    end_frame_prompts: '尾帧提示词', end_frame_gen: '尾帧生成',
-    video_gen: '视频生成', concatenate: '视频拼接',
+    init: t('stepInit'), image_analysis: t('stepImageAnalysis'), story: t('stepStory'),
+    character_ref: t('stepCharacterRef'), script: t('stepScript'),
+    end_frame_prompts: t('stepEndFramePrompts'), end_frame_gen: t('stepEndFrameGen'),
+    video_gen: t('stepVideoGen'), concatenate: t('stepConcatenate'),
   };
   return labels[step] || step;
 }
@@ -634,8 +1341,8 @@ function showProgress(taskId, dirName) {
   document.getElementById('btn-stop').classList.remove('hidden');
   document.getElementById('progress-bar').style.width = '0%';
   document.getElementById('progress-pct').textContent = '0%';
-  const dirInfo = dirName ? '<br><span class="text-gray-600 text-xs">目录: <span class="font-mono">' + dirName + '</span></span>' : '';
-  document.getElementById('progress-message').innerHTML = '<span class="text-yellow-400">提示：请观察控制台日志（启动 server.py 的终端），耐心等待生成完成。关键操作均有日志输出，便于排查问题。</span><br><span class="text-gray-500">任务: ' + taskId + '</span>' + dirInfo;
+  const dirInfo = dirName ? '<br><span class="text-gray-600 text-xs">' + t('dir') + ': <span class="font-mono">' + dirName + '</span></span>' : '';
+  document.getElementById('progress-message').innerHTML = '<span class="text-yellow-400">' + t('watchLog') + '</span><br><span class="text-gray-500">' + t('task_') + ': ' + taskId + '</span>' + dirInfo;
   document.getElementById('steps-container').innerHTML = ALL_STEPS.map(step => `
     <div class="step-item flex items-center gap-3 text-sm" data-step="${step}">
       <span class="step-icon w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-xs">○</span>
@@ -700,9 +1407,9 @@ function connectWS(taskId) {
       clearRunning();
       document.getElementById('progress-message').innerHTML = `
         <div class="p-4 bg-red-950 border border-red-800 rounded-lg space-y-2">
-          <p class="text-red-400 font-medium">任务生成失败</p>
-          <p class="text-gray-400 text-xs">${msg.message || '请查看控制台日志排查问题，然后到任务列表点击"续传"恢复。'}</p>
-          <button onclick="switchTab('list')" class="mt-1 text-xs px-3 py-1.5 bg-red-800 hover:bg-red-700 text-red-100 rounded-lg transition">前往任务列表续传</button>
+          <p class="text-red-400 font-medium">${t('genFailed')}</p>
+          <p class="text-gray-400 text-xs">${msg.message || t('genFailedMsg')}</p>
+          <button onclick="switchTab('list')" class="mt-1 text-xs px-3 py-1.5 bg-red-800 hover:bg-red-700 text-red-100 rounded-lg transition">${t('gotoResume')}</button>
         </div>`;
     }
   };
@@ -714,16 +1421,16 @@ function connectWS(taskId) {
       clearRunning();
       document.getElementById('progress-message').innerHTML = `
         <div class="p-4 bg-yellow-950 border border-yellow-800 rounded-lg space-y-2">
-          <p class="text-yellow-400 font-medium">连接中断</p>
-          <p class="text-gray-400 text-xs">与服务端的实时连接已断开。请检查控制台日志，服务可能仍在后台运行。可到任务列表查看状态并续传。</p>
-          <button onclick="switchTab('list')" class="mt-1 text-xs px-3 py-1.5 bg-yellow-800 hover:bg-yellow-700 text-yellow-100 rounded-lg transition">前往任务列表</button>
+          <p class="text-yellow-400 font-medium">${t('connLost')}</p>
+          <p class="text-gray-400 text-xs">${t('connLostMsg')}</p>
+          <button onclick="switchTab('list')" class="mt-1 text-xs px-3 py-1.5 bg-yellow-800 hover:bg-yellow-700 text-yellow-100 rounded-lg transition">${t('gotoList')}</button>
         </div>`;
     }
   };
   ws.onerror = (e) => {
     console.error('WebSocket error:', e);
     if (isTaskRunning) {
-      document.getElementById('progress-message').textContent = '⚠️ 实时连接断开，正在重试...';
+      document.getElementById('progress-message').textContent = t('reconnecting');
       setTimeout(() => {
         if (isTaskRunning && !ws) {
           connectWS(taskId);
