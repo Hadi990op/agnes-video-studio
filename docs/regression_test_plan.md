@@ -271,7 +271,27 @@ def auto_check(task_dir):
 
 ---
 
-## 七、附录：验证脚本示例
+## 七、素材来源说明
+
+测试过程中需要的参考图、尾帧图等素材，优先从 `.working_dir/` 中已有的**已完成创意视频任务**中获取：
+
+| 素材类型 | 查找位置 | 说明 |
+|---------|---------|------|
+| 参考图 (reference_image) | `{task_dir}/character_reference.png` | 创意视频的角色参考图 |
+| 自定义尾帧 | `{task_dir}/scene_{n}/end_frame.png` | 创意视频各场景的尾帧 |
+| 参考图缓存 | `{task_dir}/*.url` | 已上传的参考图 URL 缓存 |
+
+**查找步骤**：
+1. 执行 `ls .working_dir/` 查看已有任务目录
+2. 选择 status=completed 的创意视频任务
+3. 检查该目录下是否有 `character_reference.png` 或 `scene_0/end_frame.png`
+4. 在测试 API 调用时，将素材路径作为 `reference_image` 或 `end_frame_image` 参数传入
+
+如果 `.working_dir` 中没有合适素材，可以自行准备任意图片文件（PNG/JPG 均可）。
+
+---
+
+## 八、附录：验证脚本示例
 
 以下脚本供主理人在回归测试时调用：
 
