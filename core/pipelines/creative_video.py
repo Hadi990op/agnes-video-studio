@@ -16,7 +16,11 @@ import math
 import os
 import re
 import subprocess
+from datetime import timedelta
 from typing import Callable, List, Optional
+
+import srt as srt_lib
+from moviepy import AudioFileClip
 
 from core.api.agnes_image import AgnesImageAPI
 from core.api.agnes_video import AgnesVideoAPI
@@ -1039,24 +1043,56 @@ class CreativeVideoPipeline(BasePipeline):
     # Step 4.5: Populate narrations from story
     # ==================================================================
 
+    def _is_narrative_para(self, text: str) -> bool:
+        t = text.strip()
+        if len(t) < 40:
+            return False
+        lower = t.lower()
+        skip_prefixes = (
+            "story title", "target audience", "story outline",
+            "main character", "character introduction", "full story narrative",
+            "故事标题", "目标受众", "故事大纲",
+            "角色介绍", "主要角色", "故事梗概",
+            "**故事标题", "**目标受众", "**故事大纲",
+            "**角色介绍", "**主要角色",
+        )
+        for p in skip_prefixes:
+            if lower.startswith(p):
+                return False
+        return True
+
     def _populate_narrations(self, story: str) -> None:
-        if self._state.narrations:
-            return
         num_scenes = len(self._state.scenes)
         if not num_scenes or not story:
             return
+
+        # On resume, re-trim existing narrations (old untrimmed data may persist)
+        if self._state.narrations:
+            max_chars = max(int(self._state.video_duration * _CHARS_PER_SEC), 20)
+            needs_update = any(len(n) > max_chars for n in self._state.narrations)
+            if needs_update:
+                self._state.narrations = [_trim_to_sentence(n, max_chars) for n in self._state.narrations]
+                self.task_manager.update_state(narrations=self._state.narrations)
+            return
+
         paragraphs = [p.strip() for p in story.split("\n\n") if p.strip()]
         if not paragraphs:
             self._state.narrations = [story] * num_scenes
             self.task_manager.update_state(narrations=self._state.narrations)
             return
+
+        # Filter out metadata paragraphs (title, audience, outline, character intro)
+        narrative_paras = [p for p in paragraphs if self._is_narrative_para(p)]
+        if not narrative_paras:
+            narrative_paras = paragraphs
+
         narrations = []
-        base = len(paragraphs) // num_scenes
-        rem = len(paragraphs) % num_scenes
+        base = len(narrative_paras) // num_scenes
+        rem = len(narrative_paras) % num_scenes
         idx = 0
         for i in range(num_scenes):
             count = base + (1 if i < rem else 0)
-            narrations.append("\n".join(paragraphs[idx : idx + count]))
+            narrations.append("\n".join(narrative_paras[idx : idx + count]))
             idx += count
 
         # Trim each narration to fit within video_duration * 4 chars/sec speaking rate
@@ -1184,10 +1220,12 @@ class CreativeVideoPipeline(BasePipeline):
     async def _step_concatenate(self, all_video_paths: list) -> str:
         """Concatenate scene videos into the final output.
 
-        When audio is enabled, uses :meth:`VideoConcatenator.concat_with_audio`
-        to merge each video with its narration audio and subtitle overlay before
-        joining.  Falls back to :meth:`VideoConcatenator.concat_videos` for
-        pure video concatenation when audio is disabled or unavailable.
+        When audio is enabled, uses the MoneyPrinterTurbo overlay approach:
+        concatenate all videos first, then overlay a single combined
+        audio+subtitle track (avoids per-segment freeze-frame padding).
+
+        Falls back to :meth:`VideoConcatenator.concat_videos` when audio is
+        disabled or unavailable.
 
         Args:
             all_video_paths: Ordered list of per-scene video file paths.
@@ -1217,25 +1255,65 @@ class CreativeVideoPipeline(BasePipeline):
         )
 
         if audio_enabled:
-            # Build clip tuples: (video_path, audio_path, srt_path_or_None)
-            clip_tuples: List[tuple] = []
-            for i, video_path in enumerate(all_video_paths):
-                scene = self._state.scenes[i] if i < len(self._state.scenes) else None
-                audio_path = scene.narration_audio if scene else ""
-                srt_path = scene.subtitle_srt if scene else ""
-                clip_tuples.append((
-                    video_path,
-                    audio_path or "",
-                    srt_path if srt_path and os.path.exists(srt_path) else None,
-                ))
+            combined_audio = os.path.join(self.working_dir, "combined_audio.mp3")
+            combined_srt = os.path.join(self.working_dir, "combined_subtitle.srt")
 
-            VideoConcatenator.concat_with_audio(
-                clip_tuples=clip_tuples,
-                output_path=final_video_path,
-                subtitle_style=self._state.audio_config.subtitle_style,
-            )
+            # Combine per-scene audio into one (skip missing/empty files)
+            audio_clips = []
+            for i in range(len(all_video_paths)):
+                scene = self._state.scenes[i] if i < len(self._state.scenes) else None
+                ap = scene.narration_audio if scene else ""
+                if ap and os.path.exists(ap) and os.path.getsize(ap) > 0:
+                    try:
+                        audio_clips.append(AudioFileClip(ap))
+                    except Exception:
+                        pass
+
+            if audio_clips:
+                from moviepy import concatenate_audioclips
+                combined = concatenate_audioclips(audio_clips)
+                combined.write_audiofile(combined_audio, logger=None)
+                for c in audio_clips:
+                    c.close()
+                combined.close()
+
+                # Combine per-scene SRT, shifting timestamps by audio duration
+                all_subs = []
+                offset = timedelta()
+                for i in range(len(all_video_paths)):
+                    scene = self._state.scenes[i] if i < len(self._state.scenes) else None
+                    sp = scene.subtitle_srt if scene else ""
+                    if sp and os.path.exists(sp):
+                        with open(sp) as f:
+                            subs = list(srt_lib.parse(f.read()))
+                        for sub in subs:
+                            sub.start += offset
+                            sub.end += offset
+                        all_subs.extend(subs)
+                        ap = scene.narration_audio if scene else ""
+                        if ap and os.path.exists(ap) and os.path.getsize(ap) > 0:
+                            try:
+                                a = AudioFileClip(ap)
+                                offset += timedelta(seconds=a.duration)
+                                a.close()
+                            except Exception:
+                                pass
+
+                if all_subs:
+                    with open(combined_srt, "w") as f:
+                        f.write(srt_lib.compose(all_subs))
+                has_srt = os.path.exists(combined_srt) and os.path.getsize(combined_srt) > 0
+
+                VideoConcatenator.concat_videos_with_audio_overlay(
+                    video_paths=all_video_paths,
+                    audio_path=combined_audio,
+                    srt_path=combined_srt if has_srt else None,
+                    output_path=final_video_path,
+                    subtitle_style=self._state.audio_config.subtitle_style,
+                )
+            else:
+                VideoConcatenator.concat_videos(all_video_paths, final_video_path)
         else:
-            # Fallback: pure video concatenation without audio
             VideoConcatenator.concat_videos(all_video_paths, final_video_path)
 
         self._state.step_concatenation = StepStatus.COMPLETED
