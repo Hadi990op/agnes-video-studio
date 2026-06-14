@@ -1,8 +1,21 @@
+"""
+core/config.py — Agnes Video Generator v2.0 配置模块
+
+包含 API Key 管理、工作目录、音频/字幕默认配置工厂函数。
+"""
+
 import json
 import os
 
+from models.task import AudioConfig, SubtitleStyle
+
 CONFIG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".agnes_config")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
+
+
+# ═══════════════════════════════════════════════════
+# API Key 管理（保持现有逻辑）
+# ═══════════════════════════════════════════════════
 
 
 def _ensure_config_dir():
@@ -39,3 +52,62 @@ def set_api_key(key: str):
 
 def get_working_dir() -> str:
     return os.path.join(os.getcwd(), ".working_dir")
+
+
+# ═══════════════════════════════════════════════════
+# v2.0 新增：音频 / 字幕默认配置
+# ═══════════════════════════════════════════════════
+
+# D3：默认语音角色
+DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural"
+
+# D3：可选中文语音角色列表
+AVAILABLE_VOICES = [
+    {"id": "zh-CN-XiaoxiaoNeural", "label": "Xiaoxiao（温柔女声）"},
+    {"id": "zh-CN-YunyangNeural", "label": "Yunyang（沉稳男声）"},
+    {"id": "zh-CN-XiaoyiNeural", "label": "Xiaoyi（活泼女声）"},
+    {"id": "zh-CN-YunxiNeural", "label": "Yunxi（年轻男声）"},
+]
+
+
+def get_default_subtitle_style() -> SubtitleStyle:
+    """返回默认字幕样式配置（D4）。"""
+    return SubtitleStyle(
+        font="Arial",
+        color="white",
+        position=("center", "bottom-80"),
+        fontsize=48,
+        stroke_color="black",
+        stroke_width=2,
+        bg_color="black@0.5",
+    )
+
+
+def get_default_audio_config() -> AudioConfig:
+    """返回默认音频配置（含字幕样式）（D3）。"""
+    return AudioConfig(
+        enabled=True,
+        voice=DEFAULT_VOICE,
+        rate="+0%",
+        subtitle_style=get_default_subtitle_style(),
+    )
+
+
+# ═══════════════════════════════════════════════════
+# 视频参数预设（D7）
+# ═══════════════════════════════════════════════════
+
+VIDEO_RESOLUTION_PRESETS = {
+    "portrait": {"width": 768, "height": 1152, "label": "竖屏 9:16"},
+    "landscape": {"width": 1152, "height": 768, "label": "横屏 16:9"},
+    "square": {"width": 1024, "height": 1024, "label": "方形 1:1"},
+}
+
+# 时长 → (num_frames, frame_rate) 映射
+DURATION_FRAME_MAP = {
+    5: (121, 24),
+    10: (241, 24),
+    15: (361, 24),
+    18: (441, 24),
+    20: (441, 22),
+}
