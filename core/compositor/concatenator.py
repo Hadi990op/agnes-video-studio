@@ -159,7 +159,7 @@ class VideoConcatenator:
                         text_align="center",
                     )
 
-                subs = SubtitlesClip(srt_path, make_text)
+                subs = SubtitlesClip(srt_path, make_textclip=make_text)
                 pos = subtitle_style.position
                 if isinstance(pos, (list, tuple)) and len(pos) == 2:
                     position = pos

@@ -583,8 +583,14 @@ class CreativeVideoPipeline(BasePipeline):
             Ordered list of video file paths.
         """
         if self._state.step_video_generation == StepStatus.COMPLETED:
-            logger.info("[Pipeline] Step video_gen: SKIP (already completed)")
-            return []
+            logger.info("[Pipeline] Step video_gen: SKIP (already completed), reconstructing video paths from disk")
+            all_video_paths = []
+            for scene_idx in range(len(scenes)):
+                video_path = os.path.join(self.working_dir, f"scene_{scene_idx}", "video.mp4")
+                if os.path.exists(video_path):
+                    all_video_paths.append(video_path)
+            logger.info(f"[Pipeline] Step video_gen: reconstructed {len(all_video_paths)} video paths from disk")
+            return all_video_paths
 
         logger.info(
             f"[Pipeline] Step video_gen: RUNNING "
@@ -1014,6 +1020,32 @@ class CreativeVideoPipeline(BasePipeline):
         return all_video_paths
 
     # ==================================================================
+    # Step 4.5: Populate narrations from story
+    # ==================================================================
+
+    def _populate_narrations(self, story: str) -> None:
+        if self._state.narrations:
+            return
+        num_scenes = len(self._state.scenes)
+        if not num_scenes or not story:
+            return
+        paragraphs = [p.strip() for p in story.split("\n\n") if p.strip()]
+        if not paragraphs:
+            self._state.narrations = [story] * num_scenes
+            self.task_manager.update_state(narrations=self._state.narrations)
+            return
+        narrations = []
+        base = len(paragraphs) // num_scenes
+        rem = len(paragraphs) % num_scenes
+        idx = 0
+        for i in range(num_scenes):
+            count = base + (1 if i < rem else 0)
+            narrations.append("\n".join(paragraphs[idx : idx + count]))
+            idx += count
+        self._state.narrations = narrations
+        self.task_manager.update_state(narrations=narrations)
+
+    # ==================================================================
     # Step 5: Audio & Subtitle Generation (NEW in v2.0)
     # ==================================================================
 
@@ -1055,10 +1087,11 @@ class CreativeVideoPipeline(BasePipeline):
 
         total_scenes = len(self._state.scenes)
 
-        for i, scene in enumerate(self._state.scenes):
+        for i in range(len(self._state.scenes)):
             if self._is_shutdown():
                 raise PipelineShutdown(f"interrupted during audio/subtitle scene {i}")
 
+            scene = self._state.scenes[i]
             scene_dir = os.path.join(self.working_dir, f"scene_{i}")
             os.makedirs(scene_dir, exist_ok=True)
 
@@ -1082,8 +1115,9 @@ class CreativeVideoPipeline(BasePipeline):
                     output_path=audio_path,
                     duration_sec=float(self._state.video_duration),
                 )
-                scene.narration_audio = audio_path
-                scene.subtitle_srt = ""
+                self._state.scenes[i].narration_audio = audio_path
+                self._state.scenes[i].subtitle_srt = ""
+                self.task_manager.update_scene(self._state.scenes[i])
                 continue
 
             if audio_enabled and edge_tts is not None:
@@ -1109,13 +1143,11 @@ class CreativeVideoPipeline(BasePipeline):
                 )
                 SubtitleGenerator.cues_to_srt({}, srt_path)
 
-            scene.narration_audio = audio_path
-            scene.subtitle_srt = srt_path
+            self._state.scenes[i].narration_audio = audio_path
+            self._state.scenes[i].subtitle_srt = srt_path
 
             # Persist per-scene progress
-            self.task_manager.update_state(
-                scenes=[s.model_dump() for s in self._state.scenes],
-            )
+            self.task_manager.update_scene(self._state.scenes[i])
 
         self._state.step_audio_subtitle = StepStatus.COMPLETED
         self.task_manager.update_state(
@@ -1247,6 +1279,7 @@ class CreativeVideoPipeline(BasePipeline):
                 raise PipelineShutdown("interrupted after character reference")
 
             scenes = await self._step_script(story)
+            self._populate_narrations(story)
             if self._is_shutdown():
                 raise PipelineShutdown("interrupted after script")
 

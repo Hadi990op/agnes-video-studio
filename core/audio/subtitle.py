@@ -46,21 +46,24 @@ class SubtitleGenerator:
 
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
-        # edge_tts SubMaker.generate_subs() 返回 WebVTT 格式
-        # 我们手动解析 cues 来构建 SRT
-        if hasattr(cues, "generate_subs"):
+        # edge_tts 6.x: SubMaker.generate_subs() 返回 WebVTT
+        # edge_tts 7.x: SubMaker.get_srt() 返回 SRT 字符串
+        if hasattr(cues, "get_srt"):
+            srt_content = cues.get_srt()
+            subtitles_count = srt_content.count("\n\n") + 1 if srt_content.strip() else 0
+        elif hasattr(cues, "generate_subs"):
             vtt_content = cues.generate_subs()
             subtitles = SubtitleGenerator._parse_vtt_to_srt(vtt_content)
+            srt_content = srt.compose(subtitles)
+            subtitles_count = len(subtitles)
         else:
-            # 空 cues 或 dict 类型（SilentTTSEngine）
-            subtitles = []
-
-        srt_content = srt.compose(subtitles)
+            srt_content = ""
+            subtitles_count = 0
 
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(srt_content)
 
-        logger.info(f"[Subtitle] SRT saved: {output_path} ({len(subtitles)} entries)")
+        logger.info(f"[Subtitle] SRT saved: {output_path} ({subtitles_count} entries)")
         return output_path
 
     @staticmethod
@@ -169,7 +172,7 @@ class SubtitleGenerator:
                     text_align="center",
                 )
 
-            subtitles_clip = SubtitlesClip(srt_path, make_text_clip)
+            subtitles_clip = SubtitlesClip(srt_path, make_textclip=make_text_clip)
 
             # 根据 position 设置字幕位置
             pos = style.position

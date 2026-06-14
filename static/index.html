@@ -314,6 +314,20 @@
                 </select>
               </div>
             </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+              <div>
+                <label class="block text-xs text-gray-500 mb-1" data-i18n="subStrokeColor">描边色</label>
+                <input id="c_sub_stroke_color" value="black" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1" data-i18n="subStrokeWidth">描边宽</label>
+                <input id="c_sub_stroke_width" type="number" value="2" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1" data-i18n="subBgColor">背景色</label>
+                <input id="c_sub_bg_color" value="black@0.5" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -417,6 +431,20 @@
                 </select>
               </div>
             </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+              <div>
+                <label class="block text-xs text-gray-500 mb-1" data-i18n="subStrokeColor">描边色</label>
+                <input id="m_sub_stroke_color" value="black" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1" data-i18n="subStrokeWidth">描边宽</label>
+                <input id="m_sub_stroke_width" type="number" value="2" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1" data-i18n="subBgColor">背景色</label>
+                <input id="m_sub_bg_color" value="black@0.5" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -491,6 +519,7 @@ const T = {
     scene_: '场景', addEndFrame: '+ 添加尾帧',
     audioConfig: '音频与字幕配置', enableNarration: '启用旁白配音', voiceRole: '语音角色', speechRate: '语速', rateNormal: '正常',
     subtitleStyle: '字幕样式', subFont: '字体', subColor: '颜色', subSize: '字号', subPosition: '位置', posBottom: '底部', posTop: '顶部',
+    subStrokeColor: '描边色', subStrokeWidth: '描边宽', subBgColor: '背景色',
     manuscriptText: '稿件正文', manuscriptPlaceholder: '粘贴你的文章、新闻稿、公众号文章等...',
     charCount: '字数', durationPerSegment: '每段时长',
     startGenerate: '开始生成视频', submitting: '提交中...', taskRunning: '任务进行中...',
@@ -548,6 +577,7 @@ const T = {
     scene_: 'Scene', addEndFrame: '+ Add end frame',
     audioConfig: 'Audio & Subtitle Config', enableNarration: 'Enable narration', voiceRole: 'Voice Role', speechRate: 'Speech Rate', rateNormal: 'Normal',
     subtitleStyle: 'Subtitle Style', subFont: 'Font', subColor: 'Color', subSize: 'Size', subPosition: 'Position', posBottom: 'Bottom', posTop: 'Top',
+    subStrokeColor: 'Stroke Color', subStrokeWidth: 'Stroke Width', subBgColor: 'BG Color',
     manuscriptText: 'Article Text', manuscriptPlaceholder: 'Paste your article, news, blog post...',
     charCount: 'Characters', durationPerSegment: 'Duration per segment',
     startGenerate: 'Start Generating', submitting: 'Submitting...', taskRunning: 'Task in progress...',
@@ -602,6 +632,7 @@ const T = {
     scene_: 'Сцена', addEndFrame: '+ Кадр',
     audioConfig: 'Аудио и субтитры', enableNarration: 'Озвучка', voiceRole: 'Голос', speechRate: 'Скорость', rateNormal: 'Нормальная',
     subtitleStyle: 'Субтитры', subFont: 'Шрифт', subColor: 'Цвет', subSize: 'Размер', subPosition: 'Позиция', posBottom: 'Низ', posTop: 'Верх',
+    subStrokeColor: 'Цвет обводки', subStrokeWidth: 'Ширина обводки', subBgColor: 'Цвет фона',
     manuscriptText: 'Текст статьи', manuscriptPlaceholder: 'Вставьте статью...',
     charCount: 'Символов', durationPerSegment: 'Длительность сегмента',
     startGenerate: 'Начать генерацию', submitting: 'Отправка...', taskRunning: 'Выполняется...',
@@ -654,6 +685,7 @@ const T = {
     scene_: 'シーン', addEndFrame: '+ 追加',
     audioConfig: '音声・字幕', enableNarration: 'ナレーション', voiceRole: '音声', speechRate: '速度', rateNormal: '標準',
     subtitleStyle: '字幕', subFont: 'フォント', subColor: '色', subSize: 'サイズ', subPosition: '位置', posBottom: '下', posTop: '上',
+    subStrokeColor: '縁取り色', subStrokeWidth: '縁取り幅', subBgColor: '背景色',
     manuscriptText: '記事テキスト', manuscriptPlaceholder: '記事を貼り付け...',
     charCount: '文字数', durationPerSegment: 'セグメント長さ',
     startGenerate: '生成開始', submitting: '送信中...', taskRunning: '実行中...',
@@ -703,6 +735,7 @@ const T = {
     scene_: '장면', addEndFrame: '+ 추가',
     audioConfig: '음성/자막', enableNarration: '내레이션', voiceRole: '음성', speechRate: '속도', rateNormal: '보통',
     subtitleStyle: '자막', subFont: '폰트', subColor: '색상', subSize: '크기', subPosition: '위치', posBottom: '하단', posTop: '상단',
+    subStrokeColor: '테두리 색', subStrokeWidth: '테두리 두께', subBgColor: '배경 색',
     manuscriptText: '기사 텍스트', manuscriptPlaceholder: '기사를 붙여넣기...',
     charCount: '글자 수', durationPerSegment: '세그먼트 길이',
     startGenerate: '생성 시작', submitting: '제출 중...', taskRunning: '실행 중...',
@@ -752,6 +785,7 @@ const T = {
     scene_: 'Babak', addEndFrame: '+ Tambah',
     audioConfig: 'Audio & Sarikata', enableNarration: 'Narasi', voiceRole: 'Suara', speechRate: 'Kelajuan', rateNormal: 'Biasa',
     subtitleStyle: 'Sarikata', subFont: 'Fon', subColor: 'Warna', subSize: 'Saiz', subPosition: 'Kedudukan', posBottom: 'Bawah', posTop: 'Atas',
+    subStrokeColor: 'Warna Garis', subStrokeWidth: 'Lebar Garis', subBgColor: 'Warna Latar',
     manuscriptText: 'Teks Artikel', manuscriptPlaceholder: 'Tampal artikel anda...',
     charCount: 'Aksara', durationPerSegment: 'Tempoh segmen',
     startGenerate: 'Mula Hasilkan', submitting: 'Menghantar...', taskRunning: 'Berjalan...',
@@ -801,6 +835,7 @@ const T = {
     scene_: 'Adegan', addEndFrame: '+ Tambah',
     audioConfig: 'Audio & Subtitle', enableNarration: 'Narasi', voiceRole: 'Suara', speechRate: 'Kecepatan', rateNormal: 'Normal',
     subtitleStyle: 'Subtitle', subFont: 'Font', subColor: 'Warna', subSize: 'Ukuran', subPosition: 'Posisi', posBottom: 'Bawah', posTop: 'Atas',
+    subStrokeColor: 'Warna Garis', subStrokeWidth: 'Lebar Garis', subBgColor: 'Warna Latar',
     manuscriptText: 'Teks Artikel', manuscriptPlaceholder: 'Tempel artikel Anda...',
     charCount: 'Karakter', durationPerSegment: 'Durasi segmen',
     startGenerate: 'Mulai Hasilkan', submitting: 'Mengirim...', taskRunning: 'Berjalan...',
@@ -1124,6 +1159,9 @@ async function submitCreative() {
   form.append('subtitle_color', document.getElementById('c_sub_color').value);
   form.append('subtitle_fontsize', document.getElementById('c_sub_fontsize').value);
   form.append('subtitle_position', document.getElementById('c_sub_position').value);
+  form.append('subtitle_stroke_color', document.getElementById('c_sub_stroke_color').value);
+  form.append('subtitle_stroke_width', document.getElementById('c_sub_stroke_width').value);
+  form.append('subtitle_bg_color', document.getElementById('c_sub_bg_color').value);
 
   try {
     const r = await fetch('/api/tasks/creative', { method: 'POST', body: form });
@@ -1165,6 +1203,9 @@ async function submitManuscript() {
   form.append('subtitle_color', document.getElementById('m_sub_color').value);
   form.append('subtitle_fontsize', document.getElementById('m_sub_fontsize').value);
   form.append('subtitle_position', document.getElementById('m_sub_position').value);
+  form.append('subtitle_stroke_color', document.getElementById('m_sub_stroke_color').value);
+  form.append('subtitle_stroke_width', document.getElementById('m_sub_stroke_width').value);
+  form.append('subtitle_bg_color', document.getElementById('m_sub_bg_color').value);
 
   try {
     const r = await fetch('/api/tasks/manuscript', { method: 'POST', body: form });

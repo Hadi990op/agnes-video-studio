@@ -53,13 +53,12 @@ class EdgeTTSEngine(TTSEngine):
 
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
-        async with communicate.stream() as stream:
-            with open(output_path, "wb") as audio_file:
-                async for chunk in stream:
-                    if chunk["type"] == "audio":
-                        audio_file.write(chunk["data"])
-                    elif chunk["type"] == "WordBoundary":
-                        sub_maker.feed(chunk)
+        with open(output_path, "wb") as audio_file:
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    audio_file.write(chunk["data"])
+                elif chunk["type"] in ("WordBoundary", "SentenceBoundary"):
+                    sub_maker.feed(chunk)
 
         logger.info(f"[TTS] Audio saved: {output_path}")
         return output_path, sub_maker

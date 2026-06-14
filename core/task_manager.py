@@ -15,6 +15,7 @@ from models.task import (
     AnyTaskState,
     BaseTaskState,
     CreativeVideoTask,
+    ManuscriptParagraph,
     SceneTask,
     StepStatus,
     TaskType,
@@ -114,6 +115,17 @@ class TaskManager:
         if self._state:
             for key, value in kwargs.items():
                 if hasattr(self._state, key):
+                    # Convert serialized dict lists back to model instances
+                    if key == "scenes" and isinstance(value, list):
+                        value = [
+                            SceneTask(**s) if isinstance(s, dict) else s
+                            for s in value
+                        ]
+                    elif key == "paragraphs" and isinstance(value, list):
+                        value = [
+                            ManuscriptParagraph(**p) if isinstance(p, dict) else p
+                            for p in value
+                        ]
                     setattr(self._state, key, value)
             self._save()
 
