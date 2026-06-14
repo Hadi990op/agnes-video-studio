@@ -1,7 +1,35 @@
-# AGENTS.md — Agnes Video Generator
+# AGENTS.md — Agnes Video Generator v2.0
 
 > **面向对象**：SoftwareCompany 团队（产品经理 / 架构师 / 工程师 / QA 工程师）
+> **当前阶段**：🟢 规划完成 — 等待用户说"继续2.0版本开发"进入实现阶段
 > **工作流**：标准 SOP（> 10 个源文件，多模块）
+> **配套文档**：`docs/development_plan.md`（总计划）、`docs/system_design.md`（架构+任务）、`docs/test_plan.md`（测试流程）
+
+---
+
+## 〇、AI Agent 触发词
+
+当用户在对话中说以下任一短语时，主理人应执行对应操作：
+
+| 用户说法 | 主理人应执行的操作 | 说明 |
+|---------|-------------------|------|
+| **"继续2.0版本开发"** | 启动 `software-engineer` 实现 T01-T05 全部代码 | 进入实现阶段 |
+| **"开始开发"** / **"开始实现"** | 同上 | 同义触发词 |
+| **"继续"** / **"go ahead"** | 同上（需结合上下文确认指 2.0 开发） | 模糊触发词，需确认 |
+| **"只做 PRD"** / **"需求分析"** | 仅启动 `software-product-manager` | 部分工作流 |
+| **"架构评审"** | 仅启动 `software-architect` | 部分工作流 |
+| **"修复 Bug: ..."** | 启动 `software-engineer`（BugFix 快捷路径） | 跳过 PRD/架构 |
+
+### 主理人收到"继续2.0版本开发"的标准操作
+
+```
+1. 确认 team 存在（software-agnes-refactor），若不存在则 TeamCreate
+2. 阅读 docs/development_plan.md（完整计划）
+3. 阅读 docs/system_design.md 第10-12节（任务列表+共享知识+依赖图）
+4. 阅读本文档第四节"工程师工作说明"（代码规范+审查清单）
+5. 启动 software-engineer，下发完整任务规格（含文件路径、操作类型、设计要求）
+6. 工程师完成后 → 启动 software-qa-engineer 按 docs/test_plan.md 测试
+```
 
 ---
 
@@ -357,4 +385,18 @@ def split_manuscript(text: str) -> list[dict]:
 
 ---
 
-*文档版本：v2.0 | 更新日期：2025-06-14*
+## 八、阶段状态
+
+| 阶段 | 状态 | 产出 |
+|------|------|------|
+| PRD 产品需求 | ✅ 完成 | `PRD_REFACTOR.md` |
+| 系统设计 | ✅ 完成 | `docs/system_design.md` + `class-diagram.mermaid` + `sequence-diagram.mermaid` |
+| 开发计划 | ✅ 完成 | `docs/development_plan.md` |
+| **代码实现** | ⏳ **等待启动** | — |
+| QA 测试 | ⏳ 未开始 | — |
+
+> **下一步**：当用户说"继续2.0版本开发"时，主理人按本文档第〇节的清单启动 `software-engineer`。
+
+---
+
+*文档版本：v2.0 | 更新日期：2025-06-14 | 配套：docs/development_plan.md*

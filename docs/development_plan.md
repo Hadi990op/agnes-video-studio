@@ -1,12 +1,48 @@
-# Agnes Video Generator 改造 — 完整开发计划
+# Agnes Video Generator v2.0 — 完整开发计划
 
-*文档版本：v2.0 | 状态：已确认，等待启动 | 日期：2025-06-14*
+> **当前阶段**：🟢 规划完成 — 等待用户说"继续2.0版本开发"或"开始开发"
+> **下一步**：启动 `software-engineer` 按 T01→T02→T03→T04→T05 顺序编写全部代码
+> **文档版本**：v2.0 | **最后更新**：2025-06-14
+> **依赖阅读**：`AGENTS.md`（角色定义+规范）、`docs/system_design.md`（架构+任务分解）、`docs/test_plan.md`（测试流程）
 
 ---
 
-## TL;DR
+## 0. 继续开发的正确方式
 
-从单一"创意长视频"扩展为 **三种视频任务类型**，引入 **edge_tts 免费旁白+字幕**，重构代码为 **四层通用组件架构**。涉及 **5 个有序任务、18 个源文件**。
+当用户发出以下任一指令时，主理人应立即执行第 0.1 节的操作：
+
+| 用户可能的说法 | 含义 |
+|--------------|------|
+| "继续2.0版本开发" | 进入实现阶段 |
+| "开始开发" / "开始实现" | 同上 |
+| "继续" / "go ahead" | 同上 |
+
+### 0.1 主理人收到"继续开发"指令时的操作清单
+
+```
+[ ] 1. 确认团队已存在（software-agnes-refactor），若不存在则 TeamCreate
+[ ] 2. 阅读 docs/system_design.md 第10节（任务列表）确认 T01-T05 完整规格
+[ ] 3. 阅读 AGENTS.md 第四节（工程师工作说明）确认代码规范
+[ ] 4. 启动 software-engineer，下发 T01-T05 全部任务（一次性完成所有文件）
+[ ] 5. 工程师产出代码后 → 启动 software-qa-engineer 按 test_plan.md 测试
+[ ] 6. QA 通过 → 交付总结
+```
+
+### 0.2 工程师启动提示词模板
+
+> 以下是 Agnes Video Generator v2.0 改造任务。请阅读以下文件了解完整上下文：
+> - `docs/development_plan.md` — 开发计划总览
+> - `docs/system_design.md` — 架构设计 + 任务列表（重点关注第10节）
+> - `AGENTS.md` — 代码规范、日志前缀、共享知识
+> - `core/video_generator.py` — 现有 Agnes Video API 封装（需迁移到 core/api/agnes_video.py）
+> - `core/image_generator.py` — 现有 Image API 封装（需迁移到 core/api/agnes_image.py）
+> - `core/screenwriter.py` — 现有 Chat API 调用（需提取到 core/api/agnes_chat.py）
+> - `core/pipeline.py` — 现有创意视频流水线（需迁移到 core/pipelines/creative_video.py）
+> - `models/task.py` — 现有数据模型（需重写为泛化版本）
+> - `server.py` — 现有路由（需重写支持三种任务类型）
+> - `static/index.html` — 现有前端（需重写为三Tab架构）
+>
+> 按 T01→T02→T03→T04→T05 顺序实现。全部文件写完后执行全局一致性审查。
 
 ---
 
@@ -232,11 +268,25 @@ split_manuscript(text) → List[ManuscriptParagraph]:
 ```bash
 cd /Users/lcy/video/agnes-video-generator
 source .venv/bin/activate
-pip install -r requirements.txt   # 首次需安装 edge_tts
+pip install -r requirements.txt   # 首次需安装 edge_tts, srt
 python server.py
 # 访问 http://localhost:8765
 ```
 
 ---
 
-*状态：✅ 规划已完成 | ⏳ 等待用户指令开始实现*
+## 10. 阶段状态
+
+| 阶段 | 状态 | 完成日期 |
+|------|------|---------|
+| PRD（产品需求） | ✅ 完成 | 2025-06-14 |
+| 系统设计 + 任务分解 | ✅ 完成 | 2025-06-14 |
+| 开发计划文档 | ✅ 完成 | 2025-06-14 |
+| **代码实现（T01-T05）** | ⏳ **等待启动** | — |
+| QA 测试验证 | ⏳ 未开始 | — |
+
+> **当用户说"继续2.0版本开发"时，主理人应按照本文档第 0 节的清单启动工程师。**
+
+---
+
+*文档版本：v2.0 | 状态：🟢 规划完成，等待启动 | 分支：v2.0-dev*

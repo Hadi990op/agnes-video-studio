@@ -1,4 +1,7 @@
-# Agnes Video Generator 大规模改造 PRD
+# Agnes Video Generator v2.0 大规模改造 PRD
+
+> **当前阶段**：🟢 PRD 已完成并确认 — 8 项决策已锁定
+> **配套文档**：`AGENTS.md`（开发规范）、`docs/system_design.md`（架构设计）、`docs/development_plan.md`（总计划）
 
 ## 项目信息
 

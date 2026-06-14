@@ -1,4 +1,8 @@
-# Agnes Video Generator 改造 — 测试计划
+# Agnes Video Generator v2.0 — 测试计划
+
+> **当前阶段**：🟢 测试计划就绪 — 等待代码实现完成后启动 QA
+> **前置依赖**：工程师完成 T01-T05 全部代码并 PASS 全局一致性审查
+> **配套文档**：`AGENTS.md`（测试规范）、`docs/development_plan.md`（总计划）
 
 *版本：v1.0 | 日期：2025-06-14*
 
