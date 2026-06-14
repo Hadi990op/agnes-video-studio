@@ -102,7 +102,14 @@ class VideoConcatenator:
     def _resolve_subtitle_position(pos, default=("center", "bottom")) -> tuple:
         """将字幕位置配置归一化为 (horizontal, vertical) 元组。"""
         if isinstance(pos, (list, tuple)) and len(pos) == 2:
-            return tuple(pos)
+            h, v = pos[0], pos[1]
+            if isinstance(v, str):
+                v_lower = v.strip().lower()
+                if "top" in v_lower:
+                    return (h, "top")
+                if "bottom" in v_lower:
+                    return (h, "bottom")
+            return (h, v)
         if isinstance(pos, str):
             pos_lower = pos.strip().lower()
             position_map = {
@@ -123,6 +130,16 @@ class VideoConcatenator:
         """逐条解析 SRT，返回 TextClip 列表。"""
         from moviepy import TextClip as MpTextClip
 
+        # 兼容旧格式 bg_color 字符串
+        bg = subtitle_style.bg_color
+        if isinstance(bg, str):
+            if "@" in bg:
+                parts = bg.split("@", 1)
+                rgb = {"black": (0, 0, 0), "white": (255, 255, 255)}.get(parts[0].strip().lower(), (0, 0, 0))
+                bg = (*rgb, int(float(parts[1]) * 255))
+            else:
+                bg = (0, 0, 0, 128)
+
         subs_clips = []
         with open(srt_path, "r", encoding="utf-8") as f:
             for sub in srt_lib.parse(f):
@@ -138,7 +155,7 @@ class VideoConcatenator:
                     color=subtitle_style.color,
                     stroke_color=subtitle_style.stroke_color,
                     stroke_width=subtitle_style.stroke_width,
-                    bg_color=subtitle_style.bg_color,
+                    bg_color=bg,
                     text_align="center",
                 )
                 clip = (
@@ -196,6 +213,10 @@ class VideoConcatenator:
             # ── Step 2: 加载拼接视频 + 音频 ────────────────────────────────
             video_clip = VideoFileClip(naked_path)
             audio_clip = AudioFileClip(audio_path)
+
+            # ── Step 2.5: 提升音频音量（TTS 默认音量偏低）────────────────
+            _AUDIO_VOLUME_FACTOR = 2.5
+            audio_clip = audio_clip.with_volume_scaled(_AUDIO_VOLUME_FACTOR)
 
             # ── Step 3: 若音频比视频长，冻结尾帧补齐 ─────────────────────
             if video_clip.duration < audio_clip.duration:
@@ -272,6 +293,10 @@ class VideoConcatenator:
         try:
             video_clip = VideoFileClip(video_path)
             audio_clip = AudioFileClip(audio_path)
+
+            # 提升音频音量（TTS 默认音量偏低）
+            _AUDIO_VOLUME_FACTOR = 2.5
+            audio_clip = audio_clip.with_volume_scaled(_AUDIO_VOLUME_FACTOR)
 
             # 若音频比视频长，冻结最后一帧补齐
             if video_clip.duration < audio_clip.duration:

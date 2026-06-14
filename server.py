@@ -47,6 +47,33 @@ from models.task import (
     VideoMode,
 )
 
+
+def _parse_bg_color(raw: str) -> tuple:
+    """将 bg_color 字符串解析为 moviepy 2.x 兼容的 RGBA 元组。"""
+    if isinstance(raw, tuple):
+        return raw
+    if isinstance(raw, str):
+        if raw.startswith("(") and raw.endswith(")"):
+            return tuple(int(x.strip()) for x in raw[1:-1].split(","))
+        if "@" in raw:
+            parts = raw.split("@", 1)
+            color_name = parts[0].strip().lower()
+            alpha_pct = float(parts[1])
+            rgb = {"black": (0, 0, 0), "white": (255, 255, 255),
+                   "red": (255, 0, 0), "blue": (0, 0, 255),
+                   "yellow": (255, 255, 0)}.get(color_name, (0, 0, 0))
+            return (*rgb, int(alpha_pct * 255))
+        if raw.lower() in ("none", "transparent", ""):
+            return None
+    return (0, 0, 0, 128)
+
+
+def _build_position(subtitle_position: str) -> tuple:
+    """将 'bottom'/'top' 转为 moviepy 兼容的位置元组。"""
+    if subtitle_position == "top":
+        return ("center", "top")
+    return ("center", "bottom")
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -433,10 +460,10 @@ async def create_creative_task(
         font=subtitle_font,
         color=subtitle_color,
         fontsize=subtitle_fontsize,
-        position=("center", f"bottom-80" if subtitle_position == "bottom" else "top-80"),
+        position=_build_position(subtitle_position),
         stroke_color=subtitle_stroke_color,
         stroke_width=subtitle_stroke_width,
-        bg_color=subtitle_bg_color,
+        bg_color=_parse_bg_color(subtitle_bg_color),
     )
     audio_config = AudioConfig(
         enabled=audio_enabled,
@@ -515,10 +542,10 @@ async def create_manuscript_task(
         font=subtitle_font,
         color=subtitle_color,
         fontsize=subtitle_fontsize,
-        position=("center", f"bottom-80" if subtitle_position == "bottom" else "top-80"),
+        position=_build_position(subtitle_position),
         stroke_color=subtitle_stroke_color,
         stroke_width=subtitle_stroke_width,
-        bg_color=subtitle_bg_color,
+        bg_color=_parse_bg_color(subtitle_bg_color),
     )
     audio_config = AudioConfig(
         enabled=audio_enabled,

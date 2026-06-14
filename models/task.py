@@ -14,7 +14,7 @@ import uuid
 from enum import Enum
 from typing import List, Literal, Optional, Tuple, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ═══════════════════════════════════════════════════
@@ -56,7 +56,23 @@ class SubtitleStyle(BaseModel):
     fontsize: int = 48
     stroke_color: str = "black"
     stroke_width: int = 2
-    bg_color: Optional[str] = "black@0.5"
+    bg_color: tuple = (0, 0, 0, 128)
+
+    @field_validator("bg_color", mode="before")
+    @classmethod
+    def _coerce_bg_color(cls, v):
+        if isinstance(v, tuple):
+            return v
+        if isinstance(v, str):
+            if "@" in v:
+                parts = v.split("@", 1)
+                rgb = {"black": (0, 0, 0), "white": (255, 255, 255),
+                       "red": (255, 0, 0), "blue": (0, 0, 255),
+                       "yellow": (255, 255, 0)}.get(parts[0].strip().lower(), (0, 0, 0))
+                return (*rgb, int(float(parts[1]) * 255))
+            if v.lower() in ("none", "transparent", ""):
+                return None
+        return (0, 0, 0, 128)
 
 
 class AudioConfig(BaseModel):

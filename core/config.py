@@ -79,7 +79,7 @@ def get_default_subtitle_style() -> SubtitleStyle:
         fontsize=48,
         stroke_color="black",
         stroke_width=2,
-        bg_color="black@0.5",
+        bg_color=(0, 0, 0, 128),
     )
 
 

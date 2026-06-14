@@ -156,6 +156,16 @@ class SubtitleGenerator:
         try:
             video_clip = VideoFileClip(video_path)
 
+            # 兼容旧格式 bg_color 字符串（如 "black@0.5"）
+            bg = style.bg_color
+            if isinstance(bg, str):
+                if "@" in bg:
+                    parts = bg.split("@", 1)
+                    rgb = {"black": (0, 0, 0), "white": (255, 255, 255)}.get(parts[0].strip().lower(), (0, 0, 0))
+                    bg = (*rgb, int(float(parts[1]) * 255))
+                else:
+                    bg = (0, 0, 0, 128)
+
             # moviepy 的 SubtitlesClip 读取 SRT 文件
             def make_text_clip(txt):
                 from moviepy import TextClip
@@ -166,7 +176,7 @@ class SubtitleGenerator:
                     color=style.color,
                     stroke_color=style.stroke_color,
                     stroke_width=style.stroke_width,
-                    bg_color=style.bg_color,
+                    bg_color=bg,
                     method="label",
                     size=(video_clip.w - 40, None),
                     text_align="center",
@@ -177,7 +187,17 @@ class SubtitleGenerator:
             # 根据 position 设置字幕位置
             pos = style.position
             if isinstance(pos, (list, tuple)) and len(pos) == 2:
-                position = pos
+                h, v = pos[0], pos[1]
+                if isinstance(v, str):
+                    v_lower = v.strip().lower()
+                    if "top" in v_lower:
+                        position = (h, "top")
+                    elif "bottom" in v_lower:
+                        position = (h, "bottom")
+                    else:
+                        position = (h, v)
+                else:
+                    position = (h, v)
             else:
                 position = ("center", "bottom")
 
