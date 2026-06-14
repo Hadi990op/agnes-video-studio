@@ -3,10 +3,11 @@
 用户输入 prompt → 选择模式（t2v/i2v/keyframes）→ 调用 Agnes Video API → 返回视频。
 """
 
+import asyncio
+import json
 import logging
 import os
 from typing import Callable, Optional
-import asyncio
 
 from core.api.agnes_video import AgnesVideoAPI
 from core.pipelines import BasePipeline, PipelineShutdown
@@ -65,6 +66,36 @@ class SimpleVideoPipeline(BasePipeline):
             await self._emit("error", "failed", str(e), 0.0)
             raise
 
+    # ------------------------------------------------------------------
+    # Curl / task persistence helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _make_curl(video_id: str) -> str:
+        return (
+            f'curl -s -H "Authorization: Bearer $AGNES_API_KEY" '
+            f'"https://apihub.agnes-ai.com/agnesapi?video_id={video_id}"'
+        )
+
+    def _save_task(self, video_id: str) -> None:
+        task_file = os.path.join(self.working_dir, "task.json")
+        with open(task_file, "w") as f:
+            json.dump({"video_id": video_id}, f, indent=2)
+        curl_file = os.path.join(self.working_dir, "curl.sh")
+        with open(curl_file, "w") as f:
+            f.write(self._make_curl(video_id) + "\n")
+
+    def _load_task(self) -> Optional[str]:
+        task_file = os.path.join(self.working_dir, "task.json")
+        if os.path.exists(task_file):
+            try:
+                with open(task_file, "r") as f:
+                    data = json.load(f)
+                return data.get("video_id") or data.get("task_id")
+            except Exception:
+                pass
+        return None
+
     async def _submit_and_wait(self) -> str:
         """提交视频任务并等待完成。支持 resume。"""
         video_path = os.path.join(self.working_dir, "final_video.mp4")
@@ -73,9 +104,21 @@ class SimpleVideoPipeline(BasePipeline):
             logger.info("[Simple] Video already exists, skipping")
             return video_path
 
-        # 检查是否有之前提交的 video_id（resume 场景）
+        # 尝试从 task.json 恢复（resume 场景）
+        saved_video_id = self._load_task()
+        if saved_video_id:
+            logger.info(f"[Simple] Resuming from saved task.json video_id: {saved_video_id}")
+            self._state.video_id = saved_video_id
+            self.task_manager.update_state(video_id=saved_video_id)
+            await self._emit("video_gen", "running", f"恢复轮询视频任务 {saved_video_id[:16]}...", 0.3)
+            video_output = await self.video_api.wait_for_video(saved_video_id)
+            video_output.save(video_path)
+            return video_path
+
+        # 也检查 state 中的 video_id（旧版 resume 兼容）
         if self._state.video_id:
-            logger.info(f"[Simple] Resuming from existing video_id: {self._state.video_id}")
+            logger.info(f"[Simple] Resuming from state video_id: {self._state.video_id}")
+            self._save_task(self._state.video_id)
             await self._emit("video_gen", "running", f"恢复轮询视频任务 {self._state.video_id[:16]}...", 0.3)
             video_output = await self.video_api.wait_for_video(self._state.video_id)
             video_output.save(video_path)
@@ -100,8 +143,9 @@ class SimpleVideoPipeline(BasePipeline):
             negative_prompt=self._state.negative_prompt,
         )
 
-        # 保存 video_id 用于 resume
+        # 持久化 video_id + curl 命令
         self._state.video_id = video_id
+        self._save_task(video_id)
         self.task_manager.update_state(video_id=video_id)
 
         await self._emit("video_gen", "running", f"等待视频生成 {video_id[:16]}...", 0.3)

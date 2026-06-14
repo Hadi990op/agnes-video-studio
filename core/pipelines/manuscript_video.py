@@ -4,6 +4,7 @@
 """
 
 import asyncio
+import json
 import logging
 import os
 import re
@@ -393,15 +394,47 @@ class ManuscriptVideoPipeline(BasePipeline):
                 para.index, para.scene_prompt[:80],
             )
 
+    # ------------------------------------------------------------------
+    # Curl / task persistence helpers (per-paragraph)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _make_curl(video_id: str) -> str:
+        return (
+            f'curl -s -H "Authorization: Bearer $AGNES_API_KEY" '
+            f'"https://apihub.agnes-ai.com/agnesapi?video_id={video_id}"'
+        )
+
+    def _save_para_task(self, para_dir: str, video_id: str) -> None:
+        os.makedirs(para_dir, exist_ok=True)
+        task_file = os.path.join(para_dir, "task.json")
+        with open(task_file, "w") as f:
+            json.dump({"video_id": video_id}, f, indent=2)
+        curl_file = os.path.join(para_dir, "curl.sh")
+        with open(curl_file, "w") as f:
+            f.write(self._make_curl(video_id) + "\n")
+
+    def _load_para_task(self, para_dir: str) -> Optional[str]:
+        task_file = os.path.join(para_dir, "task.json")
+        if os.path.exists(task_file):
+            try:
+                with open(task_file, "r") as f:
+                    data = json.load(f)
+                return data.get("video_id") or data.get("task_id")
+            except Exception:
+                pass
+        return None
+
     async def _step_generate_videos(
         self, paragraphs: List[ManuscriptParagraph],
     ) -> None:
         """为每个段落调用 Agnes Video API 生成视频。
 
-        每段视频保存到 ``{working_dir}/para_{index}/video.mp4``。
+        每段视频保存到 ``{working_dir}/para_{index}/video.mp4``，
+        同时记录 video_id 和 curl 命令到 ``task.json`` / ``curl.sh``。
 
         Args:
-            paragraphs: 段落列表（就地修改 ``video_file`` 字段）。
+            paragraphs: 段落列表（就地修改 ``video_file``、``video_id`` 字段）。
         """
         total = len(paragraphs)
         for i, para in enumerate(paragraphs):
@@ -428,38 +461,51 @@ class ManuscriptVideoPipeline(BasePipeline):
 
             os.makedirs(para_dir, exist_ok=True)
 
-            logger.info(
-                "[Manuscript] video: submitting paragraph %d/%d...",
-                i + 1, total,
-            )
+            # Resume: try to recover from a previously submitted video task
+            saved_video_id = self._load_para_task(para_dir)
+            if saved_video_id:
+                para.video_id = saved_video_id
+                logger.info(
+                    "[Manuscript] video: paragraph %d resuming video_id %s...",
+                    para.index, saved_video_id[:16],
+                )
+            else:
+                logger.info(
+                    "[Manuscript] video: submitting paragraph %d/%d...",
+                    i + 1, total,
+                )
+                await self._emit(
+                    "video_gen", "running",
+                    f"提交视频 {i + 1}/{total}",
+                    0.15 + 0.45 * (i / max(total, 1)),
+                )
+
+                video_id = await self.video_api.submit_video(
+                    prompt=para.scene_prompt,
+                    duration=self._state.video_duration,
+                    width=self._state.video_width,
+                    height=self._state.video_height,
+                )
+
+                para.video_id = video_id
+                self._save_para_task(para_dir, video_id)
+                saved_video_id = video_id
+
             await self._emit(
                 "video_gen", "running",
-                f"提交视频 {i + 1}/{total}",
+                f"等待视频生成 {i + 1}/{total} ({saved_video_id[:16]}...)",
                 0.15 + 0.45 * (i / max(total, 1)),
             )
 
-            video_id = await self.video_api.submit_video(
-                prompt=para.scene_prompt,
-                duration=self._state.video_duration,
-                width=self._state.video_width,
-                height=self._state.video_height,
-            )
-
-            await self._emit(
-                "video_gen", "running",
-                f"等待视频生成 {i + 1}/{total} ({video_id[:16]}...)",
-                0.15 + 0.45 * (i / max(total, 1)),
-            )
-
-            video_output = await self.video_api.wait_for_video(video_id)
+            video_output = await self.video_api.wait_for_video(saved_video_id)
             video_output.save(video_path)
 
             para.video_file = video_path
             # Persist after each video for crash recovery.
             self.task_manager.update_state(paragraphs=paragraphs)
             logger.info(
-                "[Manuscript] video: paragraph %d saved → %s",
-                para.index, video_path,
+                "[Manuscript] video: paragraph %d saved → %s (video_id=%s)",
+                para.index, video_path, saved_video_id[:16],
             )
 
     async def _step_audio_subtitle(
@@ -472,6 +518,9 @@ class ManuscriptVideoPipeline(BasePipeline):
         - 如果 ``audio_config.enabled`` 为 True，使用 ``EdgeTTSEngine`` 生成语音。
         - 否则使用 ``SilentTTSEngine`` 生成静音占位音频。
         - 统一通过 ``SubtitleGenerator.cues_to_srt`` 生成 SRT 字幕。
+
+        Resume 策略：优先检查段落状态字段（``narration_audio`` / ``subtitle_srt``），
+        再回退到磁盘文件检查，确保即使 state 已保存但文件被误删也能重新生成。
 
         Args:
             paragraphs: 段落列表（就地修改 ``narration_audio`` 和 ``subtitle_srt`` 字段）。
@@ -488,11 +537,22 @@ class ManuscriptVideoPipeline(BasePipeline):
             audio_path = os.path.join(para_dir, "narration.mp3")
             srt_path = os.path.join(para_dir, "narration.srt")
 
-            # Resume: skip if audio file already exists on disk.
-            if os.path.exists(audio_path):
-                para.narration_audio = audio_path
-                if os.path.exists(srt_path):
-                    para.subtitle_srt = srt_path
+            # Resume: check paragraph state fields first, then disk
+            audio_ok = (
+                bool(para.narration_audio) and os.path.exists(para.narration_audio)
+            ) or os.path.exists(audio_path)
+            if audio_ok:
+                resolved_audio = para.narration_audio if (
+                    bool(para.narration_audio) and os.path.exists(para.narration_audio)
+                ) else audio_path
+                para.narration_audio = resolved_audio
+                if os.path.exists(srt_path) or (
+                    bool(para.subtitle_srt) and os.path.exists(para.subtitle_srt)
+                ):
+                    resolved_srt = para.subtitle_srt if (
+                        bool(para.subtitle_srt) and os.path.exists(para.subtitle_srt)
+                    ) else srt_path
+                    para.subtitle_srt = resolved_srt
                 logger.info(
                     "[Manuscript] audio: paragraph %d already exists, skipping",
                     para.index,

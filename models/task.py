@@ -80,6 +80,7 @@ class ManuscriptParagraph(BaseModel):
     text: str
     scene_prompt: str = ""
     same_scene_as_prev: bool = False
+    video_id: str = ""
     video_file: str = ""
     narration_audio: str = ""
     subtitle_srt: str = ""
