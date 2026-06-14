@@ -419,3 +419,65 @@ Generate a detailed English visual prompt for this paragraph.
             prompt = prompt.strip()
         logger.info(f"[Screenwriter] Scene prompt: {prompt[:100]}...")
         return prompt
+
+    def generate_narration_for_scene(
+        self, scene_prompt: str, story_context: str, video_duration: float, style: str = ""
+    ) -> str:
+        """为单个场景生成旁白文案（类型 2 专用）。
+
+        基于场景的视觉 prompt 和故事上下文，生成适合视频时长的中文旁白文本。
+        旁白用于 TTS 朗读和字幕显示。
+
+        Args:
+            scene_prompt: 场景的英文视觉描述（来自 write_script）
+            story_context: 完整故事文本（提供上下文）
+            video_duration: 视频时长（秒），用于控制旁白长度
+            style: 风格描述（可选）
+
+        Returns:
+            中文旁白文本字符串
+        """
+        max_chars = max(int(video_duration * 4.0), 20)
+
+        system_prompt = f"""\
+You are a professional video narrator and scriptwriter. Given a scene's visual \
+description and the full story context, write a Chinese narration voiceover \
+for this specific scene.
+
+Rules:
+- Write in CHINESE (中文), natural and suitable for voiceover narration.
+- The narration should be {max_chars} characters or fewer to fit a \
+{video_duration:.0f}-second video clip (Chinese speech rate ~4 chars/sec).
+- Focus on what is happening in the scene — describe actions, emotions, \
+and atmosphere that complement the visuals.
+- Use vivid, cinematic language suitable for short video narration.
+- Do NOT repeat the visual description verbatim — narrate the STORY, \
+not the camera directions.
+- End with a natural sentence boundary (。！？) — do NOT truncate mid-sentence.
+- Output ONLY the narration text, no quotes, no explanation.
+
+The target length is approximately {max_chars} Chinese characters.
+"""
+        user_prompt = f"""\
+<story_context>
+{story_context}
+</story_context>
+
+<scene_visual>
+{scene_prompt}
+</scene_visual>
+
+Write a Chinese narration voiceover for this scene, approximately {max_chars} characters.
+"""
+        logger.info(
+            f"[Screenwriter] Generating narration for scene "
+            f"(max {max_chars} chars, {video_duration:.0f}s video)..."
+        )
+        narration = self._chat(system_prompt, user_prompt).strip()
+        if narration.startswith("```"):
+            narration = narration.split("\n", 1)[1]
+            if narration.endswith("```"):
+                narration = narration[:-3]
+            narration = narration.strip()
+        logger.info(f"[Screenwriter] Narration: {narration[:80]}... ({len(narration)} chars)")
+        return narration

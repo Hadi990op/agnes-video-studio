@@ -1102,6 +1102,75 @@ class CreativeVideoPipeline(BasePipeline):
         self._state.narrations = narrations
         self.task_manager.update_state(narrations=narrations)
 
+    async def _step_generate_narrations(self, story: str, scenes: list) -> None:
+        """Use LLM to generate narration text for each scene.
+
+        Instead of directly using story content, this step calls the LLM to
+        generate appropriate narration text that:
+        - Fits the video duration (4 chars/sec for Chinese)
+        - Complements the visual scenes
+        - Tells the story naturally as voiceover
+
+        Args:
+            story: Full story text for context.
+            scenes: List of scene visual prompts from write_script.
+        """
+        if self._state.narrations and all(
+            n and len(n) > 5 for n in self._state.narrations
+        ):
+            logger.info("[Pipeline] Step generate_narrations: SKIP (narrations already populated)")
+            return
+
+        num_scenes = len(self._state.scenes)
+        if not num_scenes:
+            return
+
+        logger.info("[Pipeline] Step generate_narrations: RUNNING")
+        await self._emit("narrations", "running", "正在生成旁白文案...", 0.12)
+
+        narrations = []
+        for i in range(num_scenes):
+            if self._is_shutdown():
+                raise PipelineShutdown(f"interrupted during narration generation scene {i}")
+
+            scene_prompt = scenes[i] if i < len(scenes) else ""
+
+            # Resume: skip if narration already exists and is non-empty
+            if i < len(self._state.narrations) and self._state.narrations[i]:
+                logger.info(f"[Pipeline] Scene {i}: narration already exists, skipping")
+                narrations.append(self._state.narrations[i])
+                continue
+
+            await self._emit(
+                "narrations", "running",
+                f"生成场景 {i+1}/{num_scenes} 旁白...",
+                0.12 + 0.06 * i / max(num_scenes, 1),
+            )
+
+            narration = await asyncio.to_thread(
+                self.screenwriter.generate_narration_for_scene,
+                scene_prompt,
+                story,
+                float(self._state.video_duration),
+                self._state.style,
+            )
+
+            # Fallback: if LLM returns empty, use trimmed story excerpt
+            if not narration or len(narration) < 5:
+                logger.warning(f"[Pipeline] Scene {i}: LLM returned empty narration, using fallback")
+                max_chars = max(int(self._state.video_duration * _CHARS_PER_SEC), 20)
+                fallback_text = story[i * 50:(i + 1) * 50] if story else ""
+                narration = _trim_to_sentence(fallback_text, max_chars) if fallback_text else ""
+
+            narrations.append(narration)
+            # Persist after each scene for crash recovery
+            self._state.narrations = narrations
+            self.task_manager.update_state(narrations=narrations)
+
+        self._state.narrations = narrations
+        self.task_manager.update_state(narrations=narrations)
+        logger.info(f"[Pipeline] Narrations generated: {[len(n) for n in narrations]} chars")
+
     # ==================================================================
     # Step 5: Audio & Subtitle Generation (NEW in v2.0)
     # ==================================================================
@@ -1378,9 +1447,13 @@ class CreativeVideoPipeline(BasePipeline):
                 raise PipelineShutdown("interrupted after character reference")
 
             scenes = await self._step_script(story)
-            self._populate_narrations(story)
             if self._is_shutdown():
                 raise PipelineShutdown("interrupted after script")
+
+            # Generate narrations using LLM (replaces direct story content usage)
+            await self._step_generate_narrations(story, scenes)
+            if self._is_shutdown():
+                raise PipelineShutdown("interrupted after narrations")
 
             end_frame_prompts = await self._step_end_frame_prompts(story, scenes)
             if self._is_shutdown():
