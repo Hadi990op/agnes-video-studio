@@ -102,10 +102,10 @@ class SilentTTSEngine(TTSEngine):
         proc = await asyncio.create_subprocess_exec(
             "ffmpeg", "-y",
             "-f", "lavfi",
-            "-i", f"anullsrc=r=24000:cl=mono",
+            "-i", f"anullsrc=r=44100:cl=mono",
             "-t", str(duration_sec),
             "-c:a", "libmp3lame",
-            "-q:a", "9",
+            "-q:a", "4",
             output_path,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,

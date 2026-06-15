@@ -12,6 +12,39 @@ from models.task import AudioConfig, SubtitleStyle
 CONFIG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".agnes_config")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
+# 项目根目录
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def font_dir() -> str:
+    """返回项目内置字体目录。"""
+    return os.path.join(_PROJECT_ROOT, "resource", "fonts")
+
+
+# 默认中文字体文件名（需位于 resource/fonts/ 下）
+DEFAULT_CHINESE_FONT = "STHeitiMedium.ttc"
+
+
+def resolve_font_path(font: str) -> str:
+    """将字体名称解析为 moviepy TextClip 可用的路径。
+
+    如果 font 是绝对路径或系统字体名称（不含 . 且不包含路径分隔符），直接返回。
+    如果 font 是一个文件名（含扩展名），则在项目 resource/fonts/ 目录下查找。
+    找不到时回退到系统字体名称。
+    """
+    # 已经是绝对路径，直接返回
+    if os.path.isabs(font) and os.path.exists(font):
+        return font
+
+    # 看起来像文件名（含扩展名），尝试在项目字体目录查找
+    if "." in font and "/" not in font and "\\" not in font:
+        candidate = os.path.join(font_dir(), font)
+        if os.path.exists(candidate):
+            return candidate
+
+    # 当作系统字体名称返回
+    return font
+
 
 # ═══════════════════════════════════════════════════
 # API Key 管理（保持现有逻辑）
@@ -73,7 +106,7 @@ AVAILABLE_VOICES = [
 def get_default_subtitle_style() -> SubtitleStyle:
     """返回默认字幕样式配置（D4）。"""
     return SubtitleStyle(
-        font="Arial",
+        font=DEFAULT_CHINESE_FONT,
         color="white",
         position=("center", "bottom-80"),
         fontsize=48,

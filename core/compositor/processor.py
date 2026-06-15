@@ -58,9 +58,9 @@ class VideoProcessor:
         subprocess.run([
             "ffmpeg", "-y",
             "-f", "lavfi",
-            "-i", f"anullsrc=r=24000:cl=mono",
+            "-i", f"anullsrc=r=44100:cl=mono",
             "-t", str(duration_sec),
-            "-c:a", "libmp3lame", "-q:a", "9",
+            "-c:a", "libmp3lame", "-q:a", "4",
             output_path,
         ], capture_output=True, check=True, timeout=30)
 

@@ -15,6 +15,12 @@ from models.task import SubtitleStyle
 
 logger = logging.getLogger(__name__)
 
+# ── 视频输出常量（对齐 MoneyPrinterTurbo，确保播放器兼容性）──
+_AUDIO_CODEC = "aac"
+_AUDIO_BITRATE = "192k"
+_AUDIO_FPS = 44100
+_VIDEO_FPS = 30
+
 
 class VideoConcatenator:
     """视频拼接器：纯拼接 + 带音频合成拼接。"""
@@ -44,7 +50,15 @@ class VideoConcatenator:
         clips = [VideoFileClip(p) for p in video_paths]
         try:
             final = concatenate_videoclips(clips, method="compose")
-            final.write_videofile(output_path, logger="bar")
+            final.write_videofile(
+                output_path,
+                codec="libx264",
+                audio_codec=_AUDIO_CODEC,
+                audio_bitrate=_AUDIO_BITRATE,
+                audio_fps=_AUDIO_FPS,
+                fps=_VIDEO_FPS,
+                logger="bar",
+            )
         finally:
             for c in clips:
                 c.close()
@@ -129,6 +143,9 @@ class VideoConcatenator:
     ) -> list:
         """逐条解析 SRT，返回 TextClip 列表。"""
         from moviepy import TextClip as MpTextClip
+        from core.config import resolve_font_path
+
+        font_path = resolve_font_path(subtitle_style.font)
 
         # 兼容旧格式 bg_color 字符串
         bg = subtitle_style.bg_color
@@ -150,7 +167,7 @@ class VideoConcatenator:
 
                 clip = MpTextClip(
                     text=txt,
-                    font=subtitle_style.font,
+                    font=font_path,
                     font_size=subtitle_style.fontsize,
                     color=subtitle_style.color,
                     stroke_color=subtitle_style.stroke_color,
@@ -237,17 +254,49 @@ class VideoConcatenator:
                     )
                     if subs_clips:
                         final = CompositeVideoClip([video_with_audio, *subs_clips])
-                        final.write_videofile(output_path, logger="bar")
+                        final.write_videofile(
+                            output_path,
+                            codec="libx264",
+                            audio_codec=_AUDIO_CODEC,
+                            audio_bitrate=_AUDIO_BITRATE,
+                            audio_fps=_AUDIO_FPS,
+                            fps=_VIDEO_FPS,
+                            logger="bar",
+                        )
                         final.close()
                     else:
-                        video_with_audio.write_videofile(output_path, logger="bar")
+                        video_with_audio.write_videofile(
+                            output_path,
+                            codec="libx264",
+                            audio_codec=_AUDIO_CODEC,
+                            audio_bitrate=_AUDIO_BITRATE,
+                            audio_fps=_AUDIO_FPS,
+                            fps=_VIDEO_FPS,
+                            logger="bar",
+                        )
                 except Exception as e:
                     logger.warning(
                         f"[Compositor] Subtitle overlay failed: {e}, writing without subtitles"
                     )
-                    video_with_audio.write_videofile(output_path, logger="bar")
+                    video_with_audio.write_videofile(
+                        output_path,
+                        codec="libx264",
+                        audio_codec=_AUDIO_CODEC,
+                        audio_bitrate=_AUDIO_BITRATE,
+                        audio_fps=_AUDIO_FPS,
+                        fps=_VIDEO_FPS,
+                        logger="bar",
+                    )
             else:
-                video_with_audio.write_videofile(output_path, logger="bar")
+                video_with_audio.write_videofile(
+                    output_path,
+                    codec="libx264",
+                    audio_codec=_AUDIO_CODEC,
+                    audio_bitrate=_AUDIO_BITRATE,
+                    audio_fps=_AUDIO_FPS,
+                    fps=_VIDEO_FPS,
+                    logger="bar",
+                )
         finally:
             if video_clip is not None:
                 video_clip.close()
@@ -317,17 +366,49 @@ class VideoConcatenator:
                     )
                     if subs_clips:
                         final = CompositeVideoClip([video_with_audio, *subs_clips])
-                        final.write_videofile(output_path, logger="bar")
+                        final.write_videofile(
+                            output_path,
+                            codec="libx264",
+                            audio_codec=_AUDIO_CODEC,
+                            audio_bitrate=_AUDIO_BITRATE,
+                            audio_fps=_AUDIO_FPS,
+                            fps=_VIDEO_FPS,
+                            logger="bar",
+                        )
                         final.close()
                     else:
-                        video_with_audio.write_videofile(output_path, logger="bar")
+                        video_with_audio.write_videofile(
+                            output_path,
+                            codec="libx264",
+                            audio_codec=_AUDIO_CODEC,
+                            audio_bitrate=_AUDIO_BITRATE,
+                            audio_fps=_AUDIO_FPS,
+                            fps=_VIDEO_FPS,
+                            logger="bar",
+                        )
                 except Exception as e:
                     logger.warning(
                         f"[Compositor] Subtitle overlay failed: {e}, writing without subtitles"
                     )
-                    video_with_audio.write_videofile(output_path, logger="bar")
+                    video_with_audio.write_videofile(
+                        output_path,
+                        codec="libx264",
+                        audio_codec=_AUDIO_CODEC,
+                        audio_bitrate=_AUDIO_BITRATE,
+                        audio_fps=_AUDIO_FPS,
+                        fps=_VIDEO_FPS,
+                        logger="bar",
+                    )
             else:
-                video_with_audio.write_videofile(output_path, logger="bar")
+                video_with_audio.write_videofile(
+                    output_path,
+                    codec="libx264",
+                    audio_codec=_AUDIO_CODEC,
+                    audio_bitrate=_AUDIO_BITRATE,
+                    audio_fps=_AUDIO_FPS,
+                    fps=_VIDEO_FPS,
+                    logger="bar",
+                )
         finally:
             if video_clip is not None:
                 video_clip.close()

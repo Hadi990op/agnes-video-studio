@@ -156,6 +156,10 @@ class SubtitleGenerator:
         try:
             video_clip = VideoFileClip(video_path)
 
+            # 解析字体路径
+            from core.config import resolve_font_path
+            font_path = resolve_font_path(style.font)
+
             # 兼容旧格式 bg_color 字符串（如 "black@0.5"）
             bg = style.bg_color
             if isinstance(bg, str):
@@ -171,7 +175,7 @@ class SubtitleGenerator:
                 from moviepy import TextClip
                 return TextClip(
                     text=txt,
-                    font=style.font,
+                    font=font_path,
                     font_size=style.fontsize,
                     color=style.color,
                     stroke_color=style.stroke_color,
@@ -202,7 +206,15 @@ class SubtitleGenerator:
                 position = ("center", "bottom")
 
             final = CompositeVideoClip([video_clip, subtitles_clip.with_position(position)])
-            final.write_videofile(output_path, logger="bar")
+            final.write_videofile(
+                output_path,
+                codec="libx264",
+                audio_codec="aac",
+                audio_bitrate="192k",
+                audio_fps=44100,
+                fps=30,
+                logger="bar",
+            )
 
             video_clip.close()
             final.close()

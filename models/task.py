@@ -50,7 +50,7 @@ class VideoMode(str, Enum):
 class SubtitleStyle(BaseModel):
     """字幕样式配置（D4：P1 范围）"""
 
-    font: str = "Arial"
+    font: str = "STHeitiMedium.ttc"
     color: str = "white"
     position: tuple = ("center", "bottom-80")
     fontsize: int = 48
