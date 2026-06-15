@@ -8,9 +8,23 @@
 
 ## 🎥 Demo
 
-> 暗黑童话 —《青蛙王子》，5 个场景，keyframes 串联，TTS 旁白配音 + 自动字幕，全自动生成。
+### 1. 创意视频 — 无配音
+
+> 暗黑童话 —《青蛙王子》，5 个场景，keyframes 串联，全自动生成。
 
 [![青蛙王子 — 演示视频](https://img.shields.io/badge/▶%20观看演示-FF0050?style=for-the-badge&logo=tiktok&logoColor=white)](https://v.douyin.com/L4F6KdGnD6U/)
+
+### 2. 创意视频 — 带 TTS 配音
+
+> 同样的《青蛙王子》故事，增加 AI 生成的 TTS 旁白配音和自动字幕。
+
+[![青蛙王子配音版 — 演示](https://img.shields.io/badge/▶%20观看演示-FF0050?style=for-the-badge&logo=tiktok&logoColor=white)](https://v.douyin.com/l2FlbF1Jdz0/)
+
+### 3. 稿件视频 — 长文转视频
+
+> 粘贴长文/稿件 → 自动拆段 → 逐段 AI 视频 → 统一 TTS 旁白 + 字幕叠加 → 最终视频。
+
+[![稿件视频演示](https://img.shields.io/badge/▶%20观看演示-FF0050?style=for-the-badge&logo=tiktok&logoColor=white)](https://v.douyin.com/eSGE9KENWVU/)
 
 <sub>点击在抖音观看</sub>
 
