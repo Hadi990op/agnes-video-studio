@@ -141,9 +141,10 @@ class VideoConcatenator:
         subtitle_style: SubtitleStyle,
         video_width: int,
     ) -> list:
-        """逐条解析 SRT，返回 TextClip 列表。"""
+        """逐条解析 SRT，返回 TextClip 列表（支持多行自动换行）。"""
         from moviepy import TextClip as MpTextClip
         from core.config import resolve_font_path
+        from core.audio.subtitle import SubtitleGenerator
 
         font_path = resolve_font_path(subtitle_style.font)
 
@@ -157,6 +158,10 @@ class VideoConcatenator:
             else:
                 bg = (0, 0, 0, 128)
 
+        # 根据视频宽度动态计算每行最大字符数（与 subtitle.py 一致）
+        available_w = video_width - 40
+        cjk_max_chars = max(8, available_w // subtitle_style.fontsize)
+
         subs_clips = []
         with open(srt_path, "r", encoding="utf-8") as f:
             for sub in srt_lib.parse(f):
@@ -165,14 +170,19 @@ class VideoConcatenator:
                 end_s = sub.end.total_seconds()
                 dur = end_s - start_s
 
+                # 长文本自动拆为多行，避免单行溢出屏幕
+                wrapped = SubtitleGenerator._split_long_text(txt, cjk_max_chars)
+
                 clip = MpTextClip(
-                    text=txt,
+                    text=wrapped,
                     font=font_path,
                     font_size=subtitle_style.fontsize,
                     color=subtitle_style.color,
                     stroke_color=subtitle_style.stroke_color,
                     stroke_width=subtitle_style.stroke_width,
                     bg_color=bg,
+                    method="caption",
+                    size=(available_w, None),
                     text_align="center",
                 )
                 clip = (
