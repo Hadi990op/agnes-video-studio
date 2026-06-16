@@ -570,8 +570,8 @@ class CreativeVideoPipeline(BasePipeline):
                 with open(task_file, "r") as f:
                     data = json.load(f)
                 return data.get("video_id") or data.get("task_id")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[Pipeline] Failed to load cached task.json for scene: {e}")
         return None
 
     async def _step_generate_videos(

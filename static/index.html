@@ -875,6 +875,28 @@ function t(key) {
   return val;
 }
 
+// 转义动态文本，防止 innerHTML 注入导致的存储型 XSS。
+// 用法：把所有用户可控字段（idea/prompt/manuscript_text/task_id 等）拼进 HTML 前先转义。
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// 用于嵌入 onclick="fn('...')" 这类属性内的 JS 字符串字面量。
+// 除 HTML 转义外，额外转义单引号和反斜杠，防止闭合引号注入。
+function escapeAttr(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '&quot;');
+}
+
 function applyLanguage(lang) {
   currentLang = lang || 'zh';
   try { localStorage.setItem('lang', currentLang); } catch(e) {}
@@ -1421,16 +1443,17 @@ async function loadTaskList() {
       const isCompleted = task.status === 'completed';
       const isRunning = task.status === 'running';
       const btnLabel = isCompleted ? t('btnView') : (isRunning ? t('btnViewProgress') : t('btnResume'));
-      const btnAction = isCompleted ? `viewTask('${task.task_id}')` : (isRunning ? `viewRunningTask('${task.task_id}')` : `resumeTask('${task.task_id}')`);
-      const stopBtn = isRunning ? `<button onclick="stopTaskById('${task.task_id}')" class="text-xs px-3 py-1.5 bg-red-700 hover:bg-red-600 text-red-100 rounded-lg transition">${t('btnStop')}</button>` : '';
-      const typeBadge = `<span class="text-xs px-2 py-0.5 rounded-full ${typeColors[task.task_type] || 'bg-gray-800 text-gray-400'}">${typeLabels[task.task_type] || task.task_type}</span>`;
+      const tidAttr = escapeAttr(task.task_id);
+      const btnAction = isCompleted ? `viewTask('${tidAttr}')` : (isRunning ? `viewRunningTask('${tidAttr}')` : `resumeTask('${tidAttr}')`);
+      const stopBtn = isRunning ? `<button onclick="stopTaskById('${tidAttr}')" class="text-xs px-3 py-1.5 bg-red-700 hover:bg-red-600 text-red-100 rounded-lg transition">${t('btnStop')}</button>` : '';
+      const typeBadge = `<span class="text-xs px-2 py-0.5 rounded-full ${typeColors[task.task_type] || 'bg-gray-800 text-gray-400'}">${escapeHtml(typeLabels[task.task_type] || task.task_type)}</span>`;
       const desc = task.idea || task.prompt || (task.manuscript_text || '').substring(0, 80);
       const extra = task.scene_count ? ` · ${task.scene_count}${t('sceneUnit')}` : (task.paragraph_count ? ` · ${task.paragraph_count}${t('paraUnit')}` : '');
       return `<div class="bg-gray-900 rounded-xl p-4 border border-gray-800 flex items-center justify-between">
         <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 mb-1">${typeBadge}<p class="text-sm font-medium truncate">${task.creative_name || task.task_id}</p></div>
-          <p class="text-xs text-gray-500 mt-0.5">${task.task_id}${extra}</p>
-          ${desc ? `<p class="text-xs text-gray-600 mt-1 truncate max-w-xs">${desc}</p>` : ''}
+          <div class="flex items-center gap-2 mb-1">${typeBadge}<p class="text-sm font-medium truncate">${escapeHtml(task.creative_name || task.task_id)}</p></div>
+          <p class="text-xs text-gray-500 mt-0.5">${escapeHtml(task.task_id)}${extra}</p>
+          ${desc ? `<p class="text-xs text-gray-600 mt-1 truncate max-w-xs">${escapeHtml(desc)}</p>` : ''}
         </div>
         <div class="flex items-center gap-3 ml-3">
           <span class="text-xs ${statusColors[task.status] || 'text-gray-400'}">${statusLabels[task.status] || task.status}</span>
@@ -1564,21 +1587,21 @@ function showTaskDetail(taskId, state) {
   const typeLabel = { simple: t('typeSimple'), creative: t('typeCreative'), manuscript: t('typeManuscript') };
   let extraInfo = '';
   if (taskType === 'creative') {
-    extraInfo = `<p class="text-gray-500">${t('idea_')}: ${(state.idea || '').substring(0, 100)}</p>
+    extraInfo = `<p class="text-gray-500">${t('idea_')}: ${escapeHtml((state.idea || '').substring(0, 100))}</p>
       <p class="text-gray-500">${t('sceneCount')}: ${state.scene_count || 0}</p>`;
   } else if (taskType === 'manuscript') {
     extraInfo = `<p class="text-gray-500">${t('paragraphCount')}: ${(state.paragraphs || []).length}</p>`;
   } else {
-    extraInfo = `<p class="text-gray-500">Prompt: ${(state.prompt || '').substring(0, 100)}</p>`;
+    extraInfo = `<p class="text-gray-500">Prompt: ${escapeHtml((state.prompt || '').substring(0, 100))}</p>`;
   }
 
   document.getElementById('progress-message').innerHTML = `
     <div class="space-y-2">
       <p class="text-green-400 font-medium">${t('taskComplete')}</p>
-      <p class="text-gray-500">${t('taskId')}: ${taskId} · ${typeLabel[taskType] || taskType}</p>
-      <p class="text-gray-500">${t('dir')}: <code class="text-xs bg-gray-800 px-1 py-0.5 rounded font-mono">${state.dir_name || taskId}</code></p>
+      <p class="text-gray-500">${t('taskId')}: ${escapeHtml(taskId)} · ${escapeHtml(typeLabel[taskType] || taskType)}</p>
+      <p class="text-gray-500">${t('dir')}: <code class="text-xs bg-gray-800 px-1 py-0.5 rounded font-mono">${escapeHtml(state.dir_name || taskId)}</code></p>
       ${extraInfo}
-      ${state.final_video_file ? `<p class="text-gray-500">${t('artifact')}: <code class="text-xs bg-gray-800 px-1 py-0.5 rounded">${state.final_video_file}</code></p>` : ''}
+      ${state.final_video_file ? `<p class="text-gray-500">${t('artifact')}: <code class="text-xs bg-gray-800 px-1 py-0.5 rounded">${escapeHtml(state.final_video_file)}</code></p>` : ''}
     </div>`;
 
   if (state.final_video_file) {

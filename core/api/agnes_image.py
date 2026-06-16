@@ -99,8 +99,8 @@ class AgnesImageAPI:
             error_detail = ""
             try:
                 error_detail = resp.text[:500]
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[AgnesImage] Failed to read error response: {e}")
             logger.error(f"[AgnesImage] HTTP {resp.status_code}: {error_detail}")
             raise
 

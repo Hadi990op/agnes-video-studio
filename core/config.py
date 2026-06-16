@@ -78,20 +78,33 @@ def resolve_font_path(font: str) -> str:
 
 def _ensure_config_dir():
     os.makedirs(CONFIG_DIR, exist_ok=True)
+    # 目录权限收紧为仅属主可读写执行，避免其他用户读取其中的 api_key
+    try:
+        os.chmod(CONFIG_DIR, 0o700)
+    except OSError:
+        pass
 
 
 def load_config() -> dict:
     _ensure_config_dir()
     if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r") as f:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
 
 
 def save_config(config: dict):
     _ensure_config_dir()
-    with open(CONFIG_FILE, "w") as f:
+    # 原子写：先写临时文件再 os.replace，避免写入中途崩溃留下损坏 JSON
+    tmp_path = CONFIG_FILE + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
+    # 配置含 api_key，权限收紧为仅属主可读写
+    try:
+        os.chmod(tmp_path, 0o600)
+    except OSError:
+        pass
+    os.replace(tmp_path, CONFIG_FILE)
 
 
 def get_api_key() -> str:

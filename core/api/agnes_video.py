@@ -81,8 +81,8 @@ class AgnesVideoAPI:
                     if cached_url:
                         logger.info(f"[AgnesVideo] Using cached hosted URL: {cached_url[:80]}...")
                         return cached_url
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[AgnesVideo] Failed to read cached URL: {e}")
             url = await self._upload_image_to_url(ref)
             if url:
                 try:
@@ -92,8 +92,8 @@ class AgnesVideoAPI:
                         f.flush()
                         os.fsync(f.fileno())
                     os.replace(tmp_file, url_file)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[AgnesVideo] Failed to cache URL: {e}")
                 return url
             logger.warning("[AgnesVideo] Image upload failed, falling back to base64.")
             return self._path_to_b64(ref)

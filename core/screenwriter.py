@@ -64,8 +64,8 @@ otherwise.
                         cached_descriptions = cached.get("descriptions", {})
                         if cached_descriptions:
                             logger.info(f"[Screenwriter] Loaded {len(cached_descriptions)} cached descriptions")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[Screenwriter] Failed to load image description cache: {e}")
 
         logger.info(f"[Screenwriter] Describing {total} images one by one...")
 
@@ -93,8 +93,8 @@ otherwise.
                             "image_paths": image_paths,
                             "descriptions": cached_descriptions,
                         }, f, ensure_ascii=False, indent=2)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[Screenwriter] Failed to write image description cache: {e}")
 
         combined = "\n\n".join(descriptions)
         logger.info(f"[Screenwriter] All {total} images described: {len(combined)} chars")

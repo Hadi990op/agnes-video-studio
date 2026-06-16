@@ -71,6 +71,7 @@ class VideoProcessor:
         """将视频最后一帧冻结指定时长，输出新视频。
 
         用于视频-音频对齐：当视频时长不足时，冻结尾帧补齐。
+        输出时长 = 原视频时长 + freeze_duration。
 
         Args:
             video_path: 输入视频
@@ -82,53 +83,42 @@ class VideoProcessor:
 
         import subprocess
 
-        # 1. 提取最后一帧
-        frame_path = output_path + "_frame.jpg"
-        subprocess.run([
-            "ffmpeg", "-y",
-            "-sseof", "-1",
-            "-i", video_path,
-            "-frames:v", "1",
-            "-update", "1",
-            frame_path,
-        ], capture_output=True, check=True, timeout=30)
+        # 方案 1（首选）：ffmpeg tpad 滤镜克隆尾帧。
+        # 单输入单滤镜，输出 = 原视频 + freeze_duration 的尾帧定格，且保留音频轨。
+        # 注意：勿再用 -t {freeze_duration}，那会把整个输出截断成只剩冻结段。
+        try:
+            subprocess.run([
+                "ffmpeg", "-y",
+                "-i", video_path,
+                "-vf", f"tpad=stop_mode=clone:stop_duration={freeze_duration}",
+                "-c:v", "libx264", "-preset", "fast",
+                "-c:a", "aac",
+                output_path,
+            ], capture_output=True, check=True, timeout=120)
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                logger.info(f"[Compositor] freeze via tpad succeeded: {output_path}")
+                return output_path
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr.decode(errors="replace")[:500] if e.stderr else "no stderr"
+            logger.warning(f"[Compositor] tpad freeze failed, trying moviepy fallback: {stderr}")
+        except subprocess.TimeoutExpired:
+            logger.warning("[Compositor] tpad freeze timed out, trying moviepy fallback")
 
-        # 2. 从最后一帧生成冻结视频
-        freeze_video_path = output_path + "_freeze.mp4"
-        subprocess.run([
-            "ffmpeg", "-y",
-            "-loop", "1",
-            "-i", frame_path,
-            "-i", video_path,  # 复用原视频参数
-            "-filter_complex",
-            f"[0:v]scale=iw:ih,trim=duration={freeze_duration},setpts=PTS-STARTPTS[freeze];"
-            f"[1:v][freeze]concat=n=2:v=1:a=0[out]",
-            "-map", "[out]",
-            "-c:v", "libx264", "-preset", "fast",
-            "-t", str(freeze_duration),
-            freeze_video_path,
-        ], capture_output=True, check=False, timeout=60)
+        # 方案 2（回退）：moviepy 拼接原视频 + 尾帧定格。
+        # 使用 get_frame + ImageClip 构造定格（moviepy 2.x 无 to_ImageClip(duration=...) API）。
+        from moviepy import VideoFileClip, ImageClip, concatenate_videoclips
 
-        # 如果复杂滤镜失败，回退到简单方案
-        if not os.path.exists(freeze_video_path) or os.path.getsize(freeze_video_path) == 0:
-            from moviepy import VideoFileClip, concatenate_videoclips, ImageClip
-
-            clip = VideoFileClip(video_path)
-            last_frame = clip.to_ImageClip(duration=freeze_duration)
+        clip = VideoFileClip(video_path)
+        final = None
+        try:
+            # 取接近末尾的帧（duration-0.01 避免越界）
+            last_frame_img = clip.get_frame(max(clip.duration - 0.01, 0))
+            last_frame = ImageClip(last_frame_img, duration=freeze_duration)
             final = concatenate_videoclips([clip, last_frame], method="compose")
-            final.write_videofile(output_path, logger=None)
+            final.write_videofile(output_path, logger=None, preset="fast")
+        finally:
             clip.close()
-            final.close()
-        else:
-            import shutil
-            shutil.move(freeze_video_path, output_path)
-
-        # 清理临时文件
-        for f in [frame_path, freeze_video_path]:
-            if os.path.exists(f):
-                try:
-                    os.remove(f)
-                except Exception:
-                    pass
+            if final is not None:
+                final.close()
 
         return output_path

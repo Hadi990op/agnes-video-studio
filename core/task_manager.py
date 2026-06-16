@@ -89,11 +89,18 @@ class TaskManager:
             return None
 
     def _save(self):
-        """持久化当前状态到 JSON 文件。"""
+        """持久化当前状态到 JSON 文件。
+
+        使用原子写（临时文件 + os.replace），避免写入中途进程被杀
+        （如用户二次 Ctrl+C 触发的 os._exit、OOM、信号）留下截断的损坏 JSON
+        导致任务无法断点续传。
+        """
         self._ensure_dir()
         if self._state:
-            with open(self._task_file, "w") as f:
+            tmp_path = self._task_file + ".tmp"
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(self._state.model_dump(), f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, self._task_file)
 
     def update_step(self, step_name: str, status: StepStatus):
         """更新某个步骤的状态并持久化。"""
@@ -157,7 +164,7 @@ class TaskManager:
                         "status": data.get("status", "pending"),
                         "chaining_mode": data.get("chaining_mode", "none"),
                     })
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[TaskManager] Failed to load task listing for {name}: {e}")
         tasks.sort(key=lambda t: t.get("task_id", ""), reverse=True)
         return tasks

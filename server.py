@@ -119,8 +119,8 @@ async def lifespan(app: FastAPI):
                         with open(task_file, "w") as f:
                             json.dump(data, f, ensure_ascii=False, indent=2)
                         logger.info(f"[Startup] Reset stale running task {name} -> pending")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[Startup] Failed to reset stale task {name}: {e}")
 
     yield
 
@@ -139,25 +139,20 @@ UPLOAD_DIR = os.path.join(get_working_dir(), "uploads")
 async def websocket_endpoint(websocket: WebSocket, task_id: str):
     await websocket.accept()
     logger.info(f"[WS] Client connected for task {task_id}")
-    active_connections[task_id] = websocket
 
-    async def progress_callback(step: str, status: str, message: str, progress: float, data: dict):
+    # 关闭并替换同一 task_id 的旧 WS 连接，避免覆盖竞态
+    old_ws = active_connections.get(task_id)
+    if old_ws is not None and old_ws is not websocket:
+        logger.info(f"[WS] Closing previous connection for task {task_id}")
         try:
-            await websocket.send_json({
-                "type": "progress",
-                "task_id": task_id,
-                "step": step,
-                "status": status,
-                "message": message,
-                "progress": progress,
-                "data": data,
-            })
-        except Exception:
-            pass
+            await old_ws.close(code=1000, reason="replaced by new connection")
+        except Exception as e:
+            logger.debug(f"[WS] Error closing old WS for {task_id}: {e}")
+    active_connections[task_id] = websocket
 
     if task_id in active_pipelines:
         logger.info(f"[WS] Binding existing pipeline for task {task_id}")
-        active_pipelines[task_id].progress_callback = progress_callback
+        active_pipelines[task_id].progress_callback = _make_progress_callback(task_id)
 
     try:
         while True:
@@ -169,7 +164,8 @@ async def websocket_endpoint(websocket: WebSocket, task_id: str):
     except Exception as e:
         logger.warning(f"[WS] Error for task {task_id}: {e}")
     finally:
-        if task_id in active_connections:
+        # 仅当当前 WS 仍是活跃连接时才删除，避免误删已替换的新连接
+        if active_connections.get(task_id) is websocket:
             del active_connections[task_id]
 
 
@@ -315,8 +311,8 @@ def _make_progress_callback(task_id: str, ws: Optional[WebSocket] = None):
                     "progress": progress,
                     "data": data,
                 })
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[WS] Failed to send progress for {task_id}: {e}")
     return progress_callback
 
 

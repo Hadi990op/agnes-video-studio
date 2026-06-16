@@ -92,8 +92,8 @@ class SimpleVideoPipeline(BasePipeline):
                 with open(task_file, "r") as f:
                     data = json.load(f)
                 return data.get("video_id") or data.get("task_id")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[Simple] Failed to load cached task.json: {e}")
         return None
 
     async def _submit_and_wait(self) -> str:
