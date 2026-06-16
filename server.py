@@ -415,16 +415,18 @@ async def create_simple_task(
         negative_prompt=negative_prompt,
     )
 
-    # 处理参考图上传
+    # 处理参考图上传（L4: 用 UUID 替代客户端文件名，避免路径穿越）
     if reference_image and reference_image.filename:
-        upload_path = os.path.join(UPLOAD_DIR, f"{task_id}_ref_{reference_image.filename}")
+        ext = os.path.splitext(reference_image.filename)[1] or ".png"
+        upload_path = os.path.join(UPLOAD_DIR, f"{task_id}_ref{ext}")
         with open(upload_path, "wb") as f:
             f.write(await reference_image.read())
         state.reference_image = upload_path
 
     # 处理尾帧图上传（keyframes 模式）
     if end_frame_image and end_frame_image.filename:
-        upload_path = os.path.join(UPLOAD_DIR, f"{task_id}_end_{end_frame_image.filename}")
+        ext = os.path.splitext(end_frame_image.filename)[1] or ".png"
+        upload_path = os.path.join(UPLOAD_DIR, f"{task_id}_end{ext}")
         with open(upload_path, "wb") as f:
             f.write(await end_frame_image.read())
         state.end_frame_image = upload_path
@@ -516,9 +518,10 @@ async def create_creative_task(
 
     logger.info(f"[Pipeline] Parsed video_duration={parsed_duration}s from user_requirement={user_requirement!r}")
 
-    # 处理参考图上传
+    # 处理参考图上传（L4: 用 UUID 替代客户端文件名，避免路径穿越）
     if reference_image and reference_image.filename:
-        upload_path = os.path.join(UPLOAD_DIR, f"{task_id}_ref_{reference_image.filename}")
+        ext = os.path.splitext(reference_image.filename)[1] or ".png"
+        upload_path = os.path.join(UPLOAD_DIR, f"{task_id}_ref{ext}")
         with open(upload_path, "wb") as f:
             f.write(await reference_image.read())
         state.reference_image = upload_path

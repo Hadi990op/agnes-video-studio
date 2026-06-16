@@ -1274,6 +1274,9 @@ function showProgress(taskId, dirName) {
   document.getElementById('progress-message').innerHTML = `<span class="text-yellow-400">${t('watchLog')}</span><br><span class="text-gray-500">${t('task_')}: ${taskId}</span>${dirInfo}`;
 }
 
+let _wsRetryCount = 0;
+const _WS_MAX_RETRIES = 5;
+
 function connectWS(taskId) {
   if (ws) { ws.close(); ws = null; }
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1342,7 +1345,15 @@ function connectWS(taskId) {
 
   ws.onclose = (e) => {
     ws = null;
-    if (isTaskRunning && e.code !== 1000) {
+    // L8: 正常关闭 (1000) 或任务已完成，不重连
+    if (e.code === 1000 || !isTaskRunning) return;
+    // L8: 指数退避重连，最多 5 次
+    if (_wsRetryCount < _WS_MAX_RETRIES) {
+      _wsRetryCount++;
+      const delay = Math.min(1000 * Math.pow(2, _wsRetryCount - 1), 16000);
+      document.getElementById('progress-message').textContent = t('reconnecting') + ` (${_wsRetryCount}/${_WS_MAX_RETRIES})`;
+      setTimeout(() => { if (isTaskRunning && !ws) connectWS(taskId); }, delay);
+    } else {
       clearRunning();
       document.getElementById('progress-message').innerHTML = `
         <div class="p-4 bg-yellow-950 border border-yellow-800 rounded-lg space-y-2">
@@ -1353,10 +1364,14 @@ function connectWS(taskId) {
     }
   };
 
+  ws.onopen = () => {
+    _wsRetryCount = 0;  // 连接成功后重置重试计数
+  };
+
   ws.onerror = (e) => {
+    // L8: onerror 仅记录，重连由 onclose 处理
     if (isTaskRunning) {
       document.getElementById('progress-message').textContent = t('reconnecting');
-      setTimeout(() => { if (isTaskRunning && !ws) connectWS(taskId); }, 3000);
     }
   };
 }

@@ -20,24 +20,24 @@
 | H4 | 高 | task_state.json 非原子写，崩溃即损坏 | ✅ 已修复 |
 | H5 | 高 | WebSocket 连接覆盖竞态 + 进度回调失联 | ✅ 已修复 |
 | H6 | 高 | _synth 缓存不复验、从不清理 | ✅ 已修复 |
-| M1 | 中 | 字幕默认位置 bottom-80 偏移被丢弃 | ⬜ 待修复 |
-| M2 | 中 | stop() 无法中断阻塞中的 requests | ⬜ 待修复 |
+| M1 | 中 | 字幕默认位置 bottom-80 偏移被丢弃 | ✅ 已修复 |
+| M2 | 中 | stop() 无法中断阻塞中的 requests | ✅ 已修复 |
 | M3 | 中 | _poll_task 无总超时上限 | ✅ 已修复 |
 | M4 | 中 | video_duration Form 参数被静默丢弃 | ✅ 已修复 |
 | M5 | 中 | 大量 except Exception: pass 静默吞异常 | ✅ 已修复 |
 | M6 | 中 | asyncio.create_task 未持有引用 | ✅ 已修复 |
 | M7 | 中 | EdgeTTS 无错误处理，抖动即任务失败 | ✅ 已修复 |
-| M8 | 中 | regression_runner 参数与 server 不符 | ⬜ 待修复 |
-| M9 | 中 | 音量增益 2.5x 必然削波 | ⬜ 待修复 |
-| M10 | 中 | 字幕时间戳未按视频时长钳位 | ⬜ 待修复 |
+| M8 | 中 | regression_runner 参数与 server 不符 | ✅ 已修复 |
+| M9 | 中 | 音量增益 2.5x 必然削波 | ✅ 已修复 |
+| M10 | 中 | 字幕时间戳未按视频时长钳位 | ✅ 已修复 |
 | L1 | 低 | 无自动化单元测试 | ⬜ 待修复 |
-| L2 | 低 | requirements 版本下限与 moviepy v2 API 矛盾 | ⬜ 待修复 |
-| L3 | 低 | .gitignore *.png/*.jpg 过于宽泛 | ⬜ 待修复 |
-| L4 | 低 | 上传文件名直接拼路径（穿越风险） | ⬜ 待修复 |
-| L5 | 低 | start.sh 无 python/ffmpeg/端口校验 | ⬜ 待修复 |
+| L2 | 低 | requirements 版本下限与 moviepy v2 API 矛盾 | ✅ 已修复 |
+| L3 | 低 | .gitignore *.png/*.jpg 过于宽泛 | ✅ 已修复 |
+| L4 | 低 | 上传文件名直接拼路径（穿越风险） | ✅ 已修复 |
+| L5 | 低 | start.sh 无 python/ffmpeg/端口校验 | ✅ 已修复 |
 | L6 | 低 | AGENTS.md 文档与代码多处不符 | ⬜ 待修复 |
-| L7 | 低 | concat method="compose" 不同分辨率会 pad 黑边 | ⬜ 待修复 |
-| L8 | 低 | WebSocket 重连逻辑失效 | ⬜ 待修复 |
+| L7 | 低 | concat method="compose" 不同分辨率会 pad 黑边 | ✅ 已修复 |
+| L8 | 低 | WebSocket 重连逻辑失效 | ✅ 已修复 |
 
 > 状态图例：⬜ 待修复 / 🔄 修复中 / ✅ 已修复 / ✔️ 已验证
 
@@ -217,4 +217,4 @@
 
 ---
 
-*报告版本：v1.2 | 最后更新：2026-06-16 | H1–H6、M3–M7 已修复，其余待处理*
+*报告版本：v1.3 | 最后更新：2026-06-16 | H1–H6、M1–M10、L2–L5、L7–L8 已修复，L1（自动化测试）和 L6（文档对齐）待处理*

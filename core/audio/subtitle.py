@@ -10,6 +10,7 @@ import logging
 import os
 from typing import List, Optional, Tuple
 
+import re as _re
 import srt
 from moviepy import VideoFileClip, CompositeVideoClip
 from moviepy.video.tools.subtitles import SubtitlesClip
@@ -411,22 +412,45 @@ class SubtitleGenerator:
 
             subtitles_clip = SubtitlesClip(srt_path, make_textclip=make_text_clip)
 
-            # 根据 position 设置字幕位置
+            # 根据 position 设置字幕位置（M1: 支持 bottom-N/top+N 偏移）
             pos = style.position
+            position = ("center", "bottom")
             if isinstance(pos, (list, tuple)) and len(pos) == 2:
                 h, v = pos[0], pos[1]
                 if isinstance(v, str):
                     v_lower = v.strip().lower()
-                    if "top" in v_lower:
-                        position = (h, "top")
-                    elif "bottom" in v_lower:
-                        position = (h, "bottom")
+                    m_bottom = _re.match(r'^bottom\s*[-\u2013]\s*(\d+)$', v_lower)
+                    if m_bottom:
+                        offset = int(m_bottom.group(1))
+                        position = (h, max(video_clip.h - offset, 0))
                     else:
-                        position = (h, v)
+                        m_top = _re.match(r'^top\s*\+\s*(\d+)$', v_lower)
+                        if m_top:
+                            offset = int(m_top.group(1))
+                            position = (h, offset)
+                        elif "top" in v_lower:
+                            position = (h, "top")
+                        elif "bottom" in v_lower:
+                            position = (h, "bottom")
+                        else:
+                            position = (h, v)
                 else:
                     position = (h, v)
-            else:
-                position = ("center", "bottom")
+            elif isinstance(pos, str):
+                pos_lower = pos.strip().lower()
+                m_bottom = _re.match(r'^bottom\s*[-\u2013]\s*(\d+)$', pos_lower)
+                if m_bottom:
+                    offset = int(m_bottom.group(1))
+                    position = ("center", max(video_clip.h - offset, 0))
+                else:
+                    m_top = _re.match(r'^top\s*\+\s*(\d+)$', pos_lower)
+                    if m_top:
+                        offset = int(m_top.group(1))
+                        position = ("center", offset)
+                    elif "top" in pos_lower:
+                        position = ("center", "top")
+                    elif "bottom" in pos_lower:
+                        position = ("center", "bottom")
 
             final = CompositeVideoClip([video_clip, subtitles_clip.with_position(position)])
             final.write_videofile(
