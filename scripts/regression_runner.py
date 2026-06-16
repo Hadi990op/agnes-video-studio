@@ -6,6 +6,7 @@ Agnes Video Generator v2.0 — 大版本回归测试脚本 (并发版)
   python scripts/regression_runner.py                # 从头运行
   python scripts/regression_runner.py --resume       # 从已有报告继续
   python scripts/regression_runner.py --quick        # 跳过运行，只验证产物
+  python scripts/regression_runner.py --cleanup      # 清理回归产物（报告+日志+任务目录）
 
 机制:
   - 10 个测试场景通过 asyncio 并发执行
@@ -29,6 +30,7 @@ import logging
 import os
 import signal
 import subprocess
+import shutil
 import sys
 import time
 from contextlib import contextmanager
@@ -49,6 +51,7 @@ REPORT_PATH = os.path.join(PROJECT_ROOT, "docs", "regression_report.json")
 REPORT_MD_PATH = os.path.join(PROJECT_ROOT, "docs", "regression_report.md")
 SERVER_URL = "http://localhost:8765"
 SERVER_LOG = os.path.join(PROJECT_ROOT, ".regression_server.log")
+MANIFEST_PATH = os.path.join(WORKING_DIR, ".regression_manifest.json")
 TEST_REF_IMAGE = os.path.join(PROJECT_ROOT, "test_ref.png")
 TEST_END_IMAGE = os.path.join(PROJECT_ROOT, "test_end.png")
 
@@ -482,6 +485,156 @@ class ReportManager:
         with open(report_md_path, "w") as f:
             f.write(content)
         logger.info(f"MD 报告: {report_md_path}")
+
+
+# ═══════════════════════════════════════════════════
+# 回归测试产物清单
+# ═══════════════════════════════════════════════════
+
+class RegressionManifest:
+    """回归测试产物清单。
+
+    记录回归测试产生的所有文件/目录，用于安全清理而不影响用户数据。
+    """
+
+    def __init__(self, path: str, run_id: str = ""):
+        self.path = path
+        self.data: dict = {
+            "run_id": run_id,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": "",
+            "task_dirs": [],        # .working_dir/ 下的任务目录名
+            "uploads": [],          # .working_dir/uploads/ 下的文件名
+            "reports": [
+                os.path.relpath(REPORT_PATH, PROJECT_ROOT),
+                os.path.relpath(REPORT_MD_PATH, PROJECT_ROOT),
+            ],
+            "server_log": os.path.relpath(SERVER_LOG, PROJECT_ROOT),
+            "scenarios": {},        # scenario_id -> {task_id, dir_name, status}
+        }
+        if os.path.exists(path):
+            try:
+                with open(path, "r") as f:
+                    existing = json.load(f)
+                # Merge with existing manifest (for resume mode)
+                self.data["task_dirs"] = list(existing.get("task_dirs", []))
+                self.data["uploads"] = list(existing.get("uploads", []))
+                self.data["scenarios"] = dict(existing.get("scenarios", {}))
+                self.data["run_id"] = existing.get("run_id", run_id)
+                self.data["created_at"] = existing.get(
+                    "created_at", self.data["created_at"])
+            except (json.JSONDecodeError, OSError):
+                pass
+
+    def record_scenario(self, scenario_id: str, task_id: str, dir_name: str,
+                        status: str, error: str = ""):
+        """记录单个场景的执行产物。"""
+        self.data["scenarios"][scenario_id] = {
+            "task_id": task_id,
+            "dir_name": dir_name,
+            "status": status,
+            "error": error,
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+        }
+        if dir_name and dir_name not in self.data["task_dirs"]:
+            self.data["task_dirs"].append(dir_name)
+
+    def record_upload(self, filename: str):
+        """记录上传文件。"""
+        if filename and filename not in self.data["uploads"]:
+            self.data["uploads"].append(filename)
+
+    def save(self):
+        self.data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        tmp = self.path + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(self.data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, self.path)
+
+
+def cleanup_regression_artifacts() -> dict:
+    """根据产物清单安全清理回归测试产物。
+
+    只删除清单中明确记录的内容，不会影响用户原有任务数据。
+    返回清理结果统计。
+    """
+    if not os.path.exists(MANIFEST_PATH):
+        return {"ok": False, "error": "未找到回归测试产物清单，可能没有执行过回归测试"}
+
+    try:
+        with open(MANIFEST_PATH, "r") as f:
+            manifest = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        return {"ok": False, "error": f"读取清单失败: {e}"}
+
+    removed_dirs = []
+    removed_files = []
+    errors = []
+
+    # 1. 清理任务目录（只删除清单中列出的）
+    for dir_name in manifest.get("task_dirs", []):
+        dir_path = os.path.join(WORKING_DIR, dir_name)
+        if os.path.isdir(dir_path):
+            try:
+                shutil.rmtree(dir_path)
+                removed_dirs.append(dir_name)
+            except OSError as e:
+                errors.append(f"删除目录失败 {dir_name}: {e}")
+
+    # 2. 清理上传文件
+    for fname in manifest.get("uploads", []):
+        fpath = os.path.join(UPLOAD_DIR, fname)
+        if os.path.isfile(fpath):
+            try:
+                os.remove(fpath)
+                removed_files.append(os.path.join("uploads", fname))
+            except OSError as e:
+                errors.append(f"删除上传文件失败 {fname}: {e}")
+
+    # 3. 清理报告文件
+    for rel_path in manifest.get("reports", []):
+        abs_path = os.path.join(PROJECT_ROOT, rel_path)
+        if os.path.isfile(abs_path):
+            try:
+                os.remove(abs_path)
+                removed_files.append(rel_path)
+            except OSError as e:
+                errors.append(f"删除报告失败 {rel_path}: {e}")
+
+    # 4. 清理服务器日志
+    log_rel = manifest.get("server_log", "")
+    if log_rel:
+        log_path = os.path.join(PROJECT_ROOT, log_rel)
+        if os.path.isfile(log_path):
+            try:
+                os.remove(log_path)
+                removed_files.append(log_rel)
+            except OSError as e:
+                errors.append(f"删除日志失败: {e}")
+
+    # 5. 清理清单本身
+    try:
+        os.remove(MANIFEST_PATH)
+        removed_files.append(os.path.relpath(MANIFEST_PATH, PROJECT_ROOT))
+    except OSError as e:
+        errors.append(f"删除清单失败: {e}")
+
+    result = {
+        "ok": len(errors) == 0,
+        "removed_dirs": len(removed_dirs),
+        "removed_files": len(removed_files),
+        "removed_dir_names": removed_dirs,
+        "removed_file_names": removed_files,
+        "errors": errors,
+        "scenarios_cleaned": len(manifest.get("scenarios", {})),
+    }
+    logger.info(
+        f"回归清理完成: {result['removed_dirs']} 目录, "
+        f"{result['removed_files']} 文件")
+    if errors:
+        logger.warning(f"清理错误: {errors}")
+    return result
 
 
 # ═══════════════════════════════════════════════════
@@ -963,7 +1116,8 @@ async def validate_task(dir_name: str, scenario: ScenarioConfig) -> dict:
 
 async def run_scenario(scenario: ScenarioConfig,
                        sema: WeightedSemaphore,
-                       report: ReportManager):
+                       report: ReportManager,
+                       manifest: RegressionManifest):
     if not report.should_run(scenario.id):
         return
     start = time.monotonic()
@@ -1061,10 +1215,32 @@ async def run_scenario(scenario: ScenarioConfig,
                                    errors=[f"status={final_status}"])
             logger.warning(f"[{scenario.id}] ❌ {final_status} ({elapsed}s)")
 
+        # 记录到产物清单（无论成功/失败/超时都记录）
+        if task_id:
+            manifest.record_scenario(
+                scenario.id, task_id,
+                dir_name or "",
+                report.data["scenarios"].get(
+                    scenario.id, {}).get("status", "unknown"),
+                error="; ".join(report.data["scenarios"].get(
+                    scenario.id, {}).get("errors", [])),
+            )
+
     except Exception as e:
         elapsed = round(time.monotonic() - start, 1)
         logger.error(f"[{scenario.id}] ❌ {e}")
         report.update_scenario(scenario.id, "failed", errors=[str(e)])
+
+        # 记录到产物清单（无论成功/失败/超时都记录）
+        if task_id:
+            manifest.record_scenario(
+                scenario.id, task_id,
+                dir_name or "",
+                report.data["scenarios"].get(
+                    scenario.id, {}).get("status", "unknown"),
+                error="; ".join(report.data["scenarios"].get(
+                    scenario.id, {}).get("errors", [])),
+            )
     finally:
         await sema.release(scenario.weight)
         logger.info(f"[{scenario.id}] 释放 w={sema.current}/{sema.max_weight}")
@@ -1175,13 +1351,30 @@ async def _e8_e9_check(action: str) -> tuple:
 # 主流程
 # ═══════════════════════════════════════════════════
 
-async def main(resume: bool = False, auto_start: bool = False, quick: bool = False):
+async def main(resume: bool = False, auto_start: bool = False,
+               quick: bool = False, cleanup: bool = False):
     logger.info("=" * 56)
     logger.info("  Agnes Video Generator v2.0 — 大版本回归测试")
     logger.info(f"  并行度上限: {MAX_CONCURRENT_WEIGHT}/{AGNES_RATE_LIMIT}/min (权重/Agnes API)")
     resume and logger.info(f"  模式: 恢复 (自动跳过已完成场景)")
     quick and logger.info(f"  模式: 快速验证 (跳过运行)")
+    cleanup and logger.info(f"  模式: 清理回归产物")
     logger.info("=" * 56)
+
+    # ── 清理模式 ──
+    if cleanup:
+        result = cleanup_regression_artifacts()
+        if result.get("ok"):
+            logger.info(
+                f"✅ 已清理 {result['removed_dirs']} 个任务目录、"
+                f"{result['removed_files']} 个文件"
+                f"（涉及 {result['scenarios_cleaned']} 个场景）")
+        else:
+            logger.error(f"清理失败: {result.get('error', 'unknown')}")
+            if result.get("errors"):
+                for e in result["errors"]:
+                    logger.error(f"  - {e}")
+        return 0 if result.get("ok") else 1
 
     # 确保测试素材存在
     _ensure_test_assets()
@@ -1190,28 +1383,42 @@ async def main(resume: bool = False, auto_start: bool = False, quick: bool = Fal
         logger.error("服务不可用，退出")
         return 1
 
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     report = ReportManager(REPORT_PATH)
+    manifest = RegressionManifest(MANIFEST_PATH, run_id=run_id)
 
     if quick:
         logger.info("快速验证模式：仅检查已有产物")
         for sc in SCENARIO_DEFS:
             report.update_scenario(sc.id, "running")
             try:
-                tasks = requests.get(f"{SERVER_URL}/api/tasks", timeout=5).json().get("tasks", [])
-                task = next((t for t in tasks if t.get("creative_name", "").startswith(sc.type)), None)
+                tasks = requests.get(
+                    f"{SERVER_URL}/api/tasks", timeout=5
+                ).json().get("tasks", [])
+                task = next(
+                    (t for t in tasks
+                     if t.get("creative_name", "").startswith(sc.type)),
+                    None)
                 if task and task.get("status") == "completed":
-                    checks = await validate_task(task.get("dir_name", task["task_id"]), sc)
-                    report.update_scenario(sc.id, "completed", result={"checks": checks},
-                                           errors=[k for k, v in checks.items() if v is False])
-                    logger.info(f"  {sc.id}: 已验证 (dir={task.get('dir_name','?')})")
+                    dn = task.get("dir_name", task["task_id"])
+                    checks = await validate_task(dn, sc)
+                    report.update_scenario(
+                        sc.id, "completed",
+                        result={"checks": checks},
+                        errors=[k for k, v in checks.items() if v is False])
+                    manifest.record_scenario(
+                        sc.id, task["task_id"], dn, "completed")
+                    logger.info(f"  {sc.id}: 已验证 (dir={dn})")
                 else:
-                    report.update_scenario(sc.id, "skipped", errors=["无已完成任务"])
+                    report.update_scenario(
+                        sc.id, "skipped", errors=["无已完成任务"])
                     logger.info(f"  {sc.id}: 跳过 (无已完成任务)")
             except Exception as e:
                 report.update_scenario(sc.id, "failed", errors=[str(e)])
         await verify_endpoints(report)
         report._save()
         report.generate_md_report(REPORT_MD_PATH)
+        manifest.save()
         report.print_summary()
         return 0
 
@@ -1225,18 +1432,20 @@ async def main(resume: bool = False, auto_start: bool = False, quick: bool = Fal
     else:
         logger.info(f"并发 {len(pending)} 场景 (max_weight={MAX_CONCURRENT_WEIGHT})")
         sema = WeightedSemaphore(MAX_CONCURRENT_WEIGHT)
-        tasks = [run_scenario(sc, sema, report) for sc in pending]
+        tasks = [run_scenario(sc, sema, report, manifest) for sc in pending]
         await asyncio.gather(*tasks)
         logger.info(f"全部场景执行完毕")
 
     await verify_endpoints(report)
     report._save()
     report.generate_md_report(REPORT_MD_PATH)
+    manifest.save()
 
     passed = report.data["summary"]["failed"] == 0
     report.print_summary()
     logger.info(f"JSON 报告: {REPORT_PATH}")
     logger.info(f"MD  报告: {REPORT_MD_PATH}")
+    logger.info(f"产物清单: {MANIFEST_PATH}")
     return 0 if passed else 1
 
 
@@ -1246,15 +1455,24 @@ def _print_help():
 
 if __name__ == "__main__":
     import argparse
-    p = argparse.ArgumentParser(description="Agnes Video Generator 大版本回归测试")
-    p.add_argument("--resume", action="store_true", help="恢复已有报告")
-    p.add_argument("--auto-start", action="store_true", help="自动启动服务器")
-    p.add_argument("--quick", action="store_true", help="仅验证已有产物")
+    p = argparse.ArgumentParser(
+        description="Agnes Video Generator 大版本回归测试")
+    p.add_argument("--resume", action="store_true",
+                   help="恢复已有报告")
+    p.add_argument("--auto-start", action="store_true",
+                   help="自动启动服务器")
+    p.add_argument("--quick", action="store_true",
+                   help="仅验证已有产物")
+    p.add_argument("--cleanup", action="store_true",
+                   help="清理回归测试产物（报告、日志、任务目录）")
     args = p.parse_args()
 
     if args.quick and not args.resume:
         args.resume = True
 
-    sys.exit(asyncio.run(main(resume=args.resume,
-                               auto_start=args.auto_start,
-                               quick=args.quick)))
+    sys.exit(asyncio.run(main(
+        resume=args.resume,
+        auto_start=args.auto_start,
+        quick=args.quick,
+        cleanup=args.cleanup,
+    )))
