@@ -1546,35 +1546,34 @@ async def main(resume: bool = False, auto_start: bool = False,
     manifest = RegressionManifest(MANIFEST_PATH, run_id=run_id)
 
     if quick:
-        logger.info("快速验证模式：仅检查已有产物")
+        logger.info("快速验证模式：仅检查 manifest 已记录的产物")
+        recorded = manifest.data.get("scenarios", {})
+        has_any = False
         for sc in SCENARIO_DEFS:
-            report.update_scenario(sc.id, "running")
-            try:
-                tasks = requests.get(
-                    f"{SERVER_URL}/api/tasks", timeout=5
-                ).json().get("tasks", [])
-                task = next(
-                    (t for t in tasks
-                     if (t.get("creative_name", "").startswith(sc.type)
-                         or t.get("task_type") == sc.type)
-                     and not t.get("creative_name", "").startswith("__ep_probe__")),
-                    None)
-                if task and task.get("status") == "completed":
-                    dn = task.get("dir_name", task["task_id"])
+            rec = recorded.get(sc.id)
+            if rec and rec.get("dir_name"):
+                has_any = True
+                dn = rec["dir_name"]
+                dir_path = os.path.join(WORKING_DIR, dn)
+                if os.path.isdir(dir_path):
                     checks = await validate_task(dn, sc)
                     report.update_scenario(
                         sc.id, "completed",
                         result={"checks": checks},
                         errors=[k for k, v in checks.items() if v is False])
-                    manifest.record_scenario(
-                        sc.id, task["task_id"], dn, "completed")
                     logger.info(f"  {sc.id}: 已验证 (dir={dn})")
                 else:
                     report.update_scenario(
-                        sc.id, "skipped", errors=["无已完成任务"])
-                    logger.info(f"  {sc.id}: 跳过 (无已完成任务)")
-            except Exception as e:
-                report.update_scenario(sc.id, "failed", errors=[str(e)])
+                        sc.id, "failed",
+                        errors=[f"目录不存在: {dn}"])
+                    logger.warning(f"  {sc.id}: 目录不存在 ({dn})")
+            else:
+                report.update_scenario(
+                    sc.id, "skipped",
+                    errors=["manifest 中无此场景记录"])
+                logger.info(f"  {sc.id}: 跳过 (manifest 无记录)")
+        if not has_any:
+            logger.warning("manifest 中无任何场景记录，请先运行完整回归测试")
         await verify_endpoints(report)
         report._save()
         report.generate_md_report(REPORT_MD_PATH)
