@@ -181,6 +181,7 @@ class CreativeVideoTask(BaseTaskState):
     step_character_ref: StepStatus = StepStatus.PENDING
     character_ref_prompt: str = ""
     character_ref_file: str = ""
+    character_appearance: str = ""  # i2i 尾帧一致性：角色外观文本持久化（批次3）
 
     step_script: StepStatus = StepStatus.PENDING
     script_file: str = ""

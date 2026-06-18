@@ -358,6 +358,9 @@ class CreativeVideoPipeline(BasePipeline):
         character_appearance = await asyncio.to_thread(
             self.screenwriter.get_character_appearance, story
         )
+        # 持久化角色外观文本，支持断点续传一致性（批次3）
+        self._state.character_appearance = character_appearance
+        self.task_manager.update_state(character_appearance=character_appearance)
         end_frame_prompts = await asyncio.to_thread(
             self.screenwriter.generate_end_frame_prompts,
             scenes, self._state.style, character_appearance
@@ -535,6 +538,15 @@ class CreativeVideoPipeline(BasePipeline):
                     if scene_idx < len(end_frame_prompts)
                     else "cinematic end frame"
                 )
+                # 程序化拼入 [PRESERVE] 角色外观硬约束，确保 i2i 身份一致性（批次3）
+                if self._state.character_appearance:
+                    end_frame_prompt = (
+                        "[PRESERVE — keep exactly]\n"
+                        f"{self._state.character_appearance}\n"
+                        "Keep the same person, same face, same clothing. Do NOT alter identity.\n\n"
+                        "[CHANGE — end frame of this scene]\n"
+                        f"{end_frame_prompt}"
+                    )
                 # 规范化角色参考图到目标尺寸，避免 i2i 拉伸/构图错位
                 normalized_ref = self._get_normalized_character_ref(character_ref_path)
                 for attempt in range(3):
