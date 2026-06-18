@@ -173,7 +173,7 @@ class CreativeVideoTask(BaseTaskState):
     reference_image: str = ""
     end_frame_images: List[str] = Field(default_factory=list)
     use_custom_end_frames: bool = False
-    generate_end_frames_from_ref: bool = False
+    generate_end_frames_from_ref: bool = True  # i2i 尾帧优化后默认开启
 
     step_story: StepStatus = StepStatus.PENDING
     story_file: str = ""

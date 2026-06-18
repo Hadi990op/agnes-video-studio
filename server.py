@@ -456,9 +456,9 @@ async def create_creative_task(
     reference_image: UploadFile = File(None),
     end_frame_images: list = None,
     use_custom_end_frames: bool = Form(False),
-    generate_end_frames_from_ref: bool = Form(False),
+    generate_end_frames_from_ref: bool = Form(True),
     # v2.0 音频配置
-    audio_enabled: bool = Form(True),
+    audio_enabled: bool = Form(False),
     audio_voice: str = Form("zh-CN-XiaoxiaoNeural"),
     audio_rate: str = Form("+0%"),
     subtitle_font: str = Form("STHeitiMedium.ttc"),
@@ -623,7 +623,7 @@ async def create_task_legacy(
     reference_image: UploadFile = File(None),
     end_frame_images: list = None,
     use_custom_end_frames: bool = Form(False),
-    generate_end_frames_from_ref: bool = Form(False),
+    generate_end_frames_from_ref: bool = Form(True),
 ):
     """向后兼容旧端点，映射到 create_creative_task。"""
     return await create_creative_task(
@@ -639,7 +639,7 @@ async def create_task_legacy(
         use_custom_end_frames=use_custom_end_frames,
         generate_end_frames_from_ref=generate_end_frames_from_ref,
         # 提供音频/字幕默认值（旧端点不传这些参数）
-        audio_enabled=True,
+        audio_enabled=False,
         audio_voice="zh-CN-XiaoxiaoNeural",
         audio_rate="+0%",
         subtitle_font="STHeitiMedium.ttc",
