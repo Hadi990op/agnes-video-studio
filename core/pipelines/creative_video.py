@@ -116,11 +116,21 @@ class CreativeVideoPipeline(BasePipeline):
         if self._state.step_image_analysis == StepStatus.COMPLETED:
             analysis_file = self._state.image_analysis_file
             if os.path.exists(analysis_file):
-                logger.info("[Pipeline] Step image_analysis: SKIP (already completed, file exists)")
                 with open(analysis_file, "r") as f:
-                    return f.read()
-            logger.warning("[Pipeline] Step image_analysis: marked completed but file missing, re-running")
-            return ""
+                    content = f.read()
+                # 检测之前分析失败留下的错误文本，强制重新分析
+                if "(分析失败" in content:
+                    logger.warning(
+                        "[Pipeline] Step image_analysis: detected error text in saved file, re-running"
+                    )
+                    self._state.step_image_analysis = StepStatus.PENDING
+                    self.task_manager.update_step("step_image_analysis", StepStatus.PENDING)
+                else:
+                    logger.info("[Pipeline] Step image_analysis: SKIP (already completed, file exists)")
+                    return content
+            else:
+                logger.warning("[Pipeline] Step image_analysis: marked completed but file missing, re-running")
+                return ""
 
         logger.info("[Pipeline] Step image_analysis: RUNNING")
         images_to_analyze: List[str] = []

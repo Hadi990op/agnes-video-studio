@@ -62,6 +62,11 @@ otherwise.
                         cached = json.load(f)
                     if cached.get("image_paths") == image_paths:
                         cached_descriptions = cached.get("descriptions", {})
+                        # 过滤掉失败的错误描述，强制重新分析
+                        cached_descriptions = {
+                            k: v for k, v in cached_descriptions.items()
+                            if not v.startswith("(分析失败")
+                        }
                         if cached_descriptions:
                             logger.info(f"[Screenwriter] Loaded {len(cached_descriptions)} cached descriptions")
                 except Exception as e:
@@ -114,7 +119,9 @@ otherwise.
                     _time.sleep(delay)
                 else:
                     logger.error(f"[Screenwriter] {label} failed after {max_retries} attempts: {e}")
-                    return f"(分析失败: {str(e)[:100]})"
+                    raise RuntimeError(
+                        f"图片分析失败（{label}）: {e}"
+                    ) from e
 
     def develop_story(self, idea: str, user_requirement: str, style: str, image_context: str = "") -> str:
         system_prompt = """\
