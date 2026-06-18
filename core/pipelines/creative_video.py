@@ -554,7 +554,9 @@ class CreativeVideoPipeline(BasePipeline):
                     else "cinematic end frame"
                 )
                 # 程序化拼入 [PRESERVE] 角色外观硬约束，确保 i2i 身份一致性（批次3）
-                if self._state.character_appearance:
+                # 用户提供了参考图时跳过：文本描述从故事提取，可能与参考图衣着矛盾，
+                # 此时让 i2i 模型直接看参考图保持身份一致性。
+                if self._state.character_appearance and not self._state.reference_image:
                     end_frame_prompt = (
                         "[PRESERVE — keep exactly]\n"
                         f"{self._state.character_appearance}\n"
@@ -1063,7 +1065,8 @@ class CreativeVideoPipeline(BasePipeline):
                         )
                         if use_i2i:
                             # 程序化拼入 [PRESERVE] 角色外观硬约束
-                            if self._state.character_appearance:
+                            # 用户提供了参考图时跳过，避免文本描述与参考图矛盾
+                            if self._state.character_appearance and not self._state.reference_image:
                                 end_frame_prompt = (
                                     "[PRESERVE — keep exactly]\n"
                                     f"{self._state.character_appearance}\n"
