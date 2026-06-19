@@ -485,12 +485,12 @@ Phase 1 是基础设施，Phase 2 和 Phase 3 都依赖它。Phase 2 和 Phase 3
 
 | 批次 | 内容 | 涉及文件 | 验证方式 | 状态 |
 |------|------|---------|---------|------|
-| 2.1 | `SubtitleStyle` 新增 `style_mode` + `style_hints`；SRT 侧车 JSON 格式扩展为 position + color + fontsize | `models/task.py` | 构造 `style_mode="llm"` 的 `SubtitleStyle`，序列化/反序列化往返正确；手写一份 `subtitle_styles.json`，验证各字段解析正确 | ⬜ |
-| 2.2 | LLM 样式决策：`screenwriter.generate_subtitle_styles()` 方法，输入 SRT + 视频尺寸 + 用户偏好，输出含 position/color/fontsize 的 JSON 数组 | `core/screenwriter.py` | 单元测试：准备一段 10 条字幕的 SRT 样例，调用 `generate_subtitle_styles`，验证 JSON 格式正确、条目数一致、position 合法、color 可解析、fontsize 在 18-80 范围 | ⬜ |
-| 2.3 | 拼接层逐条样式：`_parse_srt_to_clips` 读取 `subtitle_styles.json`，逐条覆盖 position/color/fontsize，每条字幕独立创建 TextClip | `core/compositor/concatenator.py` | 准备固定 SRT + 手写 styles JSON，调用 `concat_videos_with_audio_overlay`，输出视频中每条字幕的位置、颜色、大小与 JSON 设定一致 | ⬜ |
-| 2.4 | Pipeline 集成：在 `_step_subtitle` 中当 `style_mode == "llm"` 时调用 LLM 生成样式 JSON | `core/pipelines/creative_video.py`, `core/pipelines/manuscript_video.py` | 创建带 `style_mode="llm"` 的创意视频任务，确认生成了 `subtitle_styles.json`，最终视频字幕外观多样化 | ⬜ |
-| 2.5 | 前端：样式模式下拉（固定/AI 智能），选 AI 智能时显示 `style_hints` 文本框，隐藏全局位置/颜色/字号控件 | `static/index.html` | 浏览器操作：切换两种模式 → 控件显隐正确 → 提交任务，确认后端收到 `style_mode=llm` 和 `style_hints` | ⬜ |
-| 2.6 | Phase 2 集成验证：固定样式 vs LLM 样式两种模式端到端对比 | 全部 | 创建两组创意视频任务（fixed vs llm），对比产物差异；确认 LLM 模式不引入崩溃，字幕按预期呈现多样化 | ⬜ |
+| 2.1 | `SubtitleStyle` 新增 `style_mode` + `style_hints`；SRT 侧车 JSON 格式扩展为 position + color + fontsize | `models/task.py` | 构造 `style_mode="llm"` 的 `SubtitleStyle`，序列化/反序列化往返正确；手写一份 `subtitle_styles.json`，验证各字段解析正确 | ✅ |
+| 2.2 | LLM 样式决策：`screenwriter.generate_subtitle_styles()` 方法，输入 SRT + 视频尺寸 + 用户偏好，输出含 position/color/fontsize 的 JSON 数组 | `core/screenwriter.py` | 单元测试：准备一段 10 条字幕的 SRT 样例，调用 `generate_subtitle_styles`，验证 JSON 格式正确、条目数一致、position 合法、color 可解析、fontsize 在 18-80 范围 | ✅ |
+| 2.3 | 拼接层逐条样式：`_parse_srt_to_clips` 读取 `subtitle_styles.json`，逐条覆盖 position/color/fontsize，每条字幕独立创建 TextClip | `core/compositor/concatenator.py` | 准备固定 SRT + 手写 styles JSON，调用 `concat_videos_with_audio_overlay`，输出视频中每条字幕的位置、颜色、大小与 JSON 设定一致 | ✅ |
+| 2.4 | Pipeline 集成：在 `_step_subtitle` 中当 `style_mode == "llm"` 时调用 LLM 生成样式 JSON | `core/pipelines/creative_video.py`, `core/pipelines/manuscript_video.py` | 创建带 `style_mode="llm"` 的创意视频任务，确认生成了 `subtitle_styles.json`，最终视频字幕外观多样化 | ✅ |
+| 2.5 | 前端：样式模式下拉（固定/AI 智能），选 AI 智能时显示 `style_hints` 文本框，隐藏全局位置/颜色/字号控件 | `static/index.html` | 浏览器操作：切换两种模式 → 控件显隐正确 → 提交任务，确认后端收到 `style_mode=llm` 和 `style_hints` | ✅ |
+| 2.6 | Phase 2 集成验证：固定样式 vs LLM 样式两种模式端到端对比 | 全部 | 创建两组创意视频任务（fixed vs llm），对比产物差异；确认 LLM 模式不引入崩溃，字幕按预期呈现多样化 | ✅ |
 
 #### Phase 3：数字人口播
 
@@ -520,3 +520,4 @@ Phase 1 是基础设施，Phase 2 和 Phase 3 都依赖它。Phase 2 和 Phase 3
 | 2026-06-19 | 1.1-1.4 | Phase 1 代码变更全部实现（数据模型 + Pipeline 拆步 + 拼接层 + API/前端），文档进度更新为 ✅ |
 | 2026-06-19 | 1.5 | Phase 1 集成验证 ✅ 完成 — 创意视频 + 稿件视频各 4 种组合共 8 场景全部验证通过，产物完整 |
 | 2026-06-19 | Fix | `SilentTTSEngine.generate()` 返回 `None` 而非 `{}`，修复纯字幕模式下 SRT 文件 0 字节 bug |
+| 2026-06-19 | 2.1-2.6 | Phase 2 全部实现完成：数据模型扩展（style_mode/style_hints）+ LLM 样式决策 + 拼接层逐条样式 + Pipeline 集成 + 前端 UI + 7 语言 i18n，API 端点验证通过 |

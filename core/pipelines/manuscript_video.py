@@ -715,6 +715,28 @@ class ManuscriptVideoPipeline(BasePipeline):
             with open(srt_path, "w", encoding="utf-8") as f:
                 f.write("")
 
+        # Phase 2: LLM 智能样式 — 仅在字幕启用且 style_mode == "llm" 时调用
+        if subtitle_config.enabled and subtitle_config.style.style_mode == "llm":
+            styles_path = os.path.join(self.working_dir, "subtitle_styles.json")
+            if not os.path.exists(styles_path) or os.path.getsize(styles_path) == 0:
+                try:
+                    styles = await asyncio.to_thread(
+                        self.screenwriter.generate_subtitle_styles,
+                        srt_path=srt_path,
+                        video_width=self._state.video_width,
+                        video_height=self._state.video_height,
+                        style_hints=subtitle_config.style.style_hints,
+                    )
+                    with open(styles_path, "w", encoding="utf-8") as f:
+                        json.dump(styles, f, ensure_ascii=False, indent=2)
+                    self._state.subtitle_styles_path = styles_path
+                    self.task_manager.update_state(subtitle_styles_path=styles_path)
+                    logger.info(f"[Manuscript] LLM subtitle styles saved: {styles_path} ({len(styles)} entries)")
+                except Exception as e:
+                    logger.warning(f"[Manuscript] LLM subtitle styles failed: {e}, falling back to fixed")
+                    self._state.subtitle_styles_path = ""
+                    self.task_manager.update_state(subtitle_styles_path="")
+
         self._state.combined_subtitle = srt_path
         self.task_manager.update_state(combined_subtitle=srt_path)
         logger.info("[Manuscript] subtitle: combined → %s", srt_path)
@@ -757,6 +779,11 @@ class ManuscriptVideoPipeline(BasePipeline):
         has_audio = self._state.audio_config.enabled and bool(self._state.combined_audio)
         has_subtitle = subtitle_config.enabled and bool(self._state.combined_subtitle)
 
+        # Phase 2: LLM 样式 JSON 路径
+        styles_path = self._state.subtitle_styles_path or ""
+        if styles_path and not os.path.exists(styles_path):
+            styles_path = ""
+
         logger.info(
             "[Manuscript] concatenate: %d videos + audio=%s + subtitle=%s → %s",
             len(video_paths), has_audio, has_subtitle, output_path,
@@ -774,6 +801,7 @@ class ManuscriptVideoPipeline(BasePipeline):
                 srt_path=self._state.combined_subtitle if has_subtitle else None,
                 output_path=output_path,
                 subtitle_style=subtitle_config.style if has_subtitle else None,
+                subtitle_styles_path=styles_path if styles_path else None,
             )
         else:
             await self._emit(

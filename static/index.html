@@ -308,41 +308,59 @@
             </label>
           </div>
           <div class="border-t border-gray-800 pt-4">
-            <p class="text-sm text-gray-400 mb-3" data-i18n="subtitleStyle">字幕样式</p>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div>
-                <label class="block text-xs text-gray-500 mb-1" data-i18n="subFont">字体</label>
-                <input id="c_sub_font" value="STHeitiMedium.ttc" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+            <div class="mb-4">
+              <label class="block text-sm text-gray-400 mb-1.5" data-i18n="subStyleMode">样式模式</label>
+              <select id="c_sub_style_mode" onchange="toggleSubStyleMode('c')" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500">
+                <option value="fixed" data-i18n="subStyleFixed">固定样式</option>
+                <option value="llm" data-i18n="subStyleLLM">AI 智能样式</option>
+              </select>
+            </div>
+
+            <!-- Fixed style controls -->
+            <div id="c_sub_fixed_controls">
+              <p class="text-sm text-gray-400 mb-3" data-i18n="subtitleStyle">字幕样式</p>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1" data-i18n="subFont">字体</label>
+                  <input id="c_sub_font" value="STHeitiMedium.ttc" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1" data-i18n="subColor">颜色</label>
+                  <input id="c_sub_color" value="white" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1" data-i18n="subSize">字号</label>
+                  <input id="c_sub_fontsize" type="number" value="48" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1" data-i18n="subPosition">位置</label>
+                  <select id="c_sub_position" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+                    <option value="bottom" data-i18n="posBottom">底部</option>
+                    <option value="top" data-i18n="posTop">顶部</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label class="block text-xs text-gray-500 mb-1" data-i18n="subColor">颜色</label>
-                <input id="c_sub_color" value="white" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
-              </div>
-              <div>
-                <label class="block text-xs text-gray-500 mb-1" data-i18n="subSize">字号</label>
-                <input id="c_sub_fontsize" type="number" value="48" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
-              </div>
-              <div>
-                <label class="block text-xs text-gray-500 mb-1" data-i18n="subPosition">位置</label>
-                <select id="c_sub_position" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
-                  <option value="bottom" data-i18n="posBottom">底部</option>
-                  <option value="top" data-i18n="posTop">顶部</option>
-                </select>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1" data-i18n="subStrokeColor">描边色</label>
+                  <input id="c_sub_stroke_color" value="black" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1" data-i18n="subStrokeWidth">描边宽</label>
+                  <input id="c_sub_stroke_width" type="number" value="2" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1" data-i18n="subBgColor">背景色</label>
+                  <input id="c_sub_bg_color" value="black@0.5" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+                </div>
               </div>
             </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-              <div>
-                <label class="block text-xs text-gray-500 mb-1" data-i18n="subStrokeColor">描边色</label>
-                <input id="c_sub_stroke_color" value="black" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
-              </div>
-              <div>
-                <label class="block text-xs text-gray-500 mb-1" data-i18n="subStrokeWidth">描边宽</label>
-                <input id="c_sub_stroke_width" type="number" value="2" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
-              </div>
-              <div>
-                <label class="block text-xs text-gray-500 mb-1" data-i18n="subBgColor">背景色</label>
-                <input id="c_sub_bg_color" value="black@0.5" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
-              </div>
+
+            <!-- LLM style controls -->
+            <div id="c_sub_llm_controls" class="hidden">
+              <label class="block text-sm text-gray-400 mb-1.5" data-i18n="subStyleHints">样式偏好描述</label>
+              <textarea id="c_sub_style_hints" rows="3" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500 placeholder-gray-500" placeholder='强调词用红色大号字，普通叙述白色小字放底部'></textarea>
+              <p class="text-xs text-gray-500 mt-1" data-i18n="subStyleHintsHint">描述你期望的字幕样式变化规律，AI 会据此为每条字幕分配不同位置、颜色和字号</p>
             </div>
           </div>
         </div>
@@ -430,41 +448,59 @@
             </label>
           </div>
           <div class="border-t border-gray-800 pt-4">
-            <p class="text-sm text-gray-400 mb-3" data-i18n="subtitleStyle">字幕样式</p>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div>
-                <label class="block text-xs text-gray-500 mb-1" data-i18n="subFont">字体</label>
-                <input id="m_sub_font" value="STHeitiMedium.ttc" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+            <div class="mb-4">
+              <label class="block text-sm text-gray-400 mb-1.5" data-i18n="subStyleMode">样式模式</label>
+              <select id="m_sub_style_mode" onchange="toggleSubStyleMode('m')" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500">
+                <option value="fixed" data-i18n="subStyleFixed">固定样式</option>
+                <option value="llm" data-i18n="subStyleLLM">AI 智能样式</option>
+              </select>
+            </div>
+
+            <!-- Fixed style controls -->
+            <div id="m_sub_fixed_controls">
+              <p class="text-sm text-gray-400 mb-3" data-i18n="subtitleStyle">字幕样式</p>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1" data-i18n="subFont">字体</label>
+                  <input id="m_sub_font" value="STHeitiMedium.ttc" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1" data-i18n="subColor">颜色</label>
+                  <input id="m_sub_color" value="white" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1" data-i18n="subSize">字号</label>
+                  <input id="m_sub_fontsize" type="number" value="48" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1" data-i18n="subPosition">位置</label>
+                  <select id="m_sub_position" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+                    <option value="bottom" data-i18n="posBottom">底部</option>
+                    <option value="top" data-i18n="posTop">顶部</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label class="block text-xs text-gray-500 mb-1" data-i18n="subColor">颜色</label>
-                <input id="m_sub_color" value="white" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
-              </div>
-              <div>
-                <label class="block text-xs text-gray-500 mb-1" data-i18n="subSize">字号</label>
-                <input id="m_sub_fontsize" type="number" value="48" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
-              </div>
-              <div>
-                <label class="block text-xs text-gray-500 mb-1" data-i18n="subPosition">位置</label>
-                <select id="m_sub_position" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
-                  <option value="bottom" data-i18n="posBottom">底部</option>
-                  <option value="top" data-i18n="posTop">顶部</option>
-                </select>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1" data-i18n="subStrokeColor">描边色</label>
+                  <input id="m_sub_stroke_color" value="black" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1" data-i18n="subStrokeWidth">描边宽</label>
+                  <input id="m_sub_stroke_width" type="number" value="2" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1" data-i18n="subBgColor">背景色</label>
+                  <input id="m_sub_bg_color" value="black@0.5" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
+                </div>
               </div>
             </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-              <div>
-                <label class="block text-xs text-gray-500 mb-1" data-i18n="subStrokeColor">描边色</label>
-                <input id="m_sub_stroke_color" value="black" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
-              </div>
-              <div>
-                <label class="block text-xs text-gray-500 mb-1" data-i18n="subStrokeWidth">描边宽</label>
-                <input id="m_sub_stroke_width" type="number" value="2" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
-              </div>
-              <div>
-                <label class="block text-xs text-gray-500 mb-1" data-i18n="subBgColor">背景色</label>
-                <input id="m_sub_bg_color" value="black@0.5" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-purple-500">
-              </div>
+
+            <!-- LLM style controls -->
+            <div id="m_sub_llm_controls" class="hidden">
+              <label class="block text-sm text-gray-400 mb-1.5" data-i18n="subStyleHints">样式偏好描述</label>
+              <textarea id="m_sub_style_hints" rows="3" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500 placeholder-gray-500" placeholder='强调词用红色大号字，普通叙述白色小字放底部'></textarea>
+              <p class="text-xs text-gray-500 mt-1" data-i18n="subStyleHintsHint">描述你期望的字幕样式变化规律，AI 会据此为每条字幕分配不同位置、颜色和字号</p>
             </div>
           </div>
         </div>
@@ -545,6 +581,8 @@ const T = {
     voiceRole: '语音角色', speechRate: '语速', rateNormal: '正常',
     subtitleStyle: '字幕样式', subFont: '字体', subColor: '颜色', subSize: '字号', subPosition: '位置', posBottom: '底部', posTop: '顶部',
     subStrokeColor: '描边色', subStrokeWidth: '描边宽', subBgColor: '背景色',
+    subStyleMode: '样式模式', subStyleFixed: '固定样式', subStyleLLM: 'AI 智能样式',
+    subStyleHints: '样式偏好描述', subStyleHintsHint: '描述你期望的字幕样式变化规律，AI 会据此为每条字幕分配不同位置、颜色和字号',
     manuscriptText: '稿件正文', manuscriptPlaceholder: '粘贴你的文章、新闻稿、公众号文章等...',
     charCount: '字数',
     startGenerate: '开始生成视频', submitting: '提交中...', taskRunning: '任务进行中...',
@@ -607,6 +645,8 @@ const T = {
     voiceRole: 'Voice Role', speechRate: 'Speech Rate', rateNormal: 'Normal',
     subtitleStyle: 'Subtitle Style', subFont: 'Font', subColor: 'Color', subSize: 'Size', subPosition: 'Position', posBottom: 'Bottom', posTop: 'Top',
     subStrokeColor: 'Stroke Color', subStrokeWidth: 'Stroke Width', subBgColor: 'BG Color',
+    subStyleMode: 'Style Mode', subStyleFixed: 'Fixed', subStyleLLM: 'AI Smart',
+    subStyleHints: 'Style Preferences', subStyleHintsHint: 'Describe how subtitles should vary in position, color, and size. AI will assign per-subtitle styles accordingly.',
     manuscriptText: 'Article Text', manuscriptPlaceholder: 'Paste your article, news, blog post...',
     charCount: 'Characters',
     startGenerate: 'Start Generating', submitting: 'Submitting...', taskRunning: 'Task in progress...',
@@ -666,6 +706,8 @@ const T = {
     voiceRole: 'Голос', speechRate: 'Скорость', rateNormal: 'Нормальная',
     subtitleStyle: 'Субтитры', subFont: 'Шрифт', subColor: 'Цвет', subSize: 'Размер', subPosition: 'Позиция', posBottom: 'Низ', posTop: 'Верх',
     subStrokeColor: 'Цвет обводки', subStrokeWidth: 'Ширина обводки', subBgColor: 'Цвет фона',
+    subStyleMode: 'Режим', subStyleFixed: 'Фикс.', subStyleLLM: 'AI стиль',
+    subStyleHints: 'Описание стиля', subStyleHintsHint: 'Опишите желаемое изменение стиля субтитров. AI назначит каждой субтитре позицию, цвет и размер.',
     manuscriptText: 'Текст статьи', manuscriptPlaceholder: 'Вставьте статью...',
     charCount: 'Символов',
     startGenerate: 'Начать генерацию', submitting: 'Отправка...', taskRunning: 'Выполняется...',
@@ -723,6 +765,8 @@ const T = {
     voiceRole: '音声', speechRate: '速度', rateNormal: '標準',
     subtitleStyle: '字幕', subFont: 'フォント', subColor: '色', subSize: 'サイズ', subPosition: '位置', posBottom: '下', posTop: '上',
     subStrokeColor: '縁取り色', subStrokeWidth: '縁取り幅', subBgColor: '背景色',
+    subStyleMode: 'スタイルモード', subStyleFixed: '固定', subStyleLLM: 'AI スマート',
+    subStyleHints: 'スタイル設定', subStyleHintsHint: '字幕のスタイル変化パターンを記述。AIが字幕ごとに位置・色・サイズを割り当てます。',
     manuscriptText: '記事テキスト', manuscriptPlaceholder: '記事を貼り付け...',
     charCount: '文字数',
     startGenerate: '生成開始', submitting: '送信中...', taskRunning: '実行中...',
@@ -777,6 +821,8 @@ const T = {
     voiceRole: '음성', speechRate: '속도', rateNormal: '보통',
     subtitleStyle: '자막', subFont: '폰트', subColor: '색상', subSize: '크기', subPosition: '위치', posBottom: '하단', posTop: '상단',
     subStrokeColor: '테두리 색', subStrokeWidth: '테두리 두께', subBgColor: '배경 색',
+    subStyleMode: '스타일 모드', subStyleFixed: '고정', subStyleLLM: 'AI 스마트',
+    subStyleHints: '스타일 설정', subStyleHintsHint: '자막 스타일 변화 패턴을 설명하세요. AI가 각 자막의 위치, 색상, 크기를 할당합니다.',
     manuscriptText: '기사 텍스트', manuscriptPlaceholder: '기사를 붙여넣기...',
     charCount: '글자 수',
     startGenerate: '생성 시작', submitting: '제출 중...', taskRunning: '실행 중...',
@@ -831,6 +877,8 @@ const T = {
     voiceRole: 'Suara', speechRate: 'Kelajuan', rateNormal: 'Biasa',
     subtitleStyle: 'Sarikata', subFont: 'Fon', subColor: 'Warna', subSize: 'Saiz', subPosition: 'Kedudukan', posBottom: 'Bawah', posTop: 'Atas',
     subStrokeColor: 'Warna Garis', subStrokeWidth: 'Lebar Garis', subBgColor: 'Warna Latar',
+    subStyleMode: 'Mod Gaya', subStyleFixed: 'Tetap', subStyleLLM: 'AI Pintar',
+    subStyleHints: 'Keutamaan Gaya', subStyleHintsHint: 'Terangkan corak perubahan gaya sarikata. AI akan tetapkan kedudukan, warna dan saiz bagi setiap sarikata.',
     manuscriptText: 'Teks Artikel', manuscriptPlaceholder: 'Tampal artikel anda...',
     charCount: 'Aksara',
     startGenerate: 'Mula Hasilkan', submitting: 'Menghantar...', taskRunning: 'Berjalan...',
@@ -884,6 +932,8 @@ const T = {
     audioConfig: 'Audio & Subtitle', enableNarration: 'Narasi', voiceRole: 'Suara', speechRate: 'Kecepatan', rateNormal: 'Normal',
     subtitleStyle: 'Subtitle', subFont: 'Font', subColor: 'Warna', subSize: 'Ukuran', subPosition: 'Posisi', posBottom: 'Bawah', posTop: 'Atas',
     subStrokeColor: 'Warna Garis', subStrokeWidth: 'Lebar Garis', subBgColor: 'Warna Latar',
+    subStyleMode: 'Mode Gaya', subStyleFixed: 'Tetap', subStyleLLM: 'AI Pintar',
+    subStyleHints: 'Preferensi Gaya', subStyleHintsHint: 'Jelaskan pola perubahan gaya subtitle. AI akan menetapkan posisi, warna, dan ukuran untuk setiap subtitle.',
     manuscriptText: 'Teks Artikel', manuscriptPlaceholder: 'Tempel artikel Anda...',
     charCount: 'Karakter',
     startGenerate: 'Mulai Hasilkan', submitting: 'Mengirim...', taskRunning: 'Berjalan...',
@@ -1105,6 +1155,12 @@ function toggleCollapse(id) {
   }
 }
 
+function toggleSubStyleMode(prefix) {
+  const mode = document.getElementById(prefix + '_sub_style_mode').value;
+  document.getElementById(prefix + '_sub_fixed_controls').classList.toggle('hidden', mode !== 'fixed');
+  document.getElementById(prefix + '_sub_llm_controls').classList.toggle('hidden', mode !== 'llm');
+}
+
 function onSimpleModeChange() {
   const mode = document.getElementById('s_mode').value;
   document.getElementById('s_ref_section').classList.toggle('hidden', mode === 't2v');
@@ -1245,6 +1301,8 @@ async function submitCreative() {
   form.append('audio_rate', document.getElementById('c_rate').value);
   // Subtitle config (v3.0 independent)
   form.append('subtitle_enabled', document.getElementById('c_subtitle_enabled').checked);
+  form.append('subtitle_style_mode', document.getElementById('c_sub_style_mode').value);
+  form.append('subtitle_style_hints', document.getElementById('c_sub_style_hints').value);
   form.append('subtitle_font', document.getElementById('c_sub_font').value);
   form.append('subtitle_color', document.getElementById('c_sub_color').value);
   form.append('subtitle_fontsize', document.getElementById('c_sub_fontsize').value);
@@ -1290,6 +1348,8 @@ async function submitManuscript() {
   form.append('audio_rate', document.getElementById('m_rate').value);
   // Subtitle config (v3.0 independent)
   form.append('subtitle_enabled', document.getElementById('m_subtitle_enabled').checked);
+  form.append('subtitle_style_mode', document.getElementById('m_sub_style_mode').value);
+  form.append('subtitle_style_hints', document.getElementById('m_sub_style_hints').value);
   form.append('subtitle_font', document.getElementById('m_sub_font').value);
   form.append('subtitle_color', document.getElementById('m_sub_color').value);
   form.append('subtitle_fontsize', document.getElementById('m_sub_fontsize').value);

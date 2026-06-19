@@ -1465,6 +1465,28 @@ class CreativeVideoPipeline(BasePipeline):
             with open(combined_srt, "w", encoding="utf-8") as f:
                 f.write("")
 
+        # Phase 2: LLM 智能样式 — 仅在字幕启用且 style_mode == "llm" 时调用
+        if subtitle_enabled and self._state.subtitle_config.style.style_mode == "llm":
+            styles_path = os.path.join(self.working_dir, "subtitle_styles.json")
+            if not os.path.exists(styles_path) or os.path.getsize(styles_path) == 0:
+                try:
+                    styles = await asyncio.to_thread(
+                        self.screenwriter.generate_subtitle_styles,
+                        srt_path=combined_srt,
+                        video_width=self._state.video_width,
+                        video_height=self._state.video_height,
+                        style_hints=self._state.subtitle_config.style.style_hints,
+                    )
+                    with open(styles_path, "w", encoding="utf-8") as f:
+                        json.dump(styles, f, ensure_ascii=False, indent=2)
+                    self._state.subtitle_styles_path = styles_path
+                    self.task_manager.update_state(subtitle_styles_path=styles_path)
+                    logger.info(f"[Pipeline] LLM subtitle styles saved: {styles_path} ({len(styles)} entries)")
+                except Exception as e:
+                    logger.warning(f"[Pipeline] LLM subtitle styles failed: {e}, falling back to fixed")
+                    self._state.subtitle_styles_path = ""
+                    self.task_manager.update_state(subtitle_styles_path="")
+
         for scene in self._state.scenes:
             scene.subtitle_srt = combined_srt
         self.task_manager.update_state(
@@ -1515,6 +1537,11 @@ class CreativeVideoPipeline(BasePipeline):
         combined_audio = os.path.join(self.working_dir, "combined_narration.mp3")
         combined_srt = os.path.join(self.working_dir, "combined_narration.srt")
 
+        # Phase 2: LLM 样式 JSON 路径
+        styles_path = self._state.subtitle_styles_path or ""
+        if styles_path and not os.path.exists(styles_path):
+            styles_path = ""
+
         if has_audio or has_subtitle:
             audio_exists = os.path.exists(combined_audio) and os.path.getsize(combined_audio) > 0
             srt_exists = os.path.exists(combined_srt) and os.path.getsize(combined_srt) > 0
@@ -1527,6 +1554,7 @@ class CreativeVideoPipeline(BasePipeline):
                     srt_path=combined_srt if (has_subtitle and srt_exists) else None,
                     output_path=final_video_path,
                     subtitle_style=self._state.subtitle_config.style if has_subtitle else None,
+                    subtitle_styles_path=styles_path if styles_path else None,
                 )
             else:
                 await asyncio.to_thread(

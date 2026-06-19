@@ -539,6 +539,8 @@ async def create_creative_task(
     audio_rate: str = Form("+0%"),
     # v3.0 字幕独立配置
     subtitle_enabled: bool = Form(True),
+    subtitle_style_mode: str = Form("fixed"),
+    subtitle_style_hints: str = Form(""),
     subtitle_font: str = Form("STHeitiMedium.ttc"),
     subtitle_color: str = Form("white"),
     subtitle_fontsize: int = Form(48),
@@ -583,6 +585,8 @@ async def create_creative_task(
         stroke_color=subtitle_stroke_color,
         stroke_width=subtitle_stroke_width,
         bg_color=_parse_bg_color(subtitle_bg_color),
+        style_mode=subtitle_style_mode,
+        style_hints=subtitle_style_hints,
     )
     subtitle_config = SubtitleConfig(
         enabled=subtitle_enabled,
@@ -652,6 +656,8 @@ async def create_manuscript_task(
     audio_rate: str = Form("+0%"),
     # v3.0 字幕独立配置
     subtitle_enabled: bool = Form(True),
+    subtitle_style_mode: str = Form("fixed"),
+    subtitle_style_hints: str = Form(""),
     subtitle_font: str = Form("STHeitiMedium.ttc"),
     subtitle_color: str = Form("white"),
     subtitle_fontsize: int = Form(48),
@@ -690,6 +696,8 @@ async def create_manuscript_task(
         stroke_color=subtitle_stroke_color,
         stroke_width=subtitle_stroke_width,
         bg_color=_parse_bg_color(subtitle_bg_color),
+        style_mode=subtitle_style_mode,
+        style_hints=subtitle_style_hints,
     )
     subtitle_config = SubtitleConfig(
         enabled=subtitle_enabled,

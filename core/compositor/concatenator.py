@@ -3,6 +3,7 @@
 支持纯视频拼接和带音频字幕的拼接。
 """
 
+import json
 import logging
 import os
 import shutil
@@ -146,8 +147,20 @@ class VideoConcatenator:
         video_width: int,
         video_height: int = 0,
         video_duration: float = 0.0,
+        subtitle_styles: Optional[list] = None,
     ) -> list:
-        """逐条解析 SRT，返回 TextClip 列表（支持多行自动换行）。"""
+        """逐条解析 SRT，返回 TextClip 列表（支持多行自动换行 + 逐条样式覆盖）。
+
+        Args:
+            srt_path: SRT 文件路径。
+            subtitle_style: 全局字幕样式（作为默认值/回退）。
+            video_width: 视频宽度。
+            video_height: 视频高度。
+            video_duration: 视频总时长（用于钳位）。
+            subtitle_styles: 逐条样式列表（Phase 2：LLM 生成），
+                每项含 index, position, color, fontsize。
+                未指定的字段回退到 subtitle_style 的全局值。
+        """
         from moviepy import TextClip as MpTextClip
         from core.config import resolve_font_path
         from core.audio.subtitle import SubtitleGenerator
@@ -164,9 +177,16 @@ class VideoConcatenator:
             else:
                 bg = (0, 0, 0, 128)
 
+        # 构建逐条样式查找表
+        style_map: dict[int, dict] = {}
+        if subtitle_styles:
+            for s in subtitle_styles:
+                idx = s.get("index", 0)
+                if idx > 0:
+                    style_map[idx] = s
+
         # 根据视频宽度动态计算每行最大字符数（与 subtitle.py 一致）
         available_w = video_width - 40
-        cjk_max_chars = max(8, available_w // subtitle_style.fontsize)
 
         subs_clips = []
         with open(srt_path, "r", encoding="utf-8") as f:
@@ -175,6 +195,16 @@ class VideoConcatenator:
                 start_s = sub.start.total_seconds()
                 end_s = sub.end.total_seconds()
                 dur = end_s - start_s
+                idx = sub.index
+
+                # ═ 逐条样式覆盖 ═
+                entry_style = style_map.get(idx, {})
+                fs = entry_style.get("fontsize", subtitle_style.fontsize)
+                color = entry_style.get("color", subtitle_style.color)
+                pos = entry_style.get("position", subtitle_style.position)
+
+                # 每行字符数随字号动态调整
+                cjk_max_chars = max(8, available_w // fs) if fs > 0 else 14
 
                 # 长文本自动拆为多行，避免单行溢出屏幕
                 wrapped = SubtitleGenerator._split_long_text(txt, cjk_max_chars)
@@ -182,8 +212,8 @@ class VideoConcatenator:
                 clip = MpTextClip(
                     text=wrapped,
                     font=font_path,
-                    font_size=subtitle_style.fontsize,
-                    color=subtitle_style.color,
+                    font_size=fs,
+                    color=color,
                     stroke_color=subtitle_style.stroke_color,
                     stroke_width=subtitle_style.stroke_width,
                     bg_color=bg,
@@ -205,7 +235,7 @@ class VideoConcatenator:
                 )
                 clip = clip.with_position(
                     VideoConcatenator._resolve_subtitle_position(
-                        subtitle_style.position, video_height=video_height
+                        pos, video_height=video_height
                     )
                 )
                 subs_clips.append(clip)
@@ -218,6 +248,7 @@ class VideoConcatenator:
         srt_path: Optional[str],
         output_path: str,
         subtitle_style: Optional[SubtitleStyle] = None,
+        subtitle_styles_path: Optional[str] = None,
     ) -> str:
         """先拼接视频，再统一叠加单条音频 + 单条字幕。
 
@@ -274,10 +305,16 @@ class VideoConcatenator:
             # ── Step 5: 叠加字幕 ──────────────────────────────────────────
             if srt_path and os.path.exists(srt_path) and subtitle_style:
                 try:
+                    per_entry_styles = None
+                    if subtitle_styles_path and os.path.exists(subtitle_styles_path):
+                        with open(subtitle_styles_path, "r", encoding="utf-8") as f:
+                            per_entry_styles = json.load(f)
+
                     subs_clips = VideoConcatenator._parse_srt_to_clips(
                         srt_path, subtitle_style, video_clip.w,
                         video_height=video_clip.h,
                         video_duration=video_clip.duration,
+                        subtitle_styles=per_entry_styles,
                     )
                     if subs_clips:
                         final = CompositeVideoClip([video_with_audio, *subs_clips])

@@ -496,3 +496,173 @@ approximately {max_chars} characters total.
         narration = strip_code_fence(self._chat(system_prompt, user_prompt))
         logger.info(f"[Screenwriter] Narration: {narration[:80]}... ({len(narration)} chars)")
         return narration
+
+    def generate_subtitle_styles(
+        self,
+        srt_path: str,
+        video_width: int,
+        video_height: int,
+        style_hints: str = "",
+        role: str = "",
+    ) -> list[dict]:
+        """为每条字幕生成位置、颜色、字号样式（Phase 2: LLM 智能样式）。
+
+        读取 SRT 文件，将每条字幕文本 + 时间码发给 LLM，
+        LLM 为每条字幕决定 position / color / fontsize，
+        输出 JSON 数组用于逐条渲染。
+
+        Args:
+            srt_path: SRT 字幕文件路径。
+            video_width: 视频宽度（像素）。
+            video_height: 视频高度（像素）。
+            style_hints: 用户对样式的自然语言偏好描述。
+            role: 场景角色描述（如"数字人口播主播"），用于指导 LLM 定位。
+
+        Returns:
+            list[dict]: 样式列表，每项含 index, position, color, fontsize。
+        """
+        import srt as srt_lib
+
+        with open(srt_path, "r", encoding="utf-8") as f:
+            subs = list(srt_lib.parse(f))
+
+        if not subs:
+            logger.warning("[Screenwriter] generate_subtitle_styles: empty SRT")
+            return []
+
+        entries_text = "\n".join(
+            f"  [{s.index}] {s.start.total_seconds():.1f}s-{s.end.total_seconds():.1f}s: {s.content}"
+            for s in subs
+        )
+
+        safe_w = video_width - 80
+        safe_h = video_height - 80
+
+        role_context = f"The scene is a {role} scenario." if role else ""
+
+        system_prompt = f"""\
+You are a professional subtitle stylist for short video production. \
+Given a subtitle list and video dimensions, assign each subtitle a visual \
+style that enhances the viewing experience.
+
+Video size: {video_width}x{video_height}px
+Safe area: 40px margin on each side = {safe_w}x{safe_h}px available
+
+{role_context}
+
+Output a JSON array, one object per subtitle:
+[
+  {{
+    "index": <int, matching the subtitle index>,
+    "position": ["<horizontal>", "<vertical>"],
+    "color": "<color name or #RRGGBB>",
+    "fontsize": <int 18-80>
+  }},
+  ...
+]
+
+Position rules:
+- horizontal: "center", "left+N", "right+N" (N = pixel offset from edge, 0-200)
+- vertical: "center", "top+N", "bottom-N" (N = pixel offset from edge, 0-200)
+
+Styling rules:
+- Adjacent subtitles should vary position slightly to avoid visual monotony.
+- New topics or semantic shifts can use new positions and colors.
+- Emphasized / conclusion content: larger font (56-72) and eye-catching color.
+- Ensure sufficient contrast against typical video backgrounds.
+- Default / narrative content: white, center-bottom, 36-48px.
+- User style_hints below are the STRONGEST constraint — follow them first.
+- All positions MUST keep text fully inside the safe area (40px margin).
+- Do NOT change the number of items or their order — output must match input.
+"""
+
+        user_prompt = f"""\
+<subtitle_entries>
+{entries_text}
+</subtitle_entries>
+
+<style_hints>
+{style_hints or "(no specific preference — use professional defaults)"}
+</style_hints>
+
+Assign styles to each subtitle and return the JSON array.
+"""
+
+        logger.info(
+            f"[Screenwriter] Generating subtitle styles for {len(subs)} entries "
+            f"({video_width}x{video_height}, hints={repr(style_hints[:50])})..."
+        )
+
+        try:
+            result = self._chat_json(system_prompt, user_prompt)
+        except (ValueError, Exception) as e:
+            logger.warning(f"[Screenwriter] LLM subtitle styles failed: {e}, using defaults")
+            return self._fallback_styles(subs)
+
+        if isinstance(result, dict) and "styles" in result:
+            styles = result["styles"]
+        elif isinstance(result, list):
+            styles = result
+        else:
+            logger.warning(f"[Screenwriter] Unexpected LLM response format: {type(result)}, using defaults")
+            return self._fallback_styles(subs)
+
+        validated = self._validate_styles(styles, len(subs))
+        logger.info(f"[Screenwriter] Subtitle styles generated: {len(validated)} entries")
+        return validated
+
+    def _validate_styles(self, styles: list, expected_count: int) -> list[dict]:
+        """验证并修复 LLM 输出的样式列表。"""
+        import re as _re
+
+        valid = []
+        seen_indices = set()
+        for item in styles:
+            idx = item.get("index", 0)
+            if not isinstance(idx, int) or idx < 1 or idx > expected_count or idx in seen_indices:
+                continue
+            seen_indices.add(idx)
+
+            pos = item.get("position", ["center", "bottom-80"])
+            if not isinstance(pos, (list, tuple)) or len(pos) != 2:
+                pos = ["center", "bottom-80"]
+
+            color = item.get("color", "white")
+            if not isinstance(color, str):
+                color = "white"
+
+            fs = item.get("fontsize", 48)
+            if not isinstance(fs, int) or fs < 18 or fs > 80:
+                fs = 48
+
+            valid.append({
+                "index": idx,
+                "position": pos,
+                "color": color,
+                "fontsize": fs,
+            })
+
+        missing = [i for i in range(1, expected_count + 1) if i not in seen_indices]
+        for idx in missing:
+            valid.append({
+                "index": idx,
+                "position": ["center", "bottom-80"],
+                "color": "white",
+                "fontsize": 48,
+            })
+
+        valid.sort(key=lambda x: x["index"])
+        return valid
+
+    @staticmethod
+    def _fallback_styles(subs: list) -> list[dict]:
+        """LLM 调用失败时的回退样式。"""
+        return [
+            {
+                "index": s.index,
+                "position": ["center", "bottom-80"],
+                "color": "white",
+                "fontsize": 48,
+            }
+            for s in subs
+        ]

@@ -48,7 +48,7 @@ class VideoMode(str, Enum):
 
 
 class SubtitleStyle(BaseModel):
-    """字幕样式配置（D4：P1 范围）"""
+    """字幕样式配置（v3.0 Phase 2: 支持固定和 LLM 两种模式）"""
 
     font: str = "STHeitiMedium.ttc"
     color: str = "white"
@@ -57,6 +57,9 @@ class SubtitleStyle(BaseModel):
     stroke_color: str = "black"
     stroke_width: int = 2
     bg_color: tuple = (0, 0, 0, 128)
+
+    style_mode: str = "fixed"      # "fixed" | "llm"
+    style_hints: str = ""          # 用户对 LLM 的样式偏好描述
 
     @field_validator("bg_color", mode="before")
     @classmethod
@@ -215,6 +218,7 @@ class CreativeVideoTask(BaseTaskState):
     # ── v3.0 拆分：音频和字幕后向兼容字段 ──
     step_audio: StepStatus = StepStatus.PENDING
     step_subtitle: StepStatus = StepStatus.PENDING
+    subtitle_styles_path: str = ""      # LLM 样式 JSON 路径（Phase 2）
 
     step_concatenation: StepStatus = StepStatus.PENDING
 
@@ -249,6 +253,7 @@ class ManuscriptVideoTask(BaseTaskState):
 
     combined_audio: str = ""
     combined_subtitle: str = ""
+    subtitle_styles_path: str = ""      # LLM 样式 JSON 路径（Phase 2）
 
     step_split: StepStatus = StepStatus.PENDING
     step_scene_prompts: StepStatus = StepStatus.PENDING
