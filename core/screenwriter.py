@@ -561,16 +561,33 @@ Output a JSON array, one object per subtitle:
   ...
 ]
 
+CRITICAL — VERTICAL DIVERSITY REQUIREMENT:
+Subtitle positions MUST be distributed across THREE vertical zones:
+- ~1/3 of subtitles in UPPER zone: vertical = "top+N" (N = 40–120)
+- ~1/3 of subtitles in MIDDLE zone: vertical = "center" or "center" with horizontal offset
+- ~1/3 of subtitles in LOWER zone: vertical = "bottom-N" (N = 60–160)
+Do NOT put all subtitles at bottom-N — that causes visual monotony.
+Adjacent subtitles MUST alternate vertical zones to feel dynamic.
+
 Position rules:
-- horizontal: "center", "left+N", "right+N" (N = pixel offset from edge, 0-200)
-- vertical: "center", "top+N", "bottom-N" (N = pixel offset from edge, 0-200)
+- horizontal: "center", "left", "right" (PREFER string tokens, they auto-align safely)
+            or "left+N", "right+N" (N = pixel offset, only use small values 20–120)
+- vertical:   "top+N" (N = 40–120), "center", "bottom-N" (N = 60–160)
+            Use "center" for the middle zone — not pixel values.
+
+BAD examples (monotonous, all bottom):
+  ["center", "bottom-80"], ["center", "bottom-60"], ["left+40", "bottom-80"]
+
+GOOD examples (diverse vertical zones):
+  ["center", "top+60"],   ["right", "center"],     ["center", "bottom-80"]
+  ["left",  "top+100"],   ["center", "center"],     ["right", "bottom-120"]
 
 Styling rules:
-- Adjacent subtitles should vary position slightly to avoid visual monotony.
+- Adjacent subtitles should vary position to avoid visual monotony.
 - New topics or semantic shifts can use new positions and colors.
-- Emphasized / conclusion content: larger font (56-72) and eye-catching color.
+- Emphasized / conclusion content: larger font (56-72) and eye-catching color (gold, red, #FFD700).
 - Ensure sufficient contrast against typical video backgrounds.
-- Default / narrative content: white, center-bottom, 36-48px.
+- Default / narrative content: white, 36-48px.
 - User style_hints below are the STRONGEST constraint — follow them first.
 - All positions MUST keep text fully inside the safe area (40px margin).
 - Do NOT change the number of items or their order — output must match input.
@@ -615,6 +632,18 @@ Assign styles to each subtitle and return the JSON array.
         """验证并修复 LLM 输出的样式列表。"""
         import re as _re
 
+        # 循环位置池，确保即使是缺失项也能分布在不同区域
+        _position_pool = [
+            ["center", "top+80"],
+            ["center", "center"],
+            ["center", "bottom-100"],
+            ["right", "top+60"],
+            ["left", "center"],
+            ["right", "bottom-120"],
+            ["left", "top+100"],
+            ["center", "center"],
+        ]
+
         valid = []
         seen_indices = set()
         for item in styles:
@@ -643,10 +672,10 @@ Assign styles to each subtitle and return the JSON array.
             })
 
         missing = [i for i in range(1, expected_count + 1) if i not in seen_indices]
-        for idx in missing:
+        for i, idx in enumerate(missing):
             valid.append({
                 "index": idx,
-                "position": ["center", "bottom-80"],
+                "position": _position_pool[i % len(_position_pool)],
                 "color": "white",
                 "fontsize": 48,
             })
@@ -656,11 +685,19 @@ Assign styles to each subtitle and return the JSON array.
 
     @staticmethod
     def _fallback_styles(subs: list) -> list[dict]:
-        """LLM 调用失败时的回退样式。"""
+        """LLM 调用失败时的回退样式（循环不同位置保持多样性）。"""
+        _positions = [
+            ["center", "top+80"],
+            ["center", "center"],
+            ["center", "bottom-100"],
+            ["right", "top+60"],
+            ["left", "center"],
+            ["right", "bottom-120"],
+        ]
         return [
             {
                 "index": s.index,
-                "position": ["center", "bottom-80"],
+                "position": _positions[(s.index - 1) % len(_positions)],
                 "color": "white",
                 "fontsize": 48,
             }

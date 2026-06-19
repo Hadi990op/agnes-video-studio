@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 from typing import List, Optional
 
 import re as _re
@@ -209,13 +210,47 @@ class VideoConcatenator:
                     .with_end(end_s)
                     .with_duration(dur)
                 )
-                clip = clip.with_position(
-                    VideoConcatenator._resolve_subtitle_position(
-                        pos, video_height=video_height, video_width=video_width,
-                    )
+                pos_resolved = VideoConcatenator._resolve_subtitle_position(
+                    pos, video_height=video_height, video_width=video_width,
                 )
+                h_part, v_part = pos_resolved
+                # clamp horizontal pixel: keep text box (width=available_w) within frame
+                if isinstance(h_part, (int, float)):
+                    max_x = video_width - available_w
+                    h_part = max(20, min(h_part, max(20, max_x)))
+                # clamp vertical pixel: ~100px safe zone at bottom for 2-line text
+                if isinstance(v_part, (int, float)):
+                    v_part = max(20, min(v_part, video_height - 100))
+                clip = clip.with_position((h_part, v_part))
                 subs_clips.append(clip)
         return subs_clips
+
+    @staticmethod
+    def _get_duration(path: str) -> float:
+        """用 ffprobe 获取媒体文件时长（秒）。"""
+        try:
+            r = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                 "-of", "csv=p=0", path],
+                capture_output=True, text=True, timeout=15,
+            )
+            return float(r.stdout.strip())
+        except Exception:
+            return 0.0
+
+    @staticmethod
+    def _run_ffmpeg(cmd: list, desc: str = "") -> None:
+        """执行 ffmpeg 命令，失败时抛 RuntimeError。"""
+        logger.info(f"[Compositor] ffmpeg: {desc}")
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            if r.returncode != 0:
+                raise RuntimeError(
+                    f"ffmpeg {desc} failed (code {r.returncode}): "
+                    f"{r.stderr[:500]}"
+                )
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"ffmpeg {desc} timed out")
 
     @staticmethod
     def concat_videos_with_audio_overlay(
@@ -228,8 +263,7 @@ class VideoConcatenator:
     ) -> str:
         """先拼接视频，再统一叠加单条音频 + 单条字幕。
 
-        MoneyPrinterTurbo 方案：不按片段做逐段合成（避免 padding 累积），
-        而是先把所有视频拼成完整时间轴，再把音频和字幕作为一个整体叠加上去。
+        使用 ffmpeg 做音视频时长对齐（tpad/apad），确保音画精确同步。
 
         Args:
             video_paths: 按顺序的视频路径列表。
@@ -250,35 +284,82 @@ class VideoConcatenator:
         if not video_paths:
             raise RuntimeError("No videos to concatenate")
 
-        naked_path = output_path.replace(".mp4", "_naked.mp4")
-        freeze_path = output_path.replace(".mp4", "_freeze.mp4")
+        # ── Step 1: 拼接视频（无声）──
+        silent_path = output_path.replace(".mp4", "_silent.mp4")
+        VideoConcatenator.concat_videos(video_paths, silent_path)
+
+        # ── Step 2: 获取音视频时长 ──
+        video_dur = VideoConcatenator._get_duration(silent_path)
+        audio_dur = VideoConcatenator._get_duration(audio_path)
+        final_dur = max(video_dur, audio_dur)
+        logger.info(
+            f"[Compositor] durations: video={video_dur:.2f}s, "
+            f"audio={audio_dur:.2f}s, final={final_dur:.2f}s"
+        )
+
+        video_input = silent_path
+        tmp_files = [silent_path]
+
+        # ── Step 3: 若视频 < 音频，冻结尾帧补齐 ──
+        if video_dur < final_dur - 0.3:
+            extend_path = output_path.replace(".mp4", "_vext.mp4")
+            tmp_files.append(extend_path)
+            pad_dur = final_dur - video_dur
+            VideoConcatenator._run_ffmpeg(
+                ["ffmpeg", "-y",
+                 "-i", silent_path,
+                 "-vf", f"tpad=stop_mode=clone:stop_duration={pad_dur:.2f}",
+                 "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                 "-preset", "fast",
+                 extend_path],
+                desc=f"extend video by {pad_dur:.1f}s (freeze last frame)",
+            )
+            video_input = extend_path
+
+        # ── Step 4: 若音频 < 视频，补齐静音 ──
+        audio_input = audio_path
+        if audio_dur < final_dur - 0.3:
+            apad_path = audio_path.replace(".mp3", "_apad.mp3")
+            tmp_files.append(apad_path)
+            pad_dur = final_dur - audio_dur
+            VideoConcatenator._run_ffmpeg(
+                ["ffmpeg", "-y",
+                 "-i", audio_path,
+                 "-af", f"apad=pad_dur={pad_dur:.2f},volume=1.5",
+                 "-c:a", "libmp3lame", "-q:a", "2",
+                 apad_path],
+                desc=f"pad audio by {pad_dur:.1f}s + volume 1.5x",
+            )
+            audio_input = apad_path
+        else:
+            # 只做音量放大
+            vol_path = audio_path.replace(".mp3", "_vol.mp3")
+            tmp_files.append(vol_path)
+            VideoConcatenator._run_ffmpeg(
+                ["ffmpeg", "-y",
+                 "-i", audio_path,
+                 "-af", "volume=1.5",
+                 "-c:a", "libmp3lame", "-q:a", "2",
+                 vol_path],
+                desc="boost audio volume 1.5x",
+            )
+            audio_input = vol_path
+
+        # ── Step 5: moviepy 合成视频+音频+字幕 ──
         video_clip = None
-        audio_clip = None
-
+        audio_clip_obj = None
         try:
-            # ── Step 1: 拼接所有视频 ──────────────────────────────────────
-            VideoConcatenator.concat_videos(video_paths, naked_path)
+            video_clip = VideoFileClip(video_input)
+            audio_clip_obj = AudioFileClip(audio_input)
 
-            # ── Step 2: 加载拼接视频 + 音频 ────────────────────────────────
-            video_clip = VideoFileClip(naked_path)
-            audio_clip = AudioFileClip(audio_path)
+            # 掐头去尾确保完全对齐
+            target_dur = min(video_clip.duration, audio_clip_obj.duration)
+            video_clip = video_clip.subclipped(0, target_dur)
+            audio_clip_obj = audio_clip_obj.subclipped(0, target_dur)
 
-            # ── Step 2.5: 提升音频音量（M9: 降为 1.5x 避免削波）────────
-            _AUDIO_VOLUME_FACTOR = 1.5
-            audio_clip = audio_clip.with_volume_scaled(_AUDIO_VOLUME_FACTOR)
+            video_with_audio = video_clip.with_audio(audio_clip_obj)
 
-            # ── Step 3: 若音频比视频长，冻结尾帧补齐 ─────────────────────
-            if video_clip.duration < audio_clip.duration:
-                freeze_duration = audio_clip.duration - video_clip.duration
-                from core.compositor.processor import VideoProcessor
-                VideoProcessor.freeze_last_frame(naked_path, freeze_duration, freeze_path)
-                video_clip.close()
-                video_clip = VideoFileClip(freeze_path)
-
-            # ── Step 4: 叠加音频 ──────────────────────────────────────────
-            video_with_audio = video_clip.with_audio(audio_clip)
-
-            # ── Step 5: 叠加字幕 ──────────────────────────────────────────
+            # ── 叠加字幕 ──
             if srt_path and os.path.exists(srt_path) and subtitle_style:
                 try:
                     per_entry_styles = None
@@ -289,7 +370,7 @@ class VideoConcatenator:
                     subs_clips = VideoConcatenator._parse_srt_to_clips(
                         srt_path, subtitle_style, video_clip.w,
                         video_height=video_clip.h,
-                        video_duration=video_clip.duration,
+                        video_duration=target_dur,
                         subtitle_styles=per_entry_styles,
                     )
                     if subs_clips:
@@ -340,9 +421,9 @@ class VideoConcatenator:
         finally:
             if video_clip is not None:
                 video_clip.close()
-            if audio_clip is not None:
-                audio_clip.close()
-            for tmp in (naked_path, freeze_path):
+            if audio_clip_obj is not None:
+                audio_clip_obj.close()
+            for tmp in tmp_files:
                 if os.path.exists(tmp):
                     try:
                         os.remove(tmp)

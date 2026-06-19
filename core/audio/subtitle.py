@@ -570,6 +570,8 @@ class SubtitleGenerator:
         pos,
         video_width: int,
         video_height: int,
+        safe_margin_x: int = 40,
+        safe_margin_y: int = 80,
     ) -> tuple:
         """将各种格式的字幕位置解析为 moviepy (h, v) 坐标。
 
@@ -580,6 +582,10 @@ class SubtitleGenerator:
           - 像素坐标: ("center", 200) — 垂直 200px
           - 四角: "top-left", "top-right", "bottom-left", "bottom-right"
           - 纯字符串: "center", "top", "bottom", "top-left" 等
+
+        Args:
+            safe_margin_x: 水平方向像素边界留白，防止大字号字幕溢出。
+            safe_margin_y: 垂直方向像素边界留白。
         """
         default = ("center", "bottom")
 
@@ -649,7 +655,16 @@ class SubtitleGenerator:
                 return vs
             return "bottom"
 
-        return (resolve_h(h_raw), resolve_v(v_raw))
+        h_resolved = resolve_h(h_raw)
+        v_resolved = resolve_v(v_raw)
+
+        # safe-margin clamping for pixel positions
+        if isinstance(h_resolved, (int, float)):
+            h_resolved = max(safe_margin_x, min(h_resolved, video_width - safe_margin_x))
+        if isinstance(v_resolved, (int, float)):
+            v_resolved = max(safe_margin_y, min(v_resolved, video_height - safe_margin_y))
+
+        return (h_resolved, v_resolved)
 
     @staticmethod
     def overlay_subtitles_to_video(
