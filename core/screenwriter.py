@@ -1,4 +1,5 @@
 import base64
+import html
 import json
 import logging
 import mimetypes
@@ -7,11 +8,22 @@ import time as _time
 import requests
 from typing import List
 
-from core.api.agnes_chat import AgnesChatAPI
+from core.api.agnes_chat import AgnesChatAPI, strip_code_fence
 
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://apihub.agnes-ai.com/v1"
+
+
+def _xml_escape(text: str) -> str:
+    """XML 转义用户输入，防止 prompt 注入。
+
+    将 < > & " ' 转义为 XML 实体，避免用户输入中的标签
+    提前闭合 XML 结构（如 </idea>）导致指令注入。
+    """
+    if not text:
+        return text
+    return html.escape(text, quote=True)
 
 
 class Screenwriter:
@@ -142,15 +154,15 @@ hair, distinguishing features, color palette) to enable consistent image generat
 """
         user_prompt = f"""\
 <idea>
-{idea}
+{_xml_escape(idea)}
 </idea>
 
 <user_requirement>
-{user_requirement}
+{_xml_escape(user_requirement)}
 </user_requirement>
 
 <style>
-{style}
+{_xml_escape(style)}
 </style>
 """
         if image_context:
@@ -254,12 +266,7 @@ Output ONLY the image prompt text, no JSON, no explanation.
 <style>{style}</style>
 """
         logger.info("[Screenwriter] Extracting character reference prompt...")
-        prompt = self._chat(system_prompt, user_prompt).strip()
-        if prompt.startswith("```"):
-            prompt = prompt.split("\n", 1)[1]
-            if prompt.endswith("```"):
-                prompt = prompt[:-3]
-            prompt = prompt.strip()
+        prompt = strip_code_fence(self._chat(system_prompt, user_prompt))
         logger.info(f"[Screenwriter] Character prompt: {prompt[:100]}...")
         return prompt
 
@@ -280,12 +287,7 @@ dialogue, or story events.
 
 Output ONLY the appearance description text. No JSON, no labels, no markdown.
 """
-        appearance = self._chat(system_prompt, story).strip()
-        if appearance.startswith("```"):
-            appearance = appearance.split("\n", 1)[1]
-            if appearance.endswith("```"):
-                appearance = appearance[:-3]
-            appearance = appearance.strip()
+        appearance = strip_code_fence(self._chat(system_prompt, story))
         logger.info(f"[Screenwriter] Character appearance: {appearance[:100]}...")
         return appearance
 
@@ -337,12 +339,7 @@ Write the STATIC end-frame image prompt for this scene. This should describe
 what the final frozen frame of this scene looks like — the pose, expression,
 lighting, and environment at the moment this scene ends.
 """
-            prompt = self._chat(system_prompt, user_prompt).strip()
-            if prompt.startswith("```"):
-                prompt = prompt.split("\n", 1)[1]
-                if prompt.endswith("```"):
-                    prompt = prompt[:-3]
-                prompt = prompt.strip()
+            prompt = strip_code_fence(self._chat(system_prompt, user_prompt))
             end_frames.append(prompt)
             logger.info(f"[Screenwriter] End frame {scene_idx} prompt: {prompt[:80]}...")
 
@@ -429,12 +426,7 @@ Output ONLY the visual prompt text, no JSON, no explanation.
 Generate a detailed English visual prompt for this paragraph.
 """
         logger.info(f"[Screenwriter] Generating scene prompt for paragraph ({len(text)} chars)...")
-        prompt = self._chat(system_prompt, user_prompt).strip()
-        if prompt.startswith("```"):
-            prompt = prompt.split("\n", 1)[1]
-            if prompt.endswith("```"):
-                prompt = prompt[:-3]
-            prompt = prompt.strip()
+        prompt = strip_code_fence(self._chat(system_prompt, user_prompt))
         logger.info(f"[Screenwriter] Scene prompt: {prompt[:100]}...")
         return prompt
 
@@ -501,11 +493,6 @@ approximately {max_chars} characters total.
             f"[Screenwriter] Generating narration for video "
             f"(max {max_chars} chars, {total_duration:.0f}s total, {scene_count} scenes)..."
         )
-        narration = self._chat(system_prompt, user_prompt).strip()
-        if narration.startswith("```"):
-            narration = narration.split("\n", 1)[1]
-            if narration.endswith("```"):
-                narration = narration[:-3]
-            narration = narration.strip()
+        narration = strip_code_fence(self._chat(system_prompt, user_prompt))
         logger.info(f"[Screenwriter] Narration: {narration[:80]}... ({len(narration)} chars)")
         return narration
