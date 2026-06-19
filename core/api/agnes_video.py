@@ -100,7 +100,7 @@ class AgnesVideoAPI:
                 # 兼容旧格式纯文本缓存文件
                 except Exception as e:
                     logger.debug(f"[AgnesVideo] Failed to read legacy URL cache: {e}")
-            url = await self._upload_image_to_host(ref)
+            url = await self._upload_image_to_url(ref)
             if url:
                 try:
                     cache_data = {"url": url, "ts": time.time()}

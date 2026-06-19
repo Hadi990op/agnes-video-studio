@@ -57,8 +57,8 @@ class TaskManager:
 
         v2.0：使用 parse_task_state() 根据 task_type 字段反序列化为正确的子类。
         向后兼容：旧数据无 task_type → 自动视为 CreativeVideoTask（D6）。
+        注意：load 是读操作，不调用 _ensure_dir()，避免为不存在的任务创建空目录。
         """
-        self._ensure_dir()
         if not os.path.exists(self._task_file):
             return None
 

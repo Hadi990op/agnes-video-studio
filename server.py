@@ -420,8 +420,8 @@ async def _run_pipeline(pipeline: BasePipeline, state: BaseTaskState):
     finally:
         # 身份比对：仅当字典里仍是当前 pipeline 时才删除。
         # 否则快速 resume→stop 会让旧 pipeline 的 finally 误删新 pipeline。
-        if active_pipelines.get(task_id) is pipeline:
-            del active_pipelines[task_id]
+        if active_pipelines.get(pipeline.task_id) is pipeline:
+            del active_pipelines[pipeline.task_id]
 
 
 def _launch_background_task(coro):
