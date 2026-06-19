@@ -84,6 +84,15 @@ logger = logging.getLogger("RegressionTest")
 
 
 # ═══════════════════════════════════════════════════
+# 自定义异常
+# ═══════════════════════════════════════════════════
+
+class TaskNotFoundError(Exception):
+    """任务已被删除或不存在（HTTP 404）。"""
+    pass
+
+
+# ═══════════════════════════════════════════════════
 # 场景定义
 # ═══════════════════════════════════════════════════
 
@@ -781,9 +790,13 @@ async def submit_task(scenario: ScenarioConfig) -> dict:
 
 
 async def get_task_status(task_id: str) -> dict:
-    return await asyncio.to_thread(
-        lambda: requests.get(f"{SERVER_URL}/api/tasks/{task_id}", timeout=10).json()
-    )
+    def _fetch():
+        r = requests.get(f"{SERVER_URL}/api/tasks/{task_id}", timeout=10)
+        if r.status_code == 404:
+            raise TaskNotFoundError(f"Task {task_id} not found (404)")
+        r.raise_for_status()
+        return r.json()
+    return await asyncio.to_thread(_fetch)
 
 
 async def resume_task(task_id: str) -> dict:
@@ -1311,6 +1324,11 @@ async def run_scenario(scenario: ScenarioConfig,
                     logger.info(f"[{scenario.id}] pending...")
                 elif st:
                     logger.info(f"[{scenario.id}] status={st}")
+            except TaskNotFoundError:
+                logger.warning(
+                    f"[{scenario.id}] 任务不存在 (404)，停止轮询: {task_id}")
+                final_status = "task_not_found"
+                break
             except Exception as e:
                 logger.warning(f"[{scenario.id}] 轮询: {e}")
                 await asyncio.sleep(5)
