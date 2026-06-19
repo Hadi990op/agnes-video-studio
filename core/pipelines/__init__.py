@@ -78,22 +78,6 @@ class BasePipeline(ABC):
         ...
 
 
-# 延迟导入避免循环依赖
-def _get_simple_pipeline():
-    from core.pipelines.simple_video import SimpleVideoPipeline
-    return SimpleVideoPipeline
-
-
-def _get_creative_pipeline():
-    from core.pipelines.creative_video import CreativeVideoPipeline
-    return CreativeVideoPipeline
-
-
-def _get_manuscript_pipeline():
-    from core.pipelines.manuscript_video import ManuscriptVideoPipeline
-    return ManuscriptVideoPipeline
-
-
 # 导出
 from core.pipelines.simple_video import SimpleVideoPipeline
 from core.pipelines.creative_video import CreativeVideoPipeline

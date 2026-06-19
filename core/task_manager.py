@@ -175,5 +175,5 @@ class TaskManager:
                     })
                 except Exception as e:
                     logger.debug(f"[TaskManager] Failed to load task listing for {name}: {e}")
-        tasks.sort(key=lambda t: t.get("task_id", ""), reverse=True)
+        tasks.sort(key=lambda t: t.get("dir_name", ""), reverse=True)
         return tasks

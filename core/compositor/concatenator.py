@@ -6,7 +6,7 @@
 import logging
 import os
 import shutil
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import re as _re
 
@@ -90,70 +90,6 @@ class VideoConcatenator:
                     pass
 
         logger.info(f"[Compositor] Concatenation complete: {output_path}")
-        return output_path
-
-    @staticmethod
-    def concat_with_audio(
-        clip_tuples: List[Tuple[str, str, Optional[str]]],
-        output_path: str,
-        subtitle_style: Optional[SubtitleStyle] = None,
-    ) -> str:
-        """带音频合成的视频拼接。
-
-        每段视频先与音频 + 字幕合成，再整体拼接。
-
-        Args:
-            clip_tuples: [(video_path, audio_path, srt_path_or_None), ...]
-            output_path: 最终输出文件路径
-            subtitle_style: 字幕样式配置
-
-        Returns:
-            输出文件路径
-        """
-        logger.info(f"[Compositor] concat_with_audio: {len(clip_tuples)} segments → {output_path}")
-        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-
-        if not clip_tuples:
-            raise RuntimeError("No clips to concatenate")
-
-        synthesized_paths = []
-
-        for i, (video_path, audio_path, srt_path) in enumerate(clip_tuples):
-            segment_output = video_path.replace(".mp4", "_synth.mp4")
-            if os.path.exists(segment_output) and os.path.getsize(segment_output) > 0:
-                # Validate cached _synth file has valid duration
-                try:
-                    probe = VideoFileClip(segment_output)
-                    if probe.duration and probe.duration > 0:
-                        probe.close()
-                        logger.info(f"[Compositor] Reusing valid cached _synth: {segment_output}")
-                        synthesized_paths.append(segment_output)
-                        continue
-                    probe.close()
-                    logger.warning(f"[Compositor] Cached _synth has invalid duration, rebuilding: {segment_output}")
-                except Exception as e:
-                    logger.warning(f"[Compositor] Cached _synth validation failed, rebuilding: {segment_output} ({e})")
-
-            synthesized = VideoConcatenator._synthesize_single(
-                video_path, audio_path, srt_path, segment_output, subtitle_style
-            )
-            synthesized_paths.append(synthesized)
-
-        # 拼接所有合成片段
-        if len(synthesized_paths) == 1:
-            shutil.copy2(synthesized_paths[0], output_path)
-        else:
-            VideoConcatenator.concat_videos(synthesized_paths, output_path)
-
-        # 清理 _synth 中间文件
-        for sp in synthesized_paths:
-            if sp.endswith("_synth.mp4") and os.path.exists(sp):
-                try:
-                    os.remove(sp)
-                except OSError:
-                    pass
-
-        logger.info(f"[Compositor] concat_with_audio complete: {output_path}")
         return output_path
 
     @staticmethod
@@ -401,115 +337,4 @@ class VideoConcatenator:
         logger.info(f"[Compositor] concat_videos_with_audio_overlay done: {output_path}")
         return output_path
 
-    @staticmethod
-    def _synthesize_single(
-        video_path: str,
-        audio_path: str,
-        srt_path: Optional[str],
-        output_path: str,
-        subtitle_style: Optional[SubtitleStyle] = None,
-    ) -> str:
-        """合成单段视频 + 音频 + 字幕。
 
-        Args:
-            video_path: 视频文件路径
-            audio_path: 音频文件路径
-            srt_path: SRT 字幕路径（可选）
-            output_path: 输出路径
-            subtitle_style: 字幕样式
-
-        Returns:
-            输出路径
-        """
-        logger.info(f"[Compositor] Synthesizing: {video_path} + {audio_path}")
-        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-
-        video_clip = None
-        audio_clip = None
-        freeze_path = output_path.replace(".mp4", "_freeze.mp4")
-
-        try:
-            video_clip = VideoFileClip(video_path)
-            audio_clip = AudioFileClip(audio_path)
-
-            # 提升音频音量（M9: 降为 1.5x 避免削波）
-            _AUDIO_VOLUME_FACTOR = 1.5
-            audio_clip = audio_clip.with_volume_scaled(_AUDIO_VOLUME_FACTOR)
-
-            # 若音频比视频长，冻结最后一帧补齐
-            if video_clip.duration < audio_clip.duration:
-                freeze_duration = audio_clip.duration - video_clip.duration
-                from core.compositor.processor import VideoProcessor
-                VideoProcessor.freeze_last_frame(video_path, freeze_duration, freeze_path)
-                video_clip.close()
-                video_clip = VideoFileClip(freeze_path)
-
-            # 合成音频
-            video_with_audio = video_clip.with_audio(audio_clip)
-
-            # 叠加字幕
-            if srt_path and os.path.exists(srt_path) and subtitle_style:
-                try:
-                    subs_clips = VideoConcatenator._parse_srt_to_clips(
-                        srt_path, subtitle_style, video_clip.w,
-                        video_height=video_clip.h,
-                        video_duration=video_clip.duration,
-                    )
-                    if subs_clips:
-                        final = CompositeVideoClip([video_with_audio, *subs_clips])
-                        final.write_videofile(
-                            output_path,
-                            codec="libx264",
-                            audio_codec=_AUDIO_CODEC,
-                            audio_bitrate=_AUDIO_BITRATE,
-                            audio_fps=_AUDIO_FPS,
-                            fps=_VIDEO_FPS,
-                            logger="bar",
-                        )
-                        final.close()
-                    else:
-                        video_with_audio.write_videofile(
-                            output_path,
-                            codec="libx264",
-                            audio_codec=_AUDIO_CODEC,
-                            audio_bitrate=_AUDIO_BITRATE,
-                            audio_fps=_AUDIO_FPS,
-                            fps=_VIDEO_FPS,
-                            logger="bar",
-                        )
-                except Exception as e:
-                    logger.warning(
-                        f"[Compositor] Subtitle overlay failed: {e}, writing without subtitles"
-                    )
-                    video_with_audio.write_videofile(
-                        output_path,
-                        codec="libx264",
-                        audio_codec=_AUDIO_CODEC,
-                        audio_bitrate=_AUDIO_BITRATE,
-                        audio_fps=_AUDIO_FPS,
-                        fps=_VIDEO_FPS,
-                        logger="bar",
-                    )
-            else:
-                video_with_audio.write_videofile(
-                    output_path,
-                    codec="libx264",
-                    audio_codec=_AUDIO_CODEC,
-                    audio_bitrate=_AUDIO_BITRATE,
-                    audio_fps=_AUDIO_FPS,
-                    fps=_VIDEO_FPS,
-                    logger="bar",
-                )
-        finally:
-            if video_clip is not None:
-                video_clip.close()
-            if audio_clip is not None:
-                audio_clip.close()
-            if os.path.exists(freeze_path):
-                try:
-                    os.remove(freeze_path)
-                except OSError:
-                    pass
-
-        logger.info(f"[Compositor] Segment synthesized: {output_path}")
-        return output_path
