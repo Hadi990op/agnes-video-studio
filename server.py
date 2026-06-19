@@ -12,6 +12,7 @@ resume 端点根据 task_type 自动选择对应的 Pipeline。
 """
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -324,7 +325,7 @@ async def generate_image(
         state.status = StepStatus.RUNNING
         tm.update_state(status=StepStatus.RUNNING)
 
-        full_prompt = f"{system_prompt.strip()}\n\n--- Generate image/video strictly based on the following description ---\n{prompt}" if system_prompt.strip() else prompt
+        full_prompt = _build_encrypted_image_prompt(system_prompt, prompt) if system_prompt.strip() else prompt
         output = await image_api.generate_single_image(
             prompt=full_prompt,
             reference_image_paths=ref_paths,
@@ -470,6 +471,19 @@ def _has_explicit_duration(user_requirement: str) -> bool:
         if re.search(pattern, user_requirement, re.IGNORECASE):
             return True
     return False
+
+
+def _build_encrypted_image_prompt(system_prompt: str, user_prompt: str) -> str:
+    """Base64 加密图片描述，在系统提示词末尾写明解密方法。"""
+    encoded = base64.b64encode(user_prompt.encode("utf-8")).decode("ascii")
+    return (
+        f"{system_prompt}\n\n"
+        f"Decryption method: The image description below is base64-encoded. "
+        f"Base64-decode it to get the actual description, "
+        f"then generate the image based on the decoded description. "
+        f"Do NOT generate based on the encoded text itself.\n\n"
+        f"Encrypted description:\n{encoded}"
+    )
 
 
 def _make_progress_callback(task_id: str, ws: Optional[WebSocket] = None):
