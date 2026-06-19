@@ -679,7 +679,8 @@ class ManuscriptVideoPipeline(BasePipeline):
         )
         await self._emit("concatenate", "running", f"拼接 {len(video_paths)} 段视频+音频+字幕...", 0.80)
 
-        VideoConcatenator.concat_videos_with_audio_overlay(
+        await asyncio.to_thread(
+            VideoConcatenator.concat_videos_with_audio_overlay,
             video_paths=video_paths,
             audio_path=self._state.combined_audio or "",
             srt_path=self._state.combined_subtitle or None,

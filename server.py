@@ -84,8 +84,26 @@ logging.getLogger("websockets").setLevel(logging.WARNING)
 
 active_connections: Dict[str, WebSocket] = {}
 active_pipelines: Dict[str, BasePipeline] = {}
+# task_id -> asyncio.Lock, 串行化 create/resume/stop，避免并发操作同一任务导致
+# 旧 pipeline 的 finally 误删新 pipeline、或同任务双重运行。
+_pipeline_locks: Dict[str, asyncio.Lock] = {}
 background_tasks: set = set()
 shutdown_event = asyncio.Event()
+
+
+def _get_pipeline_lock(task_id: str) -> asyncio.Lock:
+    """获取（必要时创建）task_id 级别的并发锁。
+
+    create/resume/stop 端点对 ``active_pipelines`` 的检查与插入之间存在
+    ``await`` 让出点，快速重复操作（如 resume→stop）会让旧 pipeline 的
+    ``finally`` 误删新 pipeline，甚至产生同任务双重运行。用 per-task 锁将
+    这三类操作的「检查+插入/删除」关键段串行化。
+    """
+    lock = _pipeline_locks.get(task_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _pipeline_locks[task_id] = lock
+    return lock
 
 
 def _find_dir_name(task_id: str) -> str:
@@ -389,8 +407,10 @@ async def _run_pipeline(pipeline: BasePipeline, state: BaseTaskState):
     except Exception as e:
         logger.error(f"[Pipeline] Task {pipeline.task_id} failed: {e}", exc_info=True)
     finally:
-        if pipeline.task_id in active_pipelines:
-            del active_pipelines[pipeline.task_id]
+        # 身份比对：仅当字典里仍是当前 pipeline 时才删除。
+        # 否则快速 resume→stop 会让旧 pipeline 的 finally 误删新 pipeline。
+        if active_pipelines.get(task_id) is pipeline:
+            del active_pipelines[task_id]
 
 
 def _launch_background_task(coro):
@@ -691,34 +711,38 @@ async def resume_task(task_id: str):
     if not api_key:
         raise HTTPException(status_code=400, detail="请先配置 API Key")
 
-    if task_id in active_pipelines:
-        existing = active_pipelines[task_id]
-        if existing._stop_event.is_set():
-            logger.info(f"[Resume] Replacing stopped pipeline for task {task_id}")
-            del active_pipelines[task_id]
-        else:
-            raise HTTPException(status_code=400, detail="Task is already running")
+    # 关键段串行化：check 与 insert 之间存在多个 await 让出点，快速重复 resume
+    # 会让两次请求都通过 "task not in active_pipelines" 检查并各自启动 pipeline，
+    # 导致同任务双重运行、状态文件交叉写入。
+    async with _get_pipeline_lock(task_id):
+        if task_id in active_pipelines:
+            existing = active_pipelines[task_id]
+            if existing._stop_event.is_set():
+                logger.info(f"[Resume] Replacing stopped pipeline for task {task_id}")
+                del active_pipelines[task_id]
+            else:
+                raise HTTPException(status_code=400, detail="Task is already running")
 
-    dir_name = _find_dir_name(task_id)
-    tm = TaskManager(task_id, dir_name=dir_name)
-    state = tm.load()
-    if not state:
-        raise HTTPException(status_code=404, detail="Task not found")
+        dir_name = _find_dir_name(task_id)
+        tm = TaskManager(task_id, dir_name=dir_name)
+        state = tm.load()
+        if not state:
+            raise HTTPException(status_code=404, detail="Task not found")
 
-    if state.status == StepStatus.COMPLETED:
-        raise HTTPException(status_code=400, detail="Task is already completed")
+        if state.status == StepStatus.COMPLETED:
+            raise HTTPException(status_code=400, detail="Task is already completed")
 
-    logger.info(f"[Resume] Starting resume for task {task_id}, type={state.task_type}, status={state.status}")
+        logger.info(f"[Resume] Starting resume for task {task_id}, type={state.task_type}, status={state.status}")
 
-    # v2.0：根据 task_type 选择对应的 Pipeline
-    pipeline = _create_pipeline_for_type(state.task_type, api_key, task_id, dir_name)
-    active_pipelines[task_id] = pipeline
+        # v2.0：根据 task_type 选择对应的 Pipeline
+        pipeline = _create_pipeline_for_type(state.task_type, api_key, task_id, dir_name)
+        active_pipelines[task_id] = pipeline
 
-    if task_id in active_connections:
-        logger.info(f"[Resume] Binding existing WebSocket for task {task_id}")
-        pipeline.progress_callback = _make_progress_callback(task_id)
+        if task_id in active_connections:
+            logger.info(f"[Resume] Binding existing WebSocket for task {task_id}")
+            pipeline.progress_callback = _make_progress_callback(task_id)
 
-    _launch_background_task(_run_pipeline(pipeline, state))
+        _launch_background_task(_run_pipeline(pipeline, state))
     return {"ok": True, "task_id": task_id, "dir_name": dir_name}
 
 

@@ -14,7 +14,6 @@ import json
 import logging
 import os
 import re
-import subprocess
 from typing import Callable, List, Optional
 
 from core.api.agnes_image import AgnesImageAPI
@@ -28,6 +27,39 @@ from models.task import CreativeVideoTask, SceneTask, StepStatus
 
 _CHARS_PER_SEC = 4.0
 _SENTENCE_BOUNDARY_RE = re.compile(r"(?<=[。！？.!?])")
+
+
+async def _run_ffmpeg_async(cmd: List[str], timeout: float = 30.0) -> None:
+    """异步执行 ffmpeg 命令，等价于 ``subprocess.run(cmd, check=True, timeout=...)``。
+
+    原实现用同步 ``subprocess.run`` 在 async pipeline 中阻塞事件循环，
+    导致拼接/规范化阶段冻结整个 FastAPI 服务（WS 心跳/其他任务停摆）。
+    改用 ``asyncio.create_subprocess_exec`` 让阻塞在子进程 IO 期间让出事件循环。
+
+    Args:
+        cmd: ffmpeg 命令列表。
+        timeout: 超时秒数，超时则终止子进程并抛 ``TimeoutExpired``。
+
+    Raises:
+        RuntimeError: ffmpeg 退出码非 0（等价原 ``check=True`` 语义）。
+        asyncio.TimeoutError: 超时。
+    """
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        raise
+    if proc.returncode != 0:
+        err = stderr.decode(errors="replace")[:500] if stderr else ""
+        raise RuntimeError(
+            f"ffmpeg exited with code {proc.returncode}: {err}"
+        )
 
 
 def _trim_to_sentence(text: str, max_chars: int) -> str:
@@ -394,13 +426,15 @@ class CreativeVideoPipeline(BasePipeline):
     # ==================================================================
 
     @staticmethod
-    def _normalize_image_to_size(src: str, vw: int, vh: int, dst: str) -> str:
+    async def _normalize_image_to_size(src: str, vw: int, vh: int, dst: str) -> str:
         """Normalize an image to exactly ``vw x vh`` using ffmpeg scale+pad.
 
         Keeps the original aspect ratio (no stretching) and pads with black
         bars. This avoids feeding i2i a composition that the model would
         otherwise stretch/letterbox unpredictably — the i2i model then only
         needs to preserve identity, not reshape the layout.
+
+        Uses ``_run_ffmpeg_async`` to avoid blocking the event loop.
 
         Args:
             src: Source image path.
@@ -415,7 +449,7 @@ class CreativeVideoPipeline(BasePipeline):
             logger.debug(f"[Pipeline] normalize cache hit: {dst}")
             return dst
         os.makedirs(os.path.dirname(dst), exist_ok=True)
-        subprocess.run(
+        await _run_ffmpeg_async(
             [
                 "ffmpeg", "-y", "-i", src,
                 "-vf",
@@ -423,13 +457,11 @@ class CreativeVideoPipeline(BasePipeline):
                 f"pad={vw}:{vh}:(ow-iw)/2:(oh-ih)/2",
                 dst,
             ],
-            capture_output=True,
-            check=True,
             timeout=30,
         )
         return dst
 
-    def _get_normalized_character_ref(self, character_ref_path: str) -> str:
+    async def _get_normalized_character_ref(self, character_ref_path: str) -> str:
         """Return a character-reference image normalized to the video size.
 
         Caches the result under ``working_dir/character_ref_normalized.png``
@@ -453,7 +485,7 @@ class CreativeVideoPipeline(BasePipeline):
             return character_ref_path
         dst = os.path.join(self.working_dir, "character_ref_normalized.png")
         try:
-            return self._normalize_image_to_size(character_ref_path, vw, vh, dst)
+            return await self._normalize_image_to_size(character_ref_path, vw, vh, dst)
         except Exception as e:
             logger.warning(
                 f"[Pipeline] normalize character ref failed ({e}), using original"
@@ -533,13 +565,13 @@ class CreativeVideoPipeline(BasePipeline):
                 )
                 if os.path.exists(user_ef):
                     dest = os.path.join(scene_dir, "end_frame.png")
-                    subprocess.run(
+                    await _run_ffmpeg_async(
                         [
                             "ffmpeg", "-y", "-i", user_ef,
                             "-vf", f"scale={vw}:{vh}:force_original_aspect_ratio=decrease,pad={vw}:{vh}:(ow-iw)/2:(oh-ih)/2",
                             dest,
                         ],
-                        capture_output=True, check=True, timeout=30,
+                        timeout=30,
                     )
                     end_frame_path = dest
                 pregenerated[scene_idx] = end_frame_path
@@ -576,7 +608,7 @@ class CreativeVideoPipeline(BasePipeline):
                         f"{end_frame_prompt}"
                     )
                 # 规范化角色参考图到目标尺寸，避免 i2i 拉伸/构图错位
-                normalized_ref = self._get_normalized_character_ref(character_ref_path)
+                normalized_ref = await self._get_normalized_character_ref(character_ref_path)
                 # 批次5：多图 i2i 引导 —— 角色图锁身份 + 上一场景尾帧锁环境/风格延续
                 ref_images = [normalized_ref]
                 if prev_end_frame and os.path.exists(prev_end_frame):
@@ -956,15 +988,17 @@ class CreativeVideoPipeline(BasePipeline):
 
             if scene_idx + 1 < total:
                 last_frame_path = os.path.join(scene_dir, "last_frame.jpg")
-                cmd = [
-                    "ffmpeg", "-y",
-                    "-sseof", "-1",
-                    "-i", video_path,
-                    "-frames:v", "1",
-                    "-update", "1",
-                    last_frame_path,
-                ]
-                subprocess.run(cmd, capture_output=True, timeout=30, check=True)
+                await _run_ffmpeg_async(
+                    [
+                        "ffmpeg", "-y",
+                        "-sseof", "-1",
+                        "-i", video_path,
+                        "-frames:v", "1",
+                        "-update", "1",
+                        last_frame_path,
+                    ],
+                    timeout=30,
+                )
 
                 last_frame_url = await self.video_generator._resolve_image_ref(last_frame_path)
 
@@ -1062,13 +1096,13 @@ class CreativeVideoPipeline(BasePipeline):
                     )
                     if user_ef and os.path.exists(user_ef):
                         dest = os.path.join(scene_dir, "end_frame.png")
-                        subprocess.run(
+                        await _run_ffmpeg_async(
                             [
                                 "ffmpeg", "-y", "-i", user_ef,
                                 "-vf", f"scale={vw}:{vh}:force_original_aspect_ratio=decrease,pad={vw}:{vh}:(ow-iw)/2:(oh-ih)/2",
                                 dest,
                             ],
-                            capture_output=True, check=True, timeout=30,
+                            timeout=30,
                         )
                         end_frame_path = dest
                     else:
@@ -1094,7 +1128,7 @@ class CreativeVideoPipeline(BasePipeline):
                                     "[CHANGE — end frame of this scene]\n"
                                     f"{end_frame_prompt}"
                                 )
-                            normalized_ref = self._get_normalized_character_ref(reference_image)
+                            normalized_ref = await self._get_normalized_character_ref(reference_image)
                             logger.info(
                                 f"[Keyframes] Scene {scene_idx} fallback: i2i with normalized ref"
                             )
@@ -1435,7 +1469,8 @@ class CreativeVideoPipeline(BasePipeline):
             has_srt = os.path.exists(combined_srt) and os.path.getsize(combined_srt) > 0
 
             if os.path.exists(combined_audio) and os.path.getsize(combined_audio) > 0:
-                VideoConcatenator.concat_videos_with_audio_overlay(
+                await asyncio.to_thread(
+                    VideoConcatenator.concat_videos_with_audio_overlay,
                     video_paths=all_video_paths,
                     audio_path=combined_audio,
                     srt_path=combined_srt if has_srt else None,
@@ -1443,9 +1478,13 @@ class CreativeVideoPipeline(BasePipeline):
                     subtitle_style=self._state.audio_config.subtitle_style,
                 )
             else:
-                VideoConcatenator.concat_videos(all_video_paths, final_video_path)
+                await asyncio.to_thread(
+                    VideoConcatenator.concat_videos, all_video_paths, final_video_path
+                )
         else:
-            VideoConcatenator.concat_videos(all_video_paths, final_video_path)
+            await asyncio.to_thread(
+                VideoConcatenator.concat_videos, all_video_paths, final_video_path
+            )
 
         self._state.step_concatenation = StepStatus.COMPLETED
         self._state.final_video_file = final_video_path
