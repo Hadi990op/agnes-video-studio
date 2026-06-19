@@ -142,5 +142,5 @@ class SilentTTSEngine(TTSEngine):
                 f"[TTS] ffmpeg silent generation failed (code {proc.returncode}): {err_msg}"
             )
 
-        # 返回空 cues
-        return output_path, {}
+        # 返回空 cues（用 None 而非 {}，让下游正确识别为无 SubMaker 可用）
+        return output_path, None
