@@ -434,10 +434,10 @@ Phase 1 是基础设施，Phase 2 和 Phase 3 都依赖它。Phase 2 和 Phase 3
 
 | 批次 | 内容 | 涉及文件 | 验证方式 | 状态 |
 |------|------|---------|---------|------|
-| 1.1 | 数据模型变更：新增 `SubtitleConfig`，`AudioConfig` 移除 `subtitle_style`；`TaskManager.load()` 字段迁移兼容旧数据 | `models/task.py`, `core/task_manager.py`, `core/config.py` | `python -m py_compile` 语法检查；`from models.task import SubtitleConfig, AudioConfig` 导入验证；单元测试旧格式反序列化 | ⬜ |
-| 1.2 | Pipeline 步骤拆分：`_step_audio` + `_step_subtitle` 替代 `_step_audio_subtitle`；独立 `enabled` 逻辑；无旁白有字幕时从纯文本生成 SRT | `core/pipelines/creative_video.py`, `core/pipelines/manuscript_video.py`, `core/audio/subtitle.py` | 场景矩阵验证：(1) 旁白+字幕均开启 (2) 仅旁白 (3) 仅字幕 (4) 均关闭；每种场景 curl 创建任务，检查输出文件 | ⬜ |
-| 1.3 | 拼接层条件调整：`_step_concatenate` 判断逻辑从 `audio_config.enabled` 改为 `audio_config.enabled or subtitle_config.enabled` | `core/compositor/concatenator.py` | 1.2 的四种场景任务均能正常生成最终视频，无异常日志 | ⬜ |
-| 1.4 | API 端点 + 前端：`server.py` 新增 `subtitle_enabled` 参数；前端 UI 拆分字幕/旁白为独立控制区 | `server.py`, `static/index.html` | curl 校验端点参数接收正确；浏览器操作：分别勾选/取消字幕和旁白开关，确认提交参数正确 | ⬜ |
+| 1.1 | 数据模型变更：新增 `SubtitleConfig`，`AudioConfig` 移除 `subtitle_style`；`TaskManager.load()` 字段迁移兼容旧数据 | `models/task.py`, `core/task_manager.py`, `core/config.py` | `python -m py_compile` 语法检查；`from models.task import SubtitleConfig, AudioConfig` 导入验证；单元测试旧格式反序列化 | ✅ |
+| 1.2 | Pipeline 步骤拆分：`_step_audio` + `_step_subtitle` 替代 `_step_audio_subtitle`；独立 `enabled` 逻辑；无旁白有字幕时从纯文本生成 SRT | `core/pipelines/creative_video.py`, `core/pipelines/manuscript_video.py`, `core/audio/subtitle.py` | 场景矩阵验证：(1) 旁白+字幕均开启 (2) 仅旁白 (3) 仅字幕 (4) 均关闭；每种场景 curl 创建任务，检查输出文件 | ✅ |
+| 1.3 | 拼接层条件调整：`_step_concatenate` 判断逻辑从 `audio_config.enabled` 改为 `audio_config.enabled or subtitle_config.enabled` | `core/compositor/concatenator.py` | 1.2 的四种场景任务均能正常生成最终视频，无异常日志 | ✅ |
+| 1.4 | API 端点 + 前端：`server.py` 新增 `subtitle_enabled` 参数；前端 UI 拆分字幕/旁白为独立控制区 | `server.py`, `static/index.html` | curl 校验端点参数接收正确；浏览器操作：分别勾选/取消字幕和旁白开关，确认提交参数正确 | ✅ |
 | 1.5 | Phase 1 集成验证：端到端回归，确保现有功能无退化 | 全部 | 按 AGENTS.md 0.4 部署验证清单执行；创建创意视频 + 稿件视频各 4 种组合场景，确认产物完整 | ⬜ |
 
 #### Phase 2：字幕随机位置模式
@@ -476,3 +476,5 @@ Phase 1 是基础设施，Phase 2 和 Phase 3 都依赖它。Phase 2 和 Phase 3
 | 日期 | 批次 | 内容 |
 |------|------|------|
 | 2026-06-19 | — | 方案制定完成，文档建立 |
+| 2026-06-19 | 1.1-1.4 | Phase 1 代码变更全部实现（数据模型 + Pipeline 拆步 + 拼接层 + API/前端），文档进度更新为 ✅ |
+| 2026-06-19 | 1.5 | Phase 1 集成验证 ⬜ 待执行 |

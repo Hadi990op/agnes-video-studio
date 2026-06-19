@@ -284,6 +284,69 @@ class SubtitleGenerator:
         return output_path
 
     @staticmethod
+    def text_to_srt(text: str, output_path: str, duration_sec: float, chars_per_sec: float = 4.0) -> str:
+        """从纯文本生成 SRT（不依赖 TTS SubMaker cues）。
+
+        当旁白关闭但字幕开启时使用。文本时长由字符数估算，
+        字幕按固定间隔均匀分布。
+
+        Args:
+            text: 纯文本内容
+            output_path: SRT 文件输出路径
+            duration_sec: 总时长（秒）
+            chars_per_sec: 朗读速度（字符/秒），默认 4.0
+
+        Returns:
+            SRT 文件路径
+        """
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+
+        if not text.strip() or duration_sec <= 0:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write("")
+            return output_path
+
+        # 按句号/问号/感叹号拆分句子
+        sentences = []
+        for part in _re.split(r'(?<=[。！？.!?])', text):
+            part = part.strip()
+            if part:
+                sentences.append(part)
+
+        if not sentences:
+            sentences = [text.strip()]
+
+        # 估算每个句子的时长
+        total_chars = len(text)
+        total_duration = max(duration_sec, 1.0)
+
+        entries = []
+        current_time = 0.0
+
+        for idx, sentence in enumerate(sentences):
+            sentence_duration = max(len(sentence) / chars_per_sec, 1.0)
+            # 均匀缩放使所有句子总时长匹配 duration_sec
+            sentence_duration = sentence_duration / (total_chars / chars_per_sec) * total_duration
+
+            start_s = current_time
+            end_s = min(start_s + sentence_duration, total_duration - 0.01)
+            if end_s <= start_s:
+                break
+
+            start_time = SubtitleGenerator.cue_to_srt_time(start_s)
+            end_time = SubtitleGenerator.cue_to_srt_time(end_s)
+            entries.append(f"{idx + 1}\n{start_time} --> {end_time}\n{sentence}\n")
+            current_time = end_s
+
+        srt_content = "\n".join(entries)
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(srt_content)
+
+        logger.info(f"[Subtitle] text_to_srt: {output_path} ({len(entries)} entries, {duration_sec:.1f}s)")
+        return output_path
+
+    @staticmethod
     def _parse_vtt_to_srt(vtt_content: str) -> list:
         """解析 WebVTT 内容为 srt.Subtitle 列表。"""
         subtitles = []

@@ -17,8 +17,10 @@ from models.task import (
     BaseTaskState,
     CreativeVideoTask,
     ManuscriptParagraph,
+    ManuscriptVideoTask,
     SceneTask,
     StepStatus,
+    SubtitleConfig,
     TaskType,
     parse_task_state,
 )
@@ -69,6 +71,24 @@ class TaskManager:
             # v2.0：通过 parse_task_state 工厂函数反序列化
             # 旧数据没有 task_type，parse_task_state 会默认设为 CREATIVE
             self._state = parse_task_state(data)
+
+            # v3.0 向后兼容：旧数据 audio_config 中含有 subtitle_style（Pydantic v2
+            # extra='ignore' 会静默丢弃，所以需从原始 data 中提取），迁移为独立
+            # SubtitleConfig。
+            if isinstance(self._state, (CreativeVideoTask, ManuscriptVideoTask)):
+                state = self._state
+                subtitle_cfg = getattr(state, "subtitle_config", None)
+                if not subtitle_cfg or subtitle_cfg == SubtitleConfig():
+                    # 检查原始数据中 audio_config.subtitle_style
+                    raw_audio = data.get("audio_config", {})
+                    raw_subtitle_style = raw_audio.get("subtitle_style")
+                    if raw_subtitle_style:
+                        from models.task import SubtitleStyle as _SS
+                        state.subtitle_config = SubtitleConfig(
+                            enabled=True,
+                            style=_SS(**raw_subtitle_style) if isinstance(raw_subtitle_style, dict) else raw_subtitle_style,
+                        )
+                        self._save()
 
             # 对 CreativeVideoTask 确保 scenes 字段正确反序列化
             if isinstance(self._state, CreativeVideoTask):

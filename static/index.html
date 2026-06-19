@@ -257,10 +257,10 @@
         </div>
       </div>
 
-      <!-- Audio Config (Creative) -->
+      <!-- Audio Config (Creative) — v3.0 audio only -->
       <div class="bg-gray-900 rounded-2xl p-6 mb-4 border border-gray-800">
         <div class="collapse-header flex items-center justify-between" onclick="toggleCollapse('c_audio_body')">
-          <h2 class="text-lg font-semibold text-purple-300" data-i18n="audioConfig">音频与字幕配置</h2>
+          <h2 class="text-lg font-semibold text-purple-300" data-i18n="audioConfig">音频配置</h2>
           <span id="c_audio_body-arrow" class="text-gray-500 text-xs">▶</span>
         </div>
         <div id="c_audio_body" class="collapse-body hidden mt-4">
@@ -291,7 +291,22 @@
               </select>
             </div>
           </div>
-          <!-- Subtitle Style -->
+        </div>
+      </div>
+
+      <!-- Subtitle Config (Creative) — v3.0 independent -->
+      <div class="bg-gray-900 rounded-2xl p-6 mb-4 border border-gray-800">
+        <div class="collapse-header flex items-center justify-between" onclick="toggleCollapse('c_subtitle_body')">
+          <h2 class="text-lg font-semibold text-purple-300" data-i18n="subtitleConfig">字幕配置</h2>
+          <span id="c_subtitle_body-arrow" class="text-gray-500 text-xs">▶</span>
+        </div>
+        <div id="c_subtitle_body" class="collapse-body hidden mt-4">
+          <div class="flex items-center gap-3 mb-4">
+            <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+              <input type="checkbox" id="c_subtitle_enabled" checked class="rounded bg-gray-800 border-gray-600">
+              <span data-i18n="enableSubtitle">启用字幕</span>
+            </label>
+          </div>
           <div class="border-t border-gray-800 pt-4">
             <p class="text-sm text-gray-400 mb-3" data-i18n="subtitleStyle">字幕样式</p>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -364,10 +379,10 @@
         </div>
       </div>
 
-      <!-- Audio Config (Manuscript) -->
+      <!-- Audio Config (Manuscript) — v3.0 audio only -->
       <div class="bg-gray-900 rounded-2xl p-6 mb-4 border border-gray-800">
         <div class="collapse-header flex items-center justify-between" onclick="toggleCollapse('m_audio_body')">
-          <h2 class="text-lg font-semibold text-purple-300" data-i18n="audioConfig">音频与字幕配置</h2>
+          <h2 class="text-lg font-semibold text-purple-300" data-i18n="audioConfig">音频配置</h2>
           <span id="m_audio_body-arrow" class="text-gray-500 text-xs">▶</span>
         </div>
         <div id="m_audio_body" class="collapse-body hidden mt-4">
@@ -397,6 +412,22 @@
                 <option value="+30%">+30% (快)</option>
               </select>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subtitle Config (Manuscript) — v3.0 independent -->
+      <div class="bg-gray-900 rounded-2xl p-6 mb-4 border border-gray-800">
+        <div class="collapse-header flex items-center justify-between" onclick="toggleCollapse('m_subtitle_body')">
+          <h2 class="text-lg font-semibold text-purple-300" data-i18n="subtitleConfig">字幕配置</h2>
+          <span id="m_subtitle_body-arrow" class="text-gray-500 text-xs">▶</span>
+        </div>
+        <div id="m_subtitle_body" class="collapse-body hidden mt-4">
+          <div class="flex items-center gap-3 mb-4">
+            <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+              <input type="checkbox" id="m_subtitle_enabled" checked class="rounded bg-gray-800 border-gray-600">
+              <span data-i18n="enableSubtitle">启用字幕</span>
+            </label>
           </div>
           <div class="border-t border-gray-800 pt-4">
             <p class="text-sm text-gray-400 mb-3" data-i18n="subtitleStyle">字幕样式</p>
@@ -510,7 +541,8 @@ const T = {
     customEndFrames: '自定义尾帧 (可选)', enableCustomEndFrames: '启用自定义尾帧',
     genEndFramesFromRef: '基于参考图生成尾帧 (i2i)', endFrameDesc: '每个场景一张尾帧图，按顺序对应。',
     scene_: '场景', addEndFrame: '+ 添加尾帧',
-    audioConfig: '音频与字幕配置', enableNarration: '启用旁白配音', voiceRole: '语音角色', speechRate: '语速', rateNormal: '正常',
+    audioConfig: '音频配置', subtitleConfig: '字幕配置', enableNarration: '启用旁白配音', enableSubtitle: '启用字幕',
+    voiceRole: '语音角色', speechRate: '语速', rateNormal: '正常',
     subtitleStyle: '字幕样式', subFont: '字体', subColor: '颜色', subSize: '字号', subPosition: '位置', posBottom: '底部', posTop: '顶部',
     subStrokeColor: '描边色', subStrokeWidth: '描边宽', subBgColor: '背景色',
     manuscriptText: '稿件正文', manuscriptPlaceholder: '粘贴你的文章、新闻稿、公众号文章等...',
@@ -523,9 +555,9 @@ const T = {
     // Progress steps — creative
     cStepInit: '初始化', cStepImageAnalysis: '图片分析', cStepStory: '故事生成',
     cStepCharacterRef: '角色参考图', cStepScript: '脚本编写', cStepEndFramePrompts: '尾帧提示词',
-    cStepEndFrameGen: '尾帧生成', cStepVideoGen: '视频生成', cStepAudioSub: '音频字幕', cStepConcat: '视频拼接',
+    cStepEndFrameGen: '尾帧生成', cStepVideoGen: '视频生成', cStepAudio: '音频生成', cStepSubtitle: '字幕生成', cStepConcat: '视频拼接',
     // Progress steps — manuscript
-    mStepSplit: '文本拆分', mStepScenePrompts: '场景Prompt', mStepVideoGen: '视频生成', mStepAudioSub: '音频字幕', mStepConcat: '视频拼接',
+    mStepSplit: '文本拆分', mStepScenePrompts: '场景Prompt', mStepVideoGen: '视频生成', mStepAudio: '音频生成', mStepSubtitle: '字幕生成', mStepConcat: '视频拼接',
     videoComplete: '视频生成完成!', taskComplete: '任务已完成',
     taskId: '任务ID', dir: '目录', idea_: '创意', sceneCount: '场景数', chainingMode_: '串联模式',
     artifact: '产物', paragraphCount: '段落数',
@@ -571,7 +603,8 @@ const T = {
     customEndFrames: 'Custom End Frames (Optional)', enableCustomEndFrames: 'Enable custom end frames',
     genEndFramesFromRef: 'Generate end frames from ref (i2i)', endFrameDesc: 'One end frame per scene, in order.',
     scene_: 'Scene', addEndFrame: '+ Add end frame',
-    audioConfig: 'Audio & Subtitle Config', enableNarration: 'Enable narration', voiceRole: 'Voice Role', speechRate: 'Speech Rate', rateNormal: 'Normal',
+    audioConfig: 'Audio Config', subtitleConfig: 'Subtitle Config', enableNarration: 'Enable narration', enableSubtitle: 'Enable subtitle',
+    voiceRole: 'Voice Role', speechRate: 'Speech Rate', rateNormal: 'Normal',
     subtitleStyle: 'Subtitle Style', subFont: 'Font', subColor: 'Color', subSize: 'Size', subPosition: 'Position', posBottom: 'Bottom', posTop: 'Top',
     subStrokeColor: 'Stroke Color', subStrokeWidth: 'Stroke Width', subBgColor: 'BG Color',
     manuscriptText: 'Article Text', manuscriptPlaceholder: 'Paste your article, news, blog post...',
@@ -582,8 +615,8 @@ const T = {
     sStepSubmit: 'Submit', sStepVideoGen: 'Video Generation',
     cStepInit: 'Init', cStepImageAnalysis: 'Image Analysis', cStepStory: 'Story',
     cStepCharacterRef: 'Character Ref', cStepScript: 'Script', cStepEndFramePrompts: 'End Frame Prompts',
-    cStepEndFrameGen: 'End Frame Gen', cStepVideoGen: 'Video Gen', cStepAudioSub: 'Audio & Sub', cStepConcat: 'Concatenate',
-    mStepSplit: 'Text Split', mStepScenePrompts: 'Scene Prompts', mStepVideoGen: 'Video Gen', mStepAudioSub: 'Audio & Sub', mStepConcat: 'Concatenate',
+    cStepEndFrameGen: 'End Frame Gen', cStepVideoGen: 'Video Gen', cStepAudio: 'Audio', cStepSubtitle: 'Subtitle', cStepConcat: 'Concatenate',
+    mStepSplit: 'Text Split', mStepScenePrompts: 'Scene Prompts', mStepVideoGen: 'Video Gen', mStepAudio: 'Audio', mStepSubtitle: 'Subtitle', mStepConcat: 'Concatenate',
     videoComplete: 'Video generation complete!', taskComplete: 'Task completed',
     taskId: 'Task ID', dir: 'Directory', idea_: 'Idea', sceneCount: 'Scenes', chainingMode_: 'Chaining',
     artifact: 'Output', paragraphCount: 'Paragraphs',
@@ -629,7 +662,8 @@ const T = {
     customEndFrames: 'Финальные кадры', enableCustomEndFrames: 'Включить',
     genEndFramesFromRef: 'Создать из референса (i2i)', endFrameDesc: 'Один кадр на сцену.',
     scene_: 'Сцена', addEndFrame: '+ Кадр',
-    audioConfig: 'Аудио и субтитры', enableNarration: 'Озвучка', voiceRole: 'Голос', speechRate: 'Скорость', rateNormal: 'Нормальная',
+    audioConfig: 'Аудио', subtitleConfig: 'Субтитры', enableNarration: 'Озвучка', enableSubtitle: 'Субтитры',
+    voiceRole: 'Голос', speechRate: 'Скорость', rateNormal: 'Нормальная',
     subtitleStyle: 'Субтитры', subFont: 'Шрифт', subColor: 'Цвет', subSize: 'Размер', subPosition: 'Позиция', posBottom: 'Низ', posTop: 'Верх',
     subStrokeColor: 'Цвет обводки', subStrokeWidth: 'Ширина обводки', subBgColor: 'Цвет фона',
     manuscriptText: 'Текст статьи', manuscriptPlaceholder: 'Вставьте статью...',
@@ -640,8 +674,8 @@ const T = {
     sStepSubmit: 'Отправка', sStepVideoGen: 'Генерация видео',
     cStepInit: 'Инициализация', cStepImageAnalysis: 'Анализ', cStepStory: 'Сюжет',
     cStepCharacterRef: 'Персонаж', cStepScript: 'Сценарий', cStepEndFramePrompts: 'Промпты кадров',
-    cStepEndFrameGen: 'Генерация кадров', cStepVideoGen: 'Генерация видео', cStepAudioSub: 'Аудио', cStepConcat: 'Сборка',
-    mStepSplit: 'Разбиение', mStepScenePrompts: 'Промпты', mStepVideoGen: 'Генерация видео', mStepAudioSub: 'Аудио', mStepConcat: 'Сборка',
+    cStepEndFrameGen: 'Генерация кадров', cStepVideoGen: 'Генерация видео', cStepAudio: 'Аудио', cStepSubtitle: 'Субтитры', cStepConcat: 'Сборка',
+    mStepSplit: 'Разбиение', mStepScenePrompts: 'Промпты', mStepVideoGen: 'Генерация видео', mStepAudio: 'Аудио', mStepSubtitle: 'Субтитры', mStepConcat: 'Сборка',
     videoComplete: 'Видео готово!', taskComplete: 'Задача выполнена',
     taskId: 'ID', dir: 'Папка', idea_: 'Идея', sceneCount: 'Сцены', chainingMode_: 'Режим',
     artifact: 'Результат', paragraphCount: 'Параграфов',
@@ -685,7 +719,8 @@ const T = {
     customEndFrames: '最終フレーム', enableCustomEndFrames: '有効化',
     genEndFramesFromRef: '参照から生成 (i2i)', endFrameDesc: 'シーンごとに1枚。',
     scene_: 'シーン', addEndFrame: '+ 追加',
-    audioConfig: '音声・字幕', enableNarration: 'ナレーション', voiceRole: '音声', speechRate: '速度', rateNormal: '標準',
+    audioConfig: '音声設定', subtitleConfig: '字幕設定', enableNarration: 'ナレーション', enableSubtitle: '字幕を有効',
+    voiceRole: '音声', speechRate: '速度', rateNormal: '標準',
     subtitleStyle: '字幕', subFont: 'フォント', subColor: '色', subSize: 'サイズ', subPosition: '位置', posBottom: '下', posTop: '上',
     subStrokeColor: '縁取り色', subStrokeWidth: '縁取り幅', subBgColor: '背景色',
     manuscriptText: '記事テキスト', manuscriptPlaceholder: '記事を貼り付け...',
@@ -696,8 +731,8 @@ const T = {
     sStepSubmit: '送信', sStepVideoGen: '動画生成',
     cStepInit: '初期化', cStepImageAnalysis: '画像分析', cStepStory: 'ストーリー',
     cStepCharacterRef: 'キャラ参照', cStepScript: '脚本', cStepEndFramePrompts: '最終フレームP',
-    cStepEndFrameGen: '最終フレーム生成', cStepVideoGen: '動画生成', cStepAudioSub: '音声字幕', cStepConcat: '結合',
-    mStepSplit: 'テキスト分割', mStepScenePrompts: 'シーンP', mStepVideoGen: '動画生成', mStepAudioSub: '音声字幕', mStepConcat: '結合',
+    cStepEndFrameGen: '最終フレーム生成', cStepVideoGen: '動画生成', cStepAudio: '音声生成', cStepSubtitle: '字幕生成', cStepConcat: '結合',
+    mStepSplit: 'テキスト分割', mStepScenePrompts: 'シーンP', mStepVideoGen: '動画生成', mStepAudio: '音声生成', mStepSubtitle: '字幕生成', mStepConcat: '結合',
     videoComplete: '動画完了!', taskComplete: 'タスク完了',
     taskId: 'ID', dir: 'ディレクトリ', idea_: 'アイデア', sceneCount: 'シーン', chainingMode_: '連鎖',
     artifact: '出力', paragraphCount: '段落数',
@@ -738,7 +773,8 @@ const T = {
     customEndFrames: '엔드 프레임', enableCustomEndFrames: '활성화',
     genEndFramesFromRef: '참조로 생성 (i2i)', endFrameDesc: '장면당 한 장.',
     scene_: '장면', addEndFrame: '+ 추가',
-    audioConfig: '음성/자막', enableNarration: '내레이션', voiceRole: '음성', speechRate: '속도', rateNormal: '보통',
+    audioConfig: '오디오 설정', subtitleConfig: '자막 설정', enableNarration: '내레이션', enableSubtitle: '자막 활성화',
+    voiceRole: '음성', speechRate: '속도', rateNormal: '보통',
     subtitleStyle: '자막', subFont: '폰트', subColor: '색상', subSize: '크기', subPosition: '위치', posBottom: '하단', posTop: '상단',
     subStrokeColor: '테두리 색', subStrokeWidth: '테두리 두께', subBgColor: '배경 색',
     manuscriptText: '기사 텍스트', manuscriptPlaceholder: '기사를 붙여넣기...',
@@ -749,8 +785,8 @@ const T = {
     sStepSubmit: '제출', sStepVideoGen: '영상 생성',
     cStepInit: '초기화', cStepImageAnalysis: '이미지 분석', cStepStory: '스토리',
     cStepCharacterRef: '캐릭터', cStepScript: '대본', cStepEndFramePrompts: '엔드 프레임 P',
-    cStepEndFrameGen: '엔드 프레임 생성', cStepVideoGen: '영상 생성', cStepAudioSub: '음성/자막', cStepConcat: '결합',
-    mStepSplit: '텍스트 분할', mStepScenePrompts: '씬 프롬프트', mStepVideoGen: '영상 생성', mStepAudioSub: '음성/자막', mStepConcat: '결합',
+    cStepEndFrameGen: '엔드 프레임 생성', cStepVideoGen: '영상 생성', cStepAudio: '오디오 생성', cStepSubtitle: '자막 생성', cStepConcat: '결합',
+    mStepSplit: '텍스트 분할', mStepScenePrompts: '씬 프롬프트', mStepVideoGen: '영상 생성', mStepAudio: '오디오 생성', mStepSubtitle: '자막 생성', mStepConcat: '결합',
     videoComplete: '영상 완료!', taskComplete: '작업 완료',
     taskId: 'ID', dir: '디렉토리', idea_: '아이디어', sceneCount: '장면', chainingMode_: '체인',
     artifact: '출력', paragraphCount: '문단 수',
@@ -791,7 +827,8 @@ const T = {
     customEndFrames: 'Bingkai Akhir', enableCustomEndFrames: 'Aktifkan',
     genEndFramesFromRef: 'Hasilkan dari rujukan (i2i)', endFrameDesc: 'Satu bingkai per babak.',
     scene_: 'Babak', addEndFrame: '+ Tambah',
-    audioConfig: 'Audio & Sarikata', enableNarration: 'Narasi', voiceRole: 'Suara', speechRate: 'Kelajuan', rateNormal: 'Biasa',
+    audioConfig: 'Audio', subtitleConfig: 'Sarikata', enableNarration: 'Narasi', enableSubtitle: 'Aktifkan sarikata',
+    voiceRole: 'Suara', speechRate: 'Kelajuan', rateNormal: 'Biasa',
     subtitleStyle: 'Sarikata', subFont: 'Fon', subColor: 'Warna', subSize: 'Saiz', subPosition: 'Kedudukan', posBottom: 'Bawah', posTop: 'Atas',
     subStrokeColor: 'Warna Garis', subStrokeWidth: 'Lebar Garis', subBgColor: 'Warna Latar',
     manuscriptText: 'Teks Artikel', manuscriptPlaceholder: 'Tampal artikel anda...',
@@ -802,8 +839,8 @@ const T = {
     sStepSubmit: 'Hantar', sStepVideoGen: 'Hasilkan Video',
     cStepInit: 'Permulaan', cStepImageAnalysis: 'Analisis', cStepStory: 'Cerita',
     cStepCharacterRef: 'Watak', cStepScript: 'Skrip', cStepEndFramePrompts: 'Bingkai Akhir P',
-    cStepEndFrameGen: 'Bingkai Akhir', cStepVideoGen: 'Video', cStepAudioSub: 'Audio', cStepConcat: 'Gabung',
-    mStepSplit: 'Pecah Teks', mStepScenePrompts: 'Prompt', mStepVideoGen: 'Video', mStepAudioSub: 'Audio', mStepConcat: 'Gabung',
+    cStepEndFrameGen: 'Bingkai Akhir', cStepVideoGen: 'Video', cStepAudio: 'Audio', cStepSubtitle: 'Sarikata', cStepConcat: 'Gabung',
+    mStepSplit: 'Pecah Teks', mStepScenePrompts: 'Prompt', mStepVideoGen: 'Video', mStepAudio: 'Audio', mStepSubtitle: 'Sarikata', mStepConcat: 'Gabung',
     videoComplete: 'Video selesai!', taskComplete: 'Tugas selesai',
     taskId: 'ID', dir: 'Direktori', idea_: 'Idea', sceneCount: 'Babak', chainingMode_: 'Rantai',
     artifact: 'Hasil', paragraphCount: 'Perenggan',
@@ -855,8 +892,8 @@ const T = {
     sStepSubmit: 'Kirim', sStepVideoGen: 'Hasilkan Video',
     cStepInit: 'Inisialisasi', cStepImageAnalysis: 'Analisis', cStepStory: 'Cerita',
     cStepCharacterRef: 'Karakter', cStepScript: 'Skenario', cStepEndFramePrompts: 'Bingkai Akhir P',
-    cStepEndFrameGen: 'Bingkai Akhir', cStepVideoGen: 'Video', cStepAudioSub: 'Audio', cStepConcat: 'Gabung',
-    mStepSplit: 'Pecah Teks', mStepScenePrompts: 'Prompt', mStepVideoGen: 'Video', mStepAudioSub: 'Audio', mStepConcat: 'Gabung',
+    cStepEndFrameGen: 'Bingkai Akhir', cStepVideoGen: 'Video', cStepAudio: 'Audio', cStepSubtitle: 'Sarikata', cStepConcat: 'Gabung',
+    mStepSplit: 'Pecah Teks', mStepScenePrompts: 'Prompt', mStepVideoGen: 'Video', mStepAudio: 'Audio', mStepSubtitle: 'Sarikata', mStepConcat: 'Gabung',
     videoComplete: 'Video selesai!', taskComplete: 'Tugas selesai',
     taskId: 'ID', dir: 'Direktori', idea_: 'Ide', sceneCount: 'Adegan', chainingMode_: 'Rantai',
     artifact: 'Hasil', paragraphCount: 'Paragraf',
@@ -957,14 +994,16 @@ const STEPS = {
     { key: 'end_frame_prompts', labelKey: 'cStepEndFramePrompts' },
     { key: 'end_frame_gen', labelKey: 'cStepEndFrameGen' },
     { key: 'video_gen', labelKey: 'cStepVideoGen' },
-    { key: 'audio_subtitle', labelKey: 'cStepAudioSub' },
+    { key: 'audio', labelKey: 'cStepAudio' },
+    { key: 'subtitle', labelKey: 'cStepSubtitle' },
     { key: 'concatenate', labelKey: 'cStepConcat' },
   ],
   manuscript: [
     { key: 'split_text', labelKey: 'mStepSplit' },
     { key: 'scene_prompts', labelKey: 'mStepScenePrompts' },
     { key: 'video_gen', labelKey: 'mStepVideoGen' },
-    { key: 'audio_subtitle', labelKey: 'mStepAudioSub' },
+    { key: 'audio', labelKey: 'mStepAudio' },
+    { key: 'subtitle', labelKey: 'mStepSubtitle' },
     { key: 'concatenate', labelKey: 'mStepConcat' },
   ],
 };
@@ -1204,6 +1243,8 @@ async function submitCreative() {
   form.append('audio_enabled', document.getElementById('c_audio_enabled').checked);
   form.append('audio_voice', document.getElementById('c_voice').value);
   form.append('audio_rate', document.getElementById('c_rate').value);
+  // Subtitle config (v3.0 independent)
+  form.append('subtitle_enabled', document.getElementById('c_subtitle_enabled').checked);
   form.append('subtitle_font', document.getElementById('c_sub_font').value);
   form.append('subtitle_color', document.getElementById('c_sub_color').value);
   form.append('subtitle_fontsize', document.getElementById('c_sub_fontsize').value);
@@ -1247,6 +1288,8 @@ async function submitManuscript() {
   form.append('audio_enabled', document.getElementById('m_audio_enabled').checked);
   form.append('audio_voice', document.getElementById('m_voice').value);
   form.append('audio_rate', document.getElementById('m_rate').value);
+  // Subtitle config (v3.0 independent)
+  form.append('subtitle_enabled', document.getElementById('m_subtitle_enabled').checked);
   form.append('subtitle_font', document.getElementById('m_sub_font').value);
   form.append('subtitle_color', document.getElementById('m_sub_color').value);
   form.append('subtitle_fontsize', document.getElementById('m_sub_fontsize').value);
@@ -1597,13 +1640,13 @@ function showTaskDetail(taskId, state) {
     image_analysis: 'step_image_analysis', story: 'step_story',
     character_ref: 'step_character_ref', script: 'step_script',
     end_frame_prompts: 'step_end_frame_prompts', end_frame_gen: 'step_end_frame_generation',
-    video_gen: 'step_video_generation', audio_subtitle: 'step_audio_subtitle',
-    concatenate: 'step_concatenation',
+    video_gen: 'step_video_generation', audio: 'step_audio',
+    subtitle: 'step_subtitle', concatenate: 'step_concatenation',
   };
   const manuscriptStepMap = {
     split_text: 'step_split', scene_prompts: 'step_scene_prompts',
-    video_gen: 'step_video_generation', audio_subtitle: 'step_audio_subtitle',
-    concatenate: 'step_concatenation',
+    video_gen: 'step_video_generation', audio: 'step_audio',
+    subtitle: 'step_subtitle', concatenate: 'step_concatenation',
   };
 
   const stepsHtml = steps.map(s => {

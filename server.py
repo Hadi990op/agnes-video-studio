@@ -44,6 +44,7 @@ from models.task import (
     ManuscriptVideoTask,
     SimpleVideoTask,
     StepStatus,
+    SubtitleConfig,
     SubtitleStyle,
     TaskType,
     VideoMode,
@@ -536,6 +537,8 @@ async def create_creative_task(
     audio_enabled: bool = Form(False),
     audio_voice: str = Form("zh-CN-XiaoxiaoNeural"),
     audio_rate: str = Form("+0%"),
+    # v3.0 字幕独立配置
+    subtitle_enabled: bool = Form(True),
     subtitle_font: str = Form("STHeitiMedium.ttc"),
     subtitle_color: str = Form("white"),
     subtitle_fontsize: int = Form(48),
@@ -566,6 +569,12 @@ async def create_creative_task(
         parsed_duration = video_duration
 
     # 构建音频配置
+    audio_config = AudioConfig(
+        enabled=audio_enabled,
+        voice=audio_voice,
+        rate=audio_rate,
+    )
+    # 构建独立字幕配置（v3.0）
     subtitle_style = SubtitleStyle(
         font=subtitle_font,
         color=subtitle_color,
@@ -575,11 +584,9 @@ async def create_creative_task(
         stroke_width=subtitle_stroke_width,
         bg_color=_parse_bg_color(subtitle_bg_color),
     )
-    audio_config = AudioConfig(
-        enabled=audio_enabled,
-        voice=audio_voice,
-        rate=audio_rate,
-        subtitle_style=subtitle_style,
+    subtitle_config = SubtitleConfig(
+        enabled=subtitle_enabled,
+        style=subtitle_style,
     )
 
     state = CreativeVideoTask(
@@ -595,6 +602,7 @@ async def create_creative_task(
         use_custom_end_frames=use_custom_end_frames,
         generate_end_frames_from_ref=generate_end_frames_from_ref,
         audio_config=audio_config,
+        subtitle_config=subtitle_config,
     )
 
     logger.info(f"[Pipeline] Parsed video_duration={parsed_duration}s from user_requirement={user_requirement!r}")
@@ -642,6 +650,8 @@ async def create_manuscript_task(
     audio_enabled: bool = Form(True),
     audio_voice: str = Form("zh-CN-XiaoxiaoNeural"),
     audio_rate: str = Form("+0%"),
+    # v3.0 字幕独立配置
+    subtitle_enabled: bool = Form(True),
     subtitle_font: str = Form("STHeitiMedium.ttc"),
     subtitle_color: str = Form("white"),
     subtitle_fontsize: int = Form(48),
@@ -666,6 +676,12 @@ async def create_manuscript_task(
     dir_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{task_id}"
 
     # 构建音频配置
+    audio_config = AudioConfig(
+        enabled=audio_enabled,
+        voice=audio_voice,
+        rate=audio_rate,
+    )
+    # 构建独立字幕配置（v3.0）
     subtitle_style = SubtitleStyle(
         font=subtitle_font,
         color=subtitle_color,
@@ -675,11 +691,9 @@ async def create_manuscript_task(
         stroke_width=subtitle_stroke_width,
         bg_color=_parse_bg_color(subtitle_bg_color),
     )
-    audio_config = AudioConfig(
-        enabled=audio_enabled,
-        voice=audio_voice,
-        rate=audio_rate,
-        subtitle_style=subtitle_style,
+    subtitle_config = SubtitleConfig(
+        enabled=subtitle_enabled,
+        style=subtitle_style,
     )
 
     state = ManuscriptVideoTask(
@@ -690,6 +704,7 @@ async def create_manuscript_task(
         video_height=video_height,
         video_duration=video_duration,
         audio_config=audio_config,
+        subtitle_config=subtitle_config,
     )
 
     pipeline = _create_pipeline_for_type(TaskType.MANUSCRIPT, api_key, task_id, dir_name)
@@ -739,6 +754,7 @@ async def create_task_legacy(
         audio_enabled=False,
         audio_voice="zh-CN-XiaoxiaoNeural",
         audio_rate="+0%",
+        subtitle_enabled=True,
         subtitle_font="STHeitiMedium.ttc",
         subtitle_color="white",
         subtitle_fontsize=48,

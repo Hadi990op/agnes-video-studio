@@ -23,6 +23,7 @@ from models.task import (
     ManuscriptParagraph,
     StepStatus,
     AudioConfig,
+    SubtitleConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -108,14 +109,18 @@ class ManuscriptVideoPipeline(BasePipeline):
             self._check_shutdown()
             await self._run_step_generate_videos(paragraphs)
 
-            # ── Step 4: 旁白 + 字幕 ──────────────────────────────────
+            # ── Step 4: 音频生成 ─────────────────────────────────────
             self._check_shutdown()
-            await self._run_step_audio_subtitle(paragraphs, state.audio_config)
+            sub_maker = await self._run_step_audio(paragraphs, state.audio_config)
 
-            # ── Step 5: 拼接 ─────────────────────────────────────────
+            # ── Step 5: 字幕生成 ─────────────────────────────────────
+            self._check_shutdown()
+            await self._run_step_subtitle(paragraphs, state.audio_config, state.subtitle_config, sub_maker)
+
+            # ── Step 6: 拼接 ─────────────────────────────────────────
             self._check_shutdown()
             final_video = await self._run_step_concatenate(
-                paragraphs, state.audio_config
+                paragraphs, state.audio_config, state.subtitle_config
             )
 
             # ── 完成 ─────────────────────────────────────────────────
@@ -203,40 +208,75 @@ class ManuscriptVideoPipeline(BasePipeline):
         self.task_manager.update_step("step_video_generation", StepStatus.COMPLETED)
         await self._emit("video_gen", "completed", "所有段落视频已生成", 0.60)
 
-    async def _run_step_audio_subtitle(
+    async def _run_step_audio(
         self,
         paragraphs: List[ManuscriptParagraph],
         audio_config: AudioConfig,
-    ) -> None:
-        """运行 Step 4: TTS 旁白 + 字幕，带 resume 支持。"""
-        if self._state.step_audio_subtitle == StepStatus.COMPLETED:
-            logger.info("[Manuscript] Step 4 (audio_subtitle): already completed, resuming")
-            return
+    ) -> object:
+        """运行 Step 4: TTS 旁白，带 resume 支持。返回 sub_maker 供字幕步骤使用。"""
+        if self._state.step_audio == StepStatus.COMPLETED:
+            logger.info("[Manuscript] Step 4 (audio): already completed, resuming")
+            return None
+        if (self._state.step_audio == StepStatus.PENDING
+                and self._state.step_audio_subtitle == StepStatus.COMPLETED):
+            logger.info("[Manuscript] Step 4 (audio): v2.0 step_audio_subtitle completed, resuming")
+            self._state.step_audio = StepStatus.COMPLETED
+            self.task_manager.update_step("step_audio", StepStatus.COMPLETED)
+            return None
 
-        self.task_manager.update_step("step_audio_subtitle", StepStatus.RUNNING)
-        await self._emit("audio_subtitle", "running", "生成旁白和字幕...", 0.60)
+        self.task_manager.update_step("step_audio", StepStatus.RUNNING)
+        await self._emit("audio", "running", "生成旁白...", 0.60)
 
-        await self._step_audio_subtitle(paragraphs, audio_config)
+        sub_maker = await self._step_audio(paragraphs, audio_config)
 
         self.task_manager.update_state(paragraphs=paragraphs)
-        self.task_manager.update_step("step_audio_subtitle", StepStatus.COMPLETED)
-        await self._emit("audio_subtitle", "completed", "旁白和字幕已生成", 0.80)
+        self.task_manager.update_step("step_audio", StepStatus.COMPLETED)
+        await self._emit("audio", "completed", "旁白已生成", 0.75)
+        return sub_maker
+
+    async def _run_step_subtitle(
+        self,
+        paragraphs: List[ManuscriptParagraph],
+        audio_config: AudioConfig,
+        subtitle_config: SubtitleConfig,
+        sub_maker: object = None,
+    ) -> None:
+        """运行 Step 5: 字幕生成，带 resume 支持。"""
+        if self._state.step_subtitle == StepStatus.COMPLETED:
+            logger.info("[Manuscript] Step 5 (subtitle): already completed, resuming")
+            return
+        if (self._state.step_subtitle == StepStatus.PENDING
+                and self._state.step_audio_subtitle == StepStatus.COMPLETED):
+            logger.info("[Manuscript] Step 5 (subtitle): v2.0 step_audio_subtitle completed, resuming")
+            self._state.step_subtitle = StepStatus.COMPLETED
+            self.task_manager.update_step("step_subtitle", StepStatus.COMPLETED)
+            return
+
+        self.task_manager.update_step("step_subtitle", StepStatus.RUNNING)
+        await self._emit("subtitle", "running", "生成字幕...", 0.75)
+
+        await self._step_subtitle(paragraphs, audio_config, subtitle_config, sub_maker)
+
+        self.task_manager.update_state(paragraphs=paragraphs)
+        self.task_manager.update_step("step_subtitle", StepStatus.COMPLETED)
+        await self._emit("subtitle", "completed", "字幕已生成", 0.80)
 
     async def _run_step_concatenate(
         self,
         paragraphs: List[ManuscriptParagraph],
         audio_config: AudioConfig,
+        subtitle_config: SubtitleConfig,
     ) -> str:
-        """运行 Step 5: 视频拼接，带 resume 支持。"""
+        """运行 Step 6: 视频拼接，带 resume 支持。"""
         if self._state.step_concatenation == StepStatus.COMPLETED:
-            logger.info("[Manuscript] Step 5 (concatenation): already completed, resuming")
+            logger.info("[Manuscript] Step 6 (concatenation): already completed, resuming")
             if self._state.final_video_file:
                 return self._state.final_video_file
 
         self.task_manager.update_step("step_concatenation", StepStatus.RUNNING)
         await self._emit("concatenate", "running", "拼接最终视频...", 0.80)
 
-        final_video = await self._step_concatenate(paragraphs, audio_config)
+        final_video = await self._step_concatenate(paragraphs, audio_config, subtitle_config)
 
         self.task_manager.update_state(final_video_file=final_video)
         self.task_manager.update_step("step_concatenation", StepStatus.COMPLETED)
@@ -565,48 +605,45 @@ class ManuscriptVideoPipeline(BasePipeline):
                 para_idx, video_path, video_id[:16],
             )
 
-    async def _step_audio_subtitle(
+    async def _step_audio(
         self,
         paragraphs: List[ManuscriptParagraph],
         audio_config: AudioConfig,
-    ) -> None:
-        """生成**整段连续 TTS 音频 + 整段 SRT 字幕**。
+    ) -> object:
+        """生成整段连续 TTS 音频。
 
         将所有段落文本拼接成一篇完整稿件 → 单次 edge_tts 调用 →
-        一条连贯音频 + 一个 ``SubMaker``（含全篇词级时间戳）→ 一个 SRT。
-
-        后续拼接步骤（:meth:`_step_concatenate`）只需把整段视频与
-        这条音频+字幕做一次叠加，既避免逐段合成带来的 padding 累积，
-        也确保字幕时间轴与音频精准同步。
+        一条连贯音频 + SubMaker（含全篇词级时间戳）。
 
         Args:
-            paragraphs: 段落列表（用于拼接全文）。
-            audio_config: 音频和字幕配置。
+            paragraphs: 段落列表。
+            audio_config: 音频配置。
+
+        Returns:
+            SubMaker cues object (or None if silent/disabled).
         """
         full_text = "\n\n".join(p.text for p in paragraphs if p.text)
         if not full_text:
-            logger.warning("[Manuscript] audio_subtitle: empty full text, skipping")
-            return
+            logger.warning("[Manuscript] audio: empty full text, skipping")
+            return None
 
         audio_path = os.path.join(self.working_dir, "full_narration.mp3")
-        srt_path = os.path.join(self.working_dir, "full_subtitle.srt")
 
-        # Resume: skip if combined files already exist
-        if os.path.exists(audio_path) and os.path.exists(srt_path):
+        if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
             self._state.combined_audio = audio_path
-            self._state.combined_subtitle = srt_path
-            logger.info("[Manuscript] audio_subtitle: combined files already exist, skipping")
-            return
+            logger.info("[Manuscript] audio: file already exists, skipping")
+            return None
 
         edge_tts = EdgeTTSEngine()
         silent_tts = SilentTTSEngine()
 
         await self._emit(
-            "audio_subtitle", "running",
-            f"生成整段旁白+字幕 ({len(full_text)} 字)...",
+            "audio", "running",
+            f"生成整段旁白 ({len(full_text)} 字)...",
             0.60,
         )
 
+        sub_maker = None
         if audio_config.enabled:
             try:
                 audio_result, sub_maker = await edge_tts.generate(
@@ -627,23 +664,66 @@ class ManuscriptVideoPipeline(BasePipeline):
                 output_path=audio_path,
             )
 
-        SubtitleGenerator.cues_to_srt(sub_maker, srt_path)
-
         self._state.combined_audio = audio_result
+        self.task_manager.update_state(combined_audio=audio_result)
+        logger.info("[Manuscript] audio: combined → %s", audio_path)
+        return sub_maker
+
+    async def _step_subtitle(
+        self,
+        paragraphs: List[ManuscriptParagraph],
+        audio_config: AudioConfig,
+        subtitle_config: SubtitleConfig,
+        sub_maker: object = None,
+    ) -> None:
+        """生成整段 SRT 字幕。
+
+        如果 TTS SubMaker cues 可用则从中生成细粒度 SRT，
+        否则从纯文本估算时间生成 SRT。
+
+        Args:
+            paragraphs: 段落列表。
+            audio_config: 音频配置。
+            subtitle_config: 字幕配置。
+            sub_maker: TTS SubMaker cues (optional).
+        """
+        full_text = "\n\n".join(p.text for p in paragraphs if p.text)
+        if not full_text:
+            logger.warning("[Manuscript] subtitle: empty full text, skipping")
+            return
+
+        srt_path = os.path.join(self.working_dir, "full_subtitle.srt")
+
+        if os.path.exists(srt_path) and os.path.getsize(srt_path) > 0:
+            self._state.combined_subtitle = srt_path
+            logger.info("[Manuscript] subtitle: file already exists, skipping")
+            return
+
+        await self._emit(
+            "subtitle", "running",
+            f"生成整段字幕 ({len(full_text)} 字)...",
+            0.75,
+        )
+
+        if subtitle_config.enabled and sub_maker is not None:
+            SubtitleGenerator.cues_to_srt(sub_maker, srt_path)
+        elif subtitle_config.enabled:
+            # Estimate duration from text length
+            total_duration = len(full_text) / 4.0
+            SubtitleGenerator.text_to_srt(full_text, srt_path, total_duration)
+        else:
+            with open(srt_path, "w", encoding="utf-8") as f:
+                f.write("")
+
         self._state.combined_subtitle = srt_path
-        self.task_manager.update_state(
-            combined_audio=audio_result,
-            combined_subtitle=srt_path,
-        )
-        logger.info(
-            "[Manuscript] audio_subtitle: combined → %s + %s",
-            audio_path, srt_path,
-        )
+        self.task_manager.update_state(combined_subtitle=srt_path)
+        logger.info("[Manuscript] subtitle: combined → %s", srt_path)
 
     async def _step_concatenate(
         self,
         paragraphs: List[ManuscriptParagraph],
         audio_config: AudioConfig,
+        subtitle_config: SubtitleConfig,
     ) -> str:
         """先拼接所有段落视频，再统一叠加整段音频 + 整段字幕。
 
@@ -655,7 +735,8 @@ class ManuscriptVideoPipeline(BasePipeline):
 
         Args:
             paragraphs: 已完成视频生成的段落列表。
-            audio_config: 音频和字幕样式配置。
+            audio_config: 音频配置。
+            subtitle_config: 字幕配置。
 
         Returns:
             最终输出视频的文件路径。
@@ -673,20 +754,35 @@ class ManuscriptVideoPipeline(BasePipeline):
         if not video_paths:
             raise RuntimeError("[Manuscript] concatenate: no valid videos to concatenate")
 
-        logger.info(
-            "[Manuscript] concatenate: %d videos + combined audio + subtitles → %s",
-            len(video_paths), output_path,
-        )
-        await self._emit("concatenate", "running", f"拼接 {len(video_paths)} 段视频+音频+字幕...", 0.80)
+        has_audio = self._state.audio_config.enabled and bool(self._state.combined_audio)
+        has_subtitle = subtitle_config.enabled and bool(self._state.combined_subtitle)
 
-        await asyncio.to_thread(
-            VideoConcatenator.concat_videos_with_audio_overlay,
-            video_paths=video_paths,
-            audio_path=self._state.combined_audio or "",
-            srt_path=self._state.combined_subtitle or None,
-            output_path=output_path,
-            subtitle_style=audio_config.subtitle_style,
+        logger.info(
+            "[Manuscript] concatenate: %d videos + audio=%s + subtitle=%s → %s",
+            len(video_paths), has_audio, has_subtitle, output_path,
         )
+
+        if has_audio or has_subtitle:
+            await self._emit(
+                "concatenate", "running",
+                f"拼接 {len(video_paths)} 段视频+音频+字幕...", 0.80,
+            )
+            await asyncio.to_thread(
+                VideoConcatenator.concat_videos_with_audio_overlay,
+                video_paths=video_paths,
+                audio_path=self._state.combined_audio or "",
+                srt_path=self._state.combined_subtitle if has_subtitle else None,
+                output_path=output_path,
+                subtitle_style=subtitle_config.style if has_subtitle else None,
+            )
+        else:
+            await self._emit(
+                "concatenate", "running",
+                f"拼接 {len(video_paths)} 段视频（无音频字幕）...", 0.80,
+            )
+            await asyncio.to_thread(
+                VideoConcatenator.concat_videos, video_paths, output_path
+            )
 
         logger.info("[Manuscript] concatenate: final video → %s", output_path)
         return output_path

@@ -75,13 +75,19 @@ class SubtitleStyle(BaseModel):
         return (0, 0, 0, 128)
 
 
+class SubtitleConfig(BaseModel):
+    """字幕配置（v3.0 从 AudioConfig 独立）"""
+
+    enabled: bool = True
+    style: SubtitleStyle = Field(default_factory=SubtitleStyle)
+
+
 class AudioConfig(BaseModel):
-    """音频配置（TTS 语音 + 字幕样式）"""
+    """音频配置（TTS 语音，不再包含字幕样式）"""
 
     enabled: bool = True
     voice: str = "zh-CN-XiaoxiaoNeural"
     rate: str = "+0%"
-    subtitle_style: SubtitleStyle = Field(default_factory=SubtitleStyle)
 
 
 # ═══════════════════════════════════════════════════
@@ -203,7 +209,12 @@ class CreativeVideoTask(BaseTaskState):
     # ── v2.0 新增：音频 + 字幕 ──
     step_audio_subtitle: StepStatus = StepStatus.PENDING
     audio_config: AudioConfig = Field(default_factory=AudioConfig)
+    subtitle_config: SubtitleConfig = Field(default_factory=SubtitleConfig)
     narrations: List[str] = Field(default_factory=list)
+
+    # ── v3.0 拆分：音频和字幕后向兼容字段 ──
+    step_audio: StepStatus = StepStatus.PENDING
+    step_subtitle: StepStatus = StepStatus.PENDING
 
     step_concatenation: StepStatus = StepStatus.PENDING
 
@@ -233,6 +244,7 @@ class ManuscriptVideoTask(BaseTaskState):
     manuscript_text: str = ""
     paragraphs: List[ManuscriptParagraph] = Field(default_factory=list)
     audio_config: AudioConfig = Field(default_factory=AudioConfig)
+    subtitle_config: SubtitleConfig = Field(default_factory=SubtitleConfig)
     video_duration: int = 10
 
     combined_audio: str = ""
@@ -242,6 +254,8 @@ class ManuscriptVideoTask(BaseTaskState):
     step_scene_prompts: StepStatus = StepStatus.PENDING
     step_video_generation: StepStatus = StepStatus.PENDING
     step_audio_subtitle: StepStatus = StepStatus.PENDING
+    step_audio: StepStatus = StepStatus.PENDING
+    step_subtitle: StepStatus = StepStatus.PENDING
     step_concatenation: StepStatus = StepStatus.PENDING
 
 
@@ -297,6 +311,7 @@ class CreateCreativeTaskRequest(BaseModel):
     video_height: int = 1152
     video_duration: int = 5
     audio_config: Optional[AudioConfig] = None
+    subtitle_config: Optional[SubtitleConfig] = None
 
 
 class CreateManuscriptTaskRequest(BaseModel):
@@ -307,6 +322,7 @@ class CreateManuscriptTaskRequest(BaseModel):
     video_height: int = 1152
     video_duration: int = 10
     audio_config: Optional[AudioConfig] = None
+    subtitle_config: Optional[SubtitleConfig] = None
 
 
 # ═══════════════════════════════════════════════════

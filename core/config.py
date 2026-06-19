@@ -8,7 +8,7 @@ import json
 import logging
 import os
 
-from models.task import AudioConfig, SubtitleStyle
+from models.task import AudioConfig, SubtitleConfig, SubtitleStyle
 
 logger = logging.getLogger(__name__)
 
@@ -188,13 +188,20 @@ def get_default_subtitle_style() -> SubtitleStyle:
     )
 
 
+def get_default_subtitle_config() -> SubtitleConfig:
+    """返回默认字幕配置（v3.0 独立配置）。"""
+    return SubtitleConfig(
+        enabled=True,
+        style=get_default_subtitle_style(),
+    )
+
+
 def get_default_audio_config() -> AudioConfig:
-    """返回默认音频配置（含字幕样式）（D3）。"""
+    """返回默认音频配置（D3）。"""
     return AudioConfig(
         enabled=True,
         voice=DEFAULT_VOICE,
         rate="+0%",
-        subtitle_style=get_default_subtitle_style(),
     )
 
 

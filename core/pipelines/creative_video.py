@@ -23,7 +23,7 @@ from core.audio.tts import EdgeTTSEngine, SilentTTSEngine
 from core.compositor.concatenator import VideoConcatenator
 from core.pipelines import BasePipeline, PipelineShutdown
 from core.screenwriter import Screenwriter
-from models.task import CreativeVideoTask, SceneTask, StepStatus
+from models.task import CreativeVideoTask, SceneTask, StepStatus, SubtitleConfig
 
 _CHARS_PER_SEC = 4.0
 _SENTENCE_BOUNDARY_RE = re.compile(r"(?<=[。！？.!?])")
@@ -1331,97 +1331,149 @@ class CreativeVideoPipeline(BasePipeline):
         logger.info(f"[Pipeline] Narration generated: {len(narration)} chars for {total_duration:.0f}s video")
 
     # ==================================================================
-    # Step 5: Audio & Subtitle Generation (NEW in v2.0)
+    # Step 5: Audio Generation (v3.0 split from subtitle)
     # ==================================================================
 
-    async def _step_audio_subtitle(self) -> None:
-        """Generate TTS narration audio and SRT subtitles for the entire video.
+    async def _step_audio(self) -> Optional[object]:
+        """Generate TTS narration audio (or silent fallback) for the entire video.
 
-        Uses a single narration text (from _step_generate_narrations) to produce
-        one TTS audio file and one SRT file for the whole video. This avoids
-        per-scene audio seams and simplifies the concatenation step.
-
-        Supports resume: skips if combined audio already exists on disk.
+        Returns:
+            SubMaker cues object if TTS succeeded, None if silent/disabled.
+            Used by _step_subtitle for word-level subtitle timing.
         """
-        if self._state.step_audio_subtitle == StepStatus.COMPLETED:
-            logger.info("[Pipeline] Step audio_subtitle: SKIP (already completed)")
-            return
-
-        audio_enabled = self._state.audio_config.enabled
-        voice = self._state.audio_config.voice
-        rate = self._state.audio_config.rate
-
-        narration_text = self._state.narrations[0] if self._state.narrations else ""
-
-        logger.info(
-            f"[Pipeline] Step audio_subtitle: RUNNING "
-            f"(enabled={audio_enabled}, narration={len(narration_text)} chars)"
-        )
+        # v3.0 backward compat: check old combined step status
+        if self._state.step_audio == StepStatus.COMPLETED:
+            logger.info("[Pipeline] Step audio: SKIP (already completed)")
+            return None
+        if (self._state.step_audio == StepStatus.PENDING
+                and self._state.step_audio_subtitle == StepStatus.COMPLETED):
+            logger.info("[Pipeline] Step audio: SKIP (v2.0 step_audio_subtitle completed)")
+            self._state.step_audio = StepStatus.COMPLETED
+            self.task_manager.update_step("step_audio", StepStatus.COMPLETED)
+            return None
 
         combined_audio = os.path.join(self.working_dir, "combined_narration.mp3")
-        combined_srt = os.path.join(self.working_dir, "combined_narration.srt")
-
         if os.path.exists(combined_audio) and os.path.getsize(combined_audio) > 0:
-            logger.info("[Pipeline] Step audio_subtitle: SKIP (combined audio exists)")
-            self._state.step_audio_subtitle = StepStatus.COMPLETED
-            self.task_manager.update_step("step_audio_subtitle", StepStatus.COMPLETED)
-            return
+            logger.info("[Pipeline] Step audio: SKIP (file exists)")
+            self._state.step_audio = StepStatus.COMPLETED
+            self.task_manager.update_step("step_audio", StepStatus.COMPLETED)
+            return None
 
+        audio_enabled = self._state.audio_config.enabled
+        narration_text = self._state.narrations[0] if self._state.narrations else ""
+        total_duration = float(self._state.video_duration) * len(self._state.scenes)
+
+        logger.info(
+            f"[Pipeline] Step audio: RUNNING "
+            f"(enabled={audio_enabled}, narration={len(narration_text)} chars)"
+        )
         await self._emit(
-            "audio_subtitle", "running",
-            "生成旁白音频和字幕..." if audio_enabled else "生成静音时间轴...",
+            "audio", "running",
+            "生成旁白音频..." if audio_enabled else "生成静音时间轴...",
             0.82,
         )
 
-        if not narration_text:
-            total_duration = float(self._state.video_duration) * len(self._state.scenes)
-            silent_tts = SilentTTSEngine()
-            await silent_tts.generate(
-                text="placeholder",
-                output_path=combined_audio,
-                duration_sec=total_duration,
-            )
-            SubtitleGenerator.cues_to_srt({}, combined_srt)
-        elif audio_enabled:
+        sub_maker = None
+        if audio_enabled and narration_text:
             edge_tts = EdgeTTSEngine()
             try:
                 audio_path, sub_maker = await edge_tts.generate(
                     text=narration_text,
                     output_path=combined_audio,
-                    voice=voice,
-                    rate=rate,
+                    voice=self._state.audio_config.voice,
+                    rate=self._state.audio_config.rate,
                 )
-                SubtitleGenerator.cues_to_srt(sub_maker, combined_srt)
             except RuntimeError as e:
                 logger.warning(f"[Pipeline] EdgeTTS failed, falling back to silent: {e}")
-                total_duration = float(self._state.video_duration) * len(self._state.scenes)
                 silent_tts = SilentTTSEngine()
                 await silent_tts.generate(
-                    text=narration_text,
+                    text=narration_text or "placeholder",
                     output_path=combined_audio,
                     duration_sec=total_duration,
                 )
-                SubtitleGenerator.cues_to_srt({}, combined_srt)
         else:
-            total_duration = float(self._state.video_duration) * len(self._state.scenes)
             silent_tts = SilentTTSEngine()
             await silent_tts.generate(
-                text=narration_text,
+                text=narration_text or "placeholder",
                 output_path=combined_audio,
                 duration_sec=total_duration,
             )
-            SubtitleGenerator.cues_to_srt({}, combined_srt)
 
         for scene in self._state.scenes:
             scene.narration_audio = combined_audio
+        self.task_manager.update_state(
+            scenes=[s.model_dump() for s in self._state.scenes],
+        )
+
+        self._state.step_audio = StepStatus.COMPLETED
+        self.task_manager.update_state(step_audio=StepStatus.COMPLETED)
+        await self._emit("audio", "completed", "音频生成完成", 0.86)
+        return sub_maker
+
+    # ==================================================================
+    # Step 6: Subtitle Generation (v3.0 split from audio)
+    # ==================================================================
+
+    async def _step_subtitle(self, sub_maker: Optional[object] = None) -> None:
+        """Generate SRT subtitles for the entire video.
+
+        Uses SubMaker cues from TTS (if available) or plain-text fallback.
+
+        Args:
+            sub_maker: SubMaker cues from _step_audio, or None.
+        """
+        # v3.0 backward compat
+        if self._state.step_subtitle == StepStatus.COMPLETED:
+            logger.info("[Pipeline] Step subtitle: SKIP (already completed)")
+            return
+        if (self._state.step_subtitle == StepStatus.PENDING
+                and self._state.step_audio_subtitle == StepStatus.COMPLETED):
+            logger.info("[Pipeline] Step subtitle: SKIP (v2.0 step_audio_subtitle completed)")
+            self._state.step_subtitle = StepStatus.COMPLETED
+            self.task_manager.update_step("step_subtitle", StepStatus.COMPLETED)
+            return
+
+        combined_srt = os.path.join(self.working_dir, "combined_narration.srt")
+        if os.path.exists(combined_srt) and os.path.getsize(combined_srt) > 0:
+            logger.info("[Pipeline] Step subtitle: SKIP (file exists)")
+            self._state.step_subtitle = StepStatus.COMPLETED
+            self.task_manager.update_step("step_subtitle", StepStatus.COMPLETED)
+            return
+
+        subtitle_enabled = self._state.subtitle_config.enabled
+        narration_text = self._state.narrations[0] if self._state.narrations else ""
+
+        logger.info(
+            f"[Pipeline] Step subtitle: RUNNING "
+            f"(enabled={subtitle_enabled}, narration={len(narration_text)} chars)"
+        )
+        await self._emit(
+            "subtitle", "running",
+            "生成字幕..." if subtitle_enabled else "跳过字幕生成",
+            0.86,
+        )
+
+        if subtitle_enabled and sub_maker is not None:
+            # TTS cues available → fine-grained SRT
+            SubtitleGenerator.cues_to_srt(sub_maker, combined_srt)
+        elif subtitle_enabled and narration_text:
+            # No TTS cues → plain text SRT
+            total_duration = float(self._state.video_duration) * len(self._state.scenes)
+            SubtitleGenerator.text_to_srt(narration_text, combined_srt, total_duration)
+        else:
+            # Subtitle disabled: write empty SRT
+            with open(combined_srt, "w", encoding="utf-8") as f:
+                f.write("")
+
+        for scene in self._state.scenes:
             scene.subtitle_srt = combined_srt
         self.task_manager.update_state(
             scenes=[s.model_dump() for s in self._state.scenes],
         )
 
-        self._state.step_audio_subtitle = StepStatus.COMPLETED
-        self.task_manager.update_state(step_audio_subtitle=StepStatus.COMPLETED)
-        await self._emit("audio_subtitle", "completed", "音频和字幕生成完成", 0.9)
+        self._state.step_subtitle = StepStatus.COMPLETED
+        self.task_manager.update_state(step_subtitle=StepStatus.COMPLETED)
+        await self._emit("subtitle", "completed", "字幕生成完成", 0.9)
 
     # ==================================================================
     # Step 6: Concatenation (MODIFIED in v2.0)
@@ -1458,24 +1510,23 @@ class CreativeVideoPipeline(BasePipeline):
 
         await self._emit("concatenate", "running", "正在拼接视频...", 0.92)
 
-        audio_enabled = (
-            self._state.audio_config.enabled
-            and self._state.step_audio_subtitle == StepStatus.COMPLETED
-        )
+        has_audio = self._state.audio_config.enabled
+        has_subtitle = self._state.subtitle_config.enabled
+        combined_audio = os.path.join(self.working_dir, "combined_narration.mp3")
+        combined_srt = os.path.join(self.working_dir, "combined_narration.srt")
 
-        if audio_enabled:
-            combined_audio = os.path.join(self.working_dir, "combined_narration.mp3")
-            combined_srt = os.path.join(self.working_dir, "combined_narration.srt")
-            has_srt = os.path.exists(combined_srt) and os.path.getsize(combined_srt) > 0
+        if has_audio or has_subtitle:
+            audio_exists = os.path.exists(combined_audio) and os.path.getsize(combined_audio) > 0
+            srt_exists = os.path.exists(combined_srt) and os.path.getsize(combined_srt) > 0
 
-            if os.path.exists(combined_audio) and os.path.getsize(combined_audio) > 0:
+            if audio_exists:
                 await asyncio.to_thread(
                     VideoConcatenator.concat_videos_with_audio_overlay,
                     video_paths=all_video_paths,
                     audio_path=combined_audio,
-                    srt_path=combined_srt if has_srt else None,
+                    srt_path=combined_srt if (has_subtitle and srt_exists) else None,
                     output_path=final_video_path,
-                    subtitle_style=self._state.audio_config.subtitle_style,
+                    subtitle_style=self._state.subtitle_config.style if has_subtitle else None,
                 )
             else:
                 await asyncio.to_thread(
@@ -1572,10 +1623,15 @@ class CreativeVideoPipeline(BasePipeline):
             if self._is_shutdown():
                 raise PipelineShutdown("interrupted after video generation")
 
-            # NEW v2.0: audio & subtitle generation
-            await self._step_audio_subtitle()
+            # v3.0: audio generation
+            sub_maker = await self._step_audio()
             if self._is_shutdown():
-                raise PipelineShutdown("interrupted after audio/subtitle")
+                raise PipelineShutdown("interrupted after audio")
+
+            # v3.0: subtitle generation (separate from audio)
+            await self._step_subtitle(sub_maker)
+            if self._is_shutdown():
+                raise PipelineShutdown("interrupted after subtitle")
 
             final_video_path = await self._step_concatenate(all_video_paths)
 
