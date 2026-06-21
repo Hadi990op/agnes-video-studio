@@ -148,7 +148,7 @@ curl -X POST http://localhost:8765/api/config \
 
 **Step 3 — Create Your First Video**
 
-Open `http://localhost:8765`, choose a video mode (Simple / Creative / Manuscript / Anchor / Image), enter your idea, and click "Start Generating".
+Open `http://localhost:8765`, choose a video mode (Simple / Creative / Manuscript / Anchor), enter your idea, and click "Start Generating".
 
 ### Option B: AI Agent Assisted Setup
 
