@@ -106,13 +106,16 @@ class AnchorPipeline(BasePipeline):
             self._check_shutdown()
             await self._run_step_generate_clip_prompts(paragraphs)
 
-            # ── Step 4: 逐段 i2v 生成视频片段 ────────────────────────
-            self._check_shutdown()
-            await self._run_step_generate_clips(paragraphs, anchor_image_path)
-
-            # ── Step 5: TTS 读稿音频 ─────────────────────────────────
+            # ── Step 4: TTS 读稿音频（先行，获取实际时长）────────────
             self._check_shutdown()
             sub_maker = await self._run_step_audio()
+
+            # ── Step 5: 逐段 i2v 生成视频片段（用实际音频时长）──────
+            self._check_shutdown()
+            actual_audio_dur = self.get_audio_duration(self._state.combined_audio or "")
+            await self._run_step_generate_clips(
+                paragraphs, anchor_image_path, actual_audio_dur,
+            )
 
             # ── Step 6: 字幕生成 ─────────────────────────────────────
             self._check_shutdown()
@@ -188,35 +191,36 @@ class AnchorPipeline(BasePipeline):
 
     async def _run_step_generate_clips(
         self, paragraphs: List[ManuscriptParagraph], anchor_image_path: str,
+        actual_audio_dur: float = 0.0,
     ) -> None:
-        """运行 Step 4: 逐段 i2v 视频生成，带 resume 支持。"""
+        """运行 Step 5: 逐段 i2v 视频生成，带 resume 支持。"""
         if self._state.step_clip_generation == StepStatus.COMPLETED:
-            logger.info("[Anchor] Step 4 (clip_generation): already completed, resuming")
+            logger.info("[Anchor] Step 5 (clip_generation): already completed, resuming")
             return
 
         self.task_manager.update_step("step_clip_generation", StepStatus.RUNNING)
-        await self._emit("clip_gen", "running", "生成段落视频片段...", 0.18)
+        await self._emit("clip_gen", "running", "生成段落视频片段...", 0.28)
 
-        await self._step_generate_clips(paragraphs, anchor_image_path)
+        await self._step_generate_clips(paragraphs, anchor_image_path, actual_audio_dur)
 
         self.task_manager.update_state(paragraphs=paragraphs)
         self.task_manager.update_step("step_clip_generation", StepStatus.COMPLETED)
         await self._emit("clip_gen", "completed", "所有段落视频已生成", 0.55)
 
     async def _run_step_audio(self) -> object:
-        """运行 Step 5: TTS 读稿，带 resume 支持。返回 sub_maker 供字幕步骤使用。"""
+        """运行 Step 4: TTS 读稿，带 resume 支持。返回 sub_maker 供字幕步骤使用。"""
         if self._state.step_audio == StepStatus.COMPLETED:
-            logger.info("[Anchor] Step 5 (audio): already completed, resuming")
+            logger.info("[Anchor] Step 4 (audio): already completed, resuming")
             return None
 
         self.task_manager.update_step("step_audio", StepStatus.RUNNING)
-        await self._emit("audio", "running", "生成读稿音频...", 0.55)
+        await self._emit("audio", "running", "生成读稿音频...", 0.18)
 
         sub_maker = await self._step_audio()
 
         self.task_manager.update_state(combined_audio=self._state.combined_audio)
         self.task_manager.update_step("step_audio", StepStatus.COMPLETED)
-        await self._emit("audio", "completed", "读稿音频生成完成", 0.65)
+        await self._emit("audio", "completed", "读稿音频生成完成", 0.28)
         return sub_maker
 
     async def _run_step_subtitle(self, sub_maker: object = None) -> None:
@@ -328,6 +332,13 @@ class AnchorPipeline(BasePipeline):
             3. 贪心合并：<= 12s，>= 5s。
             4. 短句合并到前一段。
         """
+        # 防御性修复：检测并修复双重 UTF-8 编码
+        text = self.fix_double_utf8(text)
+        if text != self._state.script_text:
+            logger.info("[Anchor] split_text: fixed double-encoded UTF-8 text")
+            self._state.script_text = text
+            self.task_manager.update_state(script_text=text)
+
         if self._state.paragraphs:
             logger.info(
                 "[Anchor] split_text: %d paragraphs already exist, resuming",
@@ -492,13 +503,34 @@ class AnchorPipeline(BasePipeline):
         self,
         paragraphs: List[ManuscriptParagraph],
         anchor_image_path: str,
+        actual_audio_dur: float = 0.0,
     ) -> None:
-        """为每个段落调用 i2v 生成视频片段（两阶段并行提交+等待）。"""
+        """为每个段落调用 i2v 生成视频片段（两阶段并行提交+等待）。
+
+        如果提供了 actual_audio_dur，则按段落字符数比例分配实际音频时长，
+        确保生成的视频与音频时长匹配。
+        """
         _SUBMIT_RETRIES = 3
         _WAIT_RETRIES = 3
         total = len(paragraphs)
         vw = self._state.video_width
         vh = self._state.video_height
+
+        # 如果有实际音频时长，按字符数比例分配每段时长
+        per_para_audio_dur: List[float] = []
+        if actual_audio_dur > 0 and total > 0:
+            total_chars = sum(len(p.text) for p in paragraphs if p.text)
+            for p in paragraphs:
+                if p.text and total_chars > 0:
+                    dur = actual_audio_dur * (len(p.text) / total_chars)
+                else:
+                    dur = actual_audio_dur / total
+                per_para_audio_dur.append(dur)
+            logger.info(
+                "[Anchor] clip: using actual audio dur %.1fs, per-para: %s",
+                actual_audio_dur,
+                [f"{d:.1f}s" for d in per_para_audio_dur],
+            )
 
         # ── Phase 1: 批量提交 ────────────────────────────────────
         pending: list[tuple[int, str, str]] = []
@@ -543,10 +575,14 @@ class AnchorPipeline(BasePipeline):
             await self._emit(
                 "clip_gen", "running",
                 f"提交视频 {i + 1}/{total}",
-                0.18 + 0.15 * (i / max(total, 1)),
+                0.28 + 0.12 * (i / max(total, 1)),
             )
 
-            para_duration = max(int(math.ceil(len(para.text) / _CHARS_PER_SEC)), 3)
+            # 优先使用实际音频时长，否则用文本估算
+            if per_para_audio_dur and i < len(per_para_audio_dur):
+                para_duration = max(int(math.ceil(per_para_audio_dur[i])), 3)
+            else:
+                para_duration = max(int(math.ceil(len(para.text) / _CHARS_PER_SEC)), 3)
 
             for retry in range(_SUBMIT_RETRIES):
                 try:

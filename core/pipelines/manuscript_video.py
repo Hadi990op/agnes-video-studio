@@ -300,6 +300,13 @@ class ManuscriptVideoPipeline(BasePipeline):
         Returns:
             带 ``index``、``text`` 和估算时长的段落列表。
         """
+        # 防御性修复：检测并修复双重 UTF-8 编码
+        text = self.fix_double_utf8(text)
+        if text != self._state.manuscript_text:
+            logger.info("[Manuscript] split_text: fixed double-encoded UTF-8 text")
+            self._state.manuscript_text = text
+            self.task_manager.update_state(manuscript_text=text)
+
         # Resume: if paragraphs already populated, return them directly.
         if self._state.paragraphs:
             logger.info(

@@ -84,6 +84,36 @@ class BasePipeline(ABC):
     # 通用工具方法
     # ==================================================================
 
+    @staticmethod
+    def fix_double_utf8(text: str) -> str:
+        """检测并修复双重 UTF-8 编码的文本。
+
+        当 UTF-8 字节被误解读为 Latin-1 后再编码为 UTF-8 时，
+        会产生乱码。此方法尝试还原原始文本。
+
+        Args:
+            text: 可能双重编码的文本。
+
+        Returns:
+            修复后的文本，如果不需要修复则返回原文。
+        """
+        if not text:
+            return text
+        # 检测典型乱码特征：包含 Latin-1 扩展字符且可被还原
+        try:
+            # 尝试将文本当作 Latin-1 编码的 UTF-8 字节来解码
+            fixed = text.encode('latin-1').decode('utf-8')
+            # 验证修复后的文本是有效的中文/ASCII
+            if all(ord(c) < 0x80 or '\u4e00' <= c <= '\u9fff'
+                   or '\u3000' <= c <= '\u303f'
+                   or '\uff00' <= c <= '\uffef'
+                   or '\u2000' <= c <= '\u206f'
+                   for c in fixed[:20]):
+                return fixed
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            pass
+        return text
+
     def save_prompts(self, prompts_data: dict) -> str:
         """将自动生成的 prompt 记录保存到 working_dir/prompts.json。
 
