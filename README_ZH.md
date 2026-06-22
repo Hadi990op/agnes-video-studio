@@ -119,7 +119,7 @@
 **第一步 — 克隆 & 启动**
 
 ```bash
-git clone https://github.com/your-org/agnes-video-generator.git
+git clone https://github.com/lcy362/agnes-video-generator.git
 cd agnes-video-generator
 ./start.sh
 ```
@@ -155,7 +155,7 @@ curl -X POST http://localhost:8765/api/config \
 本项目专为 AI 编程助手友好设计。先由你下载代码并准备好 API Key：
 
 ```bash
-git clone https://github.com/your-org/agnes-video-generator.git
+git clone https://github.com/lcy362/agnes-video-generator.git
 cd agnes-video-generator
 ```
 
