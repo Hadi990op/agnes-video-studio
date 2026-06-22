@@ -1540,7 +1540,7 @@ class CreativeVideoPipeline(BasePipeline):
             segment_durations=scene_durations,
             subtitle_config=self._state.subtitle_config,
             sub_maker=sub_maker,
-            audio_path=self._state.combined_audio or "",
+            audio_path=os.path.join(self.working_dir, "combined_narration.mp3"),
             srt_filename="combined_narration.srt",
             screenwriter=self.screenwriter,
             video_width=self._state.video_width,
