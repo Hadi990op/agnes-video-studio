@@ -252,10 +252,13 @@ the prompt MUST also specify:
 - Even, diffused lighting (no harsh shadows on the face)
 - Neutral or slight smile expression
 
-The prompt should be in the SAME LANGUAGE as the input story, for best \
-consistency with the overall production. It should be a single paragraph, 3-5 sentences, \
+It should be a single paragraph, 3-5 sentences, \
 rich in visual detail. Include the art style (e.g., "realistic cinematic", \
 "anime style", "watercolor illustration").
+
+CRITICAL: Output the prompt in the SAME LANGUAGE as the input story. \
+If the story is in Chinese, write the prompt in Chinese. If in English, \
+write in English. This is mandatory.
 
 Output ONLY the image prompt text, no JSON, no explanation.
 """
@@ -265,6 +268,8 @@ Output ONLY the image prompt text, no JSON, no explanation.
 </story>
 
 <style>{style}</style>
+
+Write the character image prompt in the SAME LANGUAGE as the story above.
 """
         logger.info("[Screenwriter] Extracting character reference prompt...")
         prompt = strip_code_fence(self._chat(system_prompt, user_prompt))
@@ -285,6 +290,9 @@ Output a CONCISE paragraph describing their fixed look — include EVERY detail:
 Write as a single descriptive paragraph, 3-5 sentences. Keep it factual and
 visual — like a police sketch description. Do NOT include their personality,
 dialogue, or story events.
+
+CRITICAL: Output in the SAME LANGUAGE as the input story. If the story is in
+Chinese, write in Chinese. If in English, write in English. This is mandatory.
 
 Output ONLY the appearance description text. No JSON, no labels, no markdown.
 """
@@ -389,17 +397,17 @@ Rules:
         return shots
 
     def generate_scene_prompt_for_paragraph(self, text: str, style: str = "") -> str:
-        """为稿件段落生成英文视频场景 prompt（类型 3 专用）。
+        """为稿件段落生成视频场景 prompt（语言跟随输入段落）。
 
-        基于段落语义生成适合 AI 视频生成的英文视觉描述，
+        基于段落语义生成适合 AI 视频生成的视觉描述，
         原文将直接作为旁白文本 + 字幕内容（D2 决策）。
 
         Args:
-            text: 中文段落文本
+            text: 段落文本
             style: 风格描述（可选）
 
         Returns:
-            英文视频 prompt 字符串
+            视频 prompt 字符串（语言与输入一致）
         """
         system_prompt = """\
 You are a professional video director and visual prompt engineer. Given a \
@@ -439,20 +447,20 @@ Generate a detailed visual prompt for this paragraph.
         segment_index: int,
         total_segments: int,
     ) -> str:
-        """为数字人口播分段生成英文视频动态 prompt（v3.1 方案 B）。
+        """为数字人口播分段生成视频动态 prompt（v3.1 方案 B，语言跟随输入）。
 
         基于段落语义和主播形象，为每段生成不同的自然动作描述，
         确保相邻段落的动作有变化（说话、点头、手势、微笑等），
         同时保持主播形象一致性，便于 i2v 生成带口型近似匹配的视频。
 
         Args:
-            paragraph_text: 中文段落文本（本段内容）。
-            anchor_prompt: 主播形象描述（中文）。
+            paragraph_text: 段落文本（本段内容）。
+            anchor_prompt: 主播形象描述。
             segment_index: 当前段落索引（0-based）。
             total_segments: 总段落数。
 
         Returns:
-            英文视频动态 prompt 字符串。
+            视频动态 prompt 字符串（语言与输入一致）。
         """
         system_prompt = """\
 You are a professional video director specializing in digital human anchorperson videos.
@@ -503,16 +511,16 @@ Generate the motion prompt for this segment.
         self,
         anchor_prompt: str,
     ) -> str:
-        """为数字人口播后拼接音频模式生成单段循环优化的英文动态 prompt。
+        """为数字人口播后拼接音频模式生成单段循环优化的动态 prompt（语言跟随输入）。
 
         只生成一段 5 秒的 i2v 视频，循环播放配合完整 TTS 音频。
         prompt 强调微小幅度动作，确保起止姿态高度一致，循环衔接流畅。
 
         Args:
-            anchor_prompt: 主播形象描述（中文）。
+            anchor_prompt: 主播形象描述。
 
         Returns:
-            英文视频动态 prompt 字符串。
+            视频动态 prompt 字符串（语言与输入一致）。
         """
         system_prompt = """\
 You are a professional video director specializing in digital human anchorperson videos.
@@ -557,17 +565,17 @@ Generate the smooth-loop motion prompt for a 5-second looping clip.
         anchor_prompt: str,
         script_text: str,
     ) -> str:
-        """为数字人口播模型音频模式生成含口播文本的视频 prompt。
+        """为数字人口播模型音频模式生成含口播文本的视频 prompt（语言跟随输入）。
 
         模型音频模式下，视频模型同时生成视频和音频，
         prompt 需包含说话口型描述和口播文本内容。
 
         Args:
-            anchor_prompt: 主播形象描述（中文）。
+            anchor_prompt: 主播形象描述。
             script_text: 口播稿件全文。
 
         Returns:
-            英文视频 prompt 字符串。
+            视频 prompt 字符串（语言与输入一致）。
         """
         system_prompt = """\
 You are a professional video director specializing in digital human anchorperson videos.
@@ -606,19 +614,19 @@ Generate the video prompt for this anchor segment with built-in audio.
     def generate_narration_for_video(
         self, story: str, scenes: List[str], total_duration: float, style: str = ""
     ) -> str:
-        """为整个视频一次性生成旁白文案。
+        """为整个视频一次性生成旁白文案（语言跟随输入）。
 
-        基于故事全文和所有场景描述，生成一段完整的中文旁白文本，
+        基于故事全文和所有场景描述，生成一段完整的旁白文本，
         时长匹配视频总时长（num_scenes * video_duration）。
 
         Args:
             story: 完整故事文本
-            scenes: 所有场景的英文视觉描述列表
+            scenes: 所有场景的视觉描述列表
             total_duration: 视频总时长（秒）
             style: 风格描述（可选）
 
         Returns:
-            完整的中文旁白文本字符串
+            完整的旁白文本字符串（语言与输入一致）
         """
         max_chars = max(int(total_duration * 4.0), 40)
         scene_count = len(scenes)

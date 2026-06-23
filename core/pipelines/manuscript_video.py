@@ -45,7 +45,7 @@ class ManuscriptVideoPipeline(BasePipeline):
 
     Pipeline steps:
         1. ``_step_split_text``          -- 按朗读时长拆分文本
-        2. ``_step_generate_scene_prompts`` -- 为每段生成英文视频 prompt
+        2. ``_step_generate_scene_prompts`` -- 为每段生成视频 prompt（语言跟随输入）
         3. ``_step_generate_videos``     -- 调用 Agnes Video API 生成视频
         4. ``_step_audio_subtitle``      -- TTS 旁白 + SRT 字幕
         5. ``_step_concatenate``         -- 拼接为最终视频
@@ -396,11 +396,10 @@ class ManuscriptVideoPipeline(BasePipeline):
     async def _step_generate_scene_prompts(
         self, paragraphs: List[ManuscriptParagraph],
     ) -> None:
-        """为每个段落生成英文视频场景描述 prompt。
+        """为每个段落生成视频场景描述 prompt（语言跟随输入段落）。
 
         调用 ``Screenwriter.generate_scene_prompt_for_paragraph(text, style)``
-        将中文段落文本转换为适合 AI 视频生成的英文 prompt。
-
+        将段落文本转换为适合 AI 视频生成的视觉 prompt。
         Args:
             paragraphs: 段落列表（就地修改 ``scene_prompt`` 字段）。
         """
