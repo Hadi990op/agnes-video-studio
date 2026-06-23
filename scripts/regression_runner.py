@@ -44,7 +44,11 @@ import requests
 # ═══════════════════════════════════════════════════
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-WORKING_DIR = os.path.join(PROJECT_ROOT, ".working_dir")
+# 回归测试专用工作目录：固定独立空间，与用户日常任务隔离
+REGRESSION_WORKING_DIR = os.path.join(PROJECT_ROOT, ".regression_workspace")
+# 环境变量名，服务端 get_working_dir() 据此切换到回归专用空间
+REGRESSION_WORKING_DIR_ENV = "AGNES_REGRESSION_WORKING_DIR"
+WORKING_DIR = REGRESSION_WORKING_DIR
 UPLOAD_DIR = os.path.join(WORKING_DIR, "uploads")
 REPORT_PATH = os.path.join(PROJECT_ROOT, "docs", "regression_report.json")
 REPORT_MD_PATH = os.path.join(PROJECT_ROOT, "docs", "regression_report.md")
@@ -892,16 +896,22 @@ async def ensure_server(auto_start: bool = False) -> bool:
     if not auto_start:
         logger.info("请先在另一终端运行: bash start.sh")
         return False
-    logger.info("自动启动服务...")
+    logger.info("自动启动服务（回归测试专用工作目录）...")
     venv_python = os.path.join(PROJECT_ROOT, ".venv", "bin", "python")
     python = venv_python if os.path.exists(venv_python) else "python"
+    # 确保回归专用工作目录存在
+    os.makedirs(REGRESSION_WORKING_DIR, exist_ok=True)
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
     global _server_process
+    env = os.environ.copy()
+    env[REGRESSION_WORKING_DIR_ENV] = REGRESSION_WORKING_DIR
     _server_process = subprocess.Popen(
         [python, "server.py"],
         cwd=PROJECT_ROOT,
         stdout=open(SERVER_LOG, "w"),
         stderr=subprocess.STDOUT,
         preexec_fn=os.setsid,
+        env=env,
     )
     import atexit
     atexit.register(_cleanup_server)

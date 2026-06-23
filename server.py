@@ -16,9 +16,11 @@ import base64
 import json
 import logging
 import os
+import platform
 import re
 import shutil
 import signal
+import subprocess
 import tempfile
 import uuid
 from contextlib import asynccontextmanager
@@ -29,7 +31,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, F
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 
-from core.config import get_api_key, set_api_key, delete_api_key, get_api_key_source, get_working_dir, AVAILABLE_VOICES, DURATION_FRAME_MAP
+from core.config import get_api_key, set_api_key, delete_api_key, get_api_key_source, get_working_dir, AVAILABLE_VOICES, DURATION_FRAME_MAP, get_workspaces, add_workspace, remove_workspace, set_active_workspace, get_active_workspace, REGRESSION_WORKING_DIR_ENV
 from core.pipelines import (
     AnchorPipeline,
     BasePipeline,
@@ -220,7 +222,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Agnes Video Generator", lifespan=lifespan)
 
-UPLOAD_DIR = os.path.join(get_working_dir(), "uploads")
+def get_upload_dir() -> str:
+    """返回当前激活工作目录下的 uploads 子目录。"""
+    return os.path.join(get_working_dir(), "uploads")
 
 
 # ═══════════════════════════════════════════════════
@@ -289,10 +293,14 @@ async def root():
 async def get_config():
     key = get_api_key()
     source = get_api_key_source()
+    active_ws = get_active_workspace()
     data = {
         "api_key": key[:8] + "..." if key else "",
         "source": source,
         "can_clear": source == "config",
+        "workspaces": get_workspaces(),
+        "active_workspace": active_ws,
+        "working_dir_source": "regression" if os.environ.get(REGRESSION_WORKING_DIR_ENV) else "config",
     }
     return data
 
@@ -314,6 +322,113 @@ async def clear_config():
         )
     delete_api_key()
     return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════
+# 工作目录管理（多工作目录，同时仅一个 active）
+# ═══════════════════════════════════════════════════
+
+
+@app.get("/api/workspaces")
+async def list_workspaces():
+    """列出所有已配置的工作目录及当前激活项。"""
+    return {
+        "workspaces": get_workspaces(),
+        "active_workspace": get_active_workspace(),
+    }
+
+
+@app.post("/api/workspaces")
+async def create_workspace(path: str = Form(...), name: str = Form("")):
+    """添加一个工作目录。"""
+    if not path.strip():
+        raise HTTPException(status_code=422, detail="path 不能为空")
+    entry = add_workspace(path.strip(), name.strip())
+    os.makedirs(entry["path"], exist_ok=True)
+    os.makedirs(os.path.join(entry["path"], "uploads"), exist_ok=True)
+    return {"ok": True, "workspace": entry, "active_workspace": get_active_workspace()}
+
+
+@app.delete("/api/workspaces")
+async def delete_workspace(path: str = Form(...)):
+    """移除一个工作目录（仅从配置中移除，不删除磁盘文件）。"""
+    if not path.strip():
+        raise HTTPException(status_code=422, detail="path 不能为空")
+    removed = remove_workspace(path.strip())
+    if not removed:
+        raise HTTPException(status_code=404, detail="工作目录不存在")
+    return {"ok": True, "active_workspace": get_active_workspace()}
+
+
+@app.post("/api/workspaces/active")
+async def activate_workspace(path: str = Form(...)):
+    """设置当前激活的工作目录。"""
+    if not path.strip():
+        raise HTTPException(status_code=422, detail="path 不能为空")
+    try:
+        active = set_active_workspace(path.strip())
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    os.makedirs(active, exist_ok=True)
+    os.makedirs(os.path.join(active, "uploads"), exist_ok=True)
+    return {"ok": True, "active_workspace": active}
+
+
+@app.get("/api/workspaces/pick-directory")
+async def pick_directory():
+    """弹出操作系统原生目录选择框，返回所选目录路径。
+
+    跨平台实现：
+    - macOS: osascript
+    - Linux: zenity（若不可用回退 kdialog）
+    - Windows: PowerShell Forms.FolderBrowserDialog
+    """
+    path = await asyncio.to_thread(_pick_directory_native)
+    if not path:
+        return {"ok": False, "path": ""}
+    return {"ok": True, "path": path}
+
+
+def _pick_directory_native() -> str:
+    """同步调用系统原生目录选择器，返回路径或空字符串。"""
+    system = platform.system()
+    try:
+        if system == "Darwin":
+            script = (
+                'set chosenFolder to choose folder with prompt "选择工作目录"'
+                "\nreturn POSIX path of chosenFolder"
+            )
+            r = subprocess.run(
+                ["osascript", "-e", script],
+                capture_output=True, text=True, timeout=120,
+            )
+            if r.returncode == 0:
+                return r.stdout.strip()
+        elif system == "Windows":
+            ps_script = (
+                "Add-Type -AssemblyName System.Windows.Forms;"
+                "$f = New-Object System.Windows.Forms.FolderBrowserDialog;"
+                "if ($f.ShowDialog() -eq 'OK') { Write-Output $f.SelectedPath }"
+            )
+            r = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", ps_script],
+                capture_output=True, text=True, timeout=120,
+            )
+            if r.returncode == 0 and r.stdout.strip():
+                return r.stdout.strip()
+        else:
+            for cmd in (["zenity", "--file-selection", "--directory"],
+                        ["kdialog", "--getexistingdirectory", os.path.expanduser("~")]):
+                try:
+                    r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                    if r.returncode == 0 and r.stdout.strip():
+                        return r.stdout.strip()
+                    break
+                except FileNotFoundError:
+                    continue
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
+        logger.warning(f"[Workspace] Directory picker failed: {e}")
+    return ""
 
 
 @app.get("/api/voices")
@@ -371,8 +486,9 @@ async def generate_image(
     ref_paths = []
     if reference_image and reference_image.filename:
         ext = os.path.splitext(reference_image.filename)[1] or ".png"
-        os.makedirs(UPLOAD_DIR, exist_ok=True)
-        ref_path = os.path.join(UPLOAD_DIR, f"img_ref_{uuid.uuid4().hex[:8]}{ext}")
+        upload_dir = get_upload_dir()
+        os.makedirs(upload_dir, exist_ok=True)
+        ref_path = os.path.join(upload_dir, f"img_ref_{uuid.uuid4().hex[:8]}{ext}")
         with open(ref_path, "wb") as f:
             f.write(await reference_image.read())
         ref_paths.append(ref_path)
@@ -750,7 +866,8 @@ async def create_simple_task(
     # 处理参考图上传（L4: 用 UUID 替代客户端文件名，避免路径穿越）
     if reference_image and reference_image.filename:
         ext = os.path.splitext(reference_image.filename)[1] or ".png"
-        upload_path = os.path.join(UPLOAD_DIR, f"{task_id}_ref{ext}")
+        os.makedirs(get_upload_dir(), exist_ok=True)
+        upload_path = os.path.join(get_upload_dir(), f"{task_id}_ref{ext}")
         with open(upload_path, "wb") as f:
             f.write(await reference_image.read())
         state.reference_image = upload_path
@@ -758,7 +875,7 @@ async def create_simple_task(
     # 处理尾帧图上传（keyframes 模式）
     if end_frame_image and end_frame_image.filename:
         ext = os.path.splitext(end_frame_image.filename)[1] or ".png"
-        upload_path = os.path.join(UPLOAD_DIR, f"{task_id}_end{ext}")
+        upload_path = os.path.join(get_upload_dir(), f"{task_id}_end{ext}")
         with open(upload_path, "wb") as f:
             f.write(await end_frame_image.read())
         state.end_frame_image = upload_path
@@ -871,7 +988,8 @@ async def create_creative_task(
     # 处理参考图上传（L4: 用 UUID 替代客户端文件名，避免路径穿越）
     if reference_image and reference_image.filename:
         ext = os.path.splitext(reference_image.filename)[1] or ".png"
-        upload_path = os.path.join(UPLOAD_DIR, f"{task_id}_ref{ext}")
+        os.makedirs(get_upload_dir(), exist_ok=True)
+        upload_path = os.path.join(get_upload_dir(), f"{task_id}_ref{ext}")
         with open(upload_path, "wb") as f:
             f.write(await reference_image.read())
         state.reference_image = upload_path
@@ -882,7 +1000,7 @@ async def create_creative_task(
         for idx, ef_file in enumerate(end_frame_images):
             if ef_file and ef_file.filename:
                 ext = os.path.splitext(ef_file.filename)[1] or ".png"
-                upload_path = os.path.join(UPLOAD_DIR, f"{task_id}_end_{idx}{ext}")
+                upload_path = os.path.join(get_upload_dir(), f"{task_id}_end_{idx}{ext}")
                 with open(upload_path, "wb") as f:
                     f.write(await ef_file.read())
                 saved_paths.append(upload_path)

@@ -140,6 +140,34 @@
     </div>
   </div>
 
+  <!-- 工作目录 -->
+  <div id="workspace-section" class="glass-card rounded-2xl p-6 mb-6">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-lg font-semibold text-blue-300" data-i18n="workspaceTitle">工作目录</h2>
+      <span id="workspace-status" class="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400" data-i18n="workspaceNone">未设置</span>
+    </div>
+    <div id="workspace-regression-hint" class="hidden mb-3 text-xs text-amber-300 bg-amber-900/30 rounded-lg px-3 py-2" data-i18n="workspaceRegressionHint">当前为回归测试专用空间，由环境变量锁定，无法在界面修改。</div>
+    <!-- 当前激活空间显示 -->
+    <div id="workspace-active-display" class="mb-3 glass-input rounded-lg px-4 py-2.5 hidden">
+      <p class="text-xs text-gray-500 mb-0.5" data-i18n="workspaceCurrentActive">当前激活空间</p>
+      <p id="workspace-active-name" class="text-sm text-green-300 font-medium"></p>
+      <p id="workspace-active-path" class="text-xs text-gray-500 font-mono truncate"></p>
+    </div>
+    <!-- 添加新空间 -->
+    <div class="flex gap-3 mb-4">
+      <input id="workspace-path-input" data-i18n-placeholder="workspacePathPlaceholder" placeholder="/path/to/working_dir" class="flex-1 glass-input rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-600" readonly>
+      <input id="workspace-name-input" data-i18n-placeholder="workspaceNamePlaceholder" placeholder="名称（可选）" class="w-40 glass-input rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-600">
+      <button id="workspace-browse" class="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition" data-i18n="workspaceBrowse">浏览…</button>
+      <button id="workspace-add" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition shadow-lg shadow-blue-600/20" data-i18n="workspaceAdd">添加</button>
+    </div>
+    <!-- 所有空间列表 -->
+    <div class="flex items-center gap-2 mb-2">
+      <h3 class="text-sm font-medium text-gray-400" data-i18n="workspaceListTitle">所有空间</h3>
+      <span class="text-xs text-gray-600" data-i18n="workspaceListHint">点击「激活」切换当前使用的工作目录</span>
+    </div>
+    <div id="workspace-list" class="space-y-2"></div>
+  </div>
+
   <!-- Main Tabs: 新建任务 / 任务列表 -->
   <div class="flex gap-2 mb-6">
     <button onclick="switchMainTab('create')" id="mtab-create" class="mtab-btn px-5 py-2.5 rounded-lg text-sm font-medium tab-active transition" data-i18n="tabCreate">新建任务</button>
@@ -910,6 +938,13 @@ const T = {
     apiKeyPlaceholder: '输入 Agnes API Key', apiKeyMasked: '已配置 (●●●)', save: '保存',
     clear: '清除', clearConfirm: '确定要清除已配置的 API Key 吗？', apiKeyFromEnv: '已配置 (环境变量)',
     clearEnvHint: '当前 API Key 来自环境变量 AGNES_API_KEY，无法从界面清除。请取消环境变量后重试。',
+    workspaceTitle: '工作目录', workspaceNone: '未设置', workspaceActive: '已激活', workspaceAdd: '添加',
+    workspacePathPlaceholder: '点击右侧"浏览"选择目录', workspaceNamePlaceholder: '名称（可选）',
+    workspaceActivate: '激活', workspaceRemove: '移除', workspaceActiveBadge: '当前',
+    workspaceCurrentActive: '当前激活空间', workspaceBrowse: '浏览…', workspaceDefault: '默认',
+    workspaceListTitle: '所有空间', workspaceListHint: '点击「激活」切换当前使用的工作目录',
+    workspaceRegressionHint: '当前为回归测试专用空间，由环境变量锁定，无法在界面修改。',
+    workspaceRemoveConfirm: '确定要从列表移除该工作目录吗？（不会删除磁盘文件）',
     tabCreate: '新建任务', tabList: '任务列表',
     ttSimple: '简易图像视频', ttCreative: '创意长视频', ttManuscript: '稿件长视频',
     subModeLabel: '生成类型', subModeVideo: '🎬 视频', subModeImage: '🖼️ 图像',
@@ -1005,6 +1040,13 @@ const T = {
     apiKeyPlaceholder: 'Enter Agnes API Key', apiKeyMasked: 'Configured (●●●)', save: 'Save',
     clear: 'Clear', clearConfirm: 'Are you sure you want to clear the configured API Key?', apiKeyFromEnv: 'Configured (env)',
     clearEnvHint: 'The API Key is set via environment variable AGNES_API_KEY and cannot be cleared from the UI.',
+    workspaceTitle: 'Working Directory', workspaceNone: 'Not set', workspaceActive: 'Active', workspaceAdd: 'Add',
+    workspacePathPlaceholder: 'Click "Browse" to select a directory', workspaceNamePlaceholder: 'Name (optional)',
+    workspaceActivate: 'Activate', workspaceRemove: 'Remove', workspaceActiveBadge: 'Current',
+    workspaceCurrentActive: 'Current Active Workspace', workspaceBrowse: 'Browse…', workspaceDefault: 'Default',
+    workspaceListTitle: 'All Workspaces', workspaceListHint: 'Click "Activate" to switch the current working directory',
+    workspaceRegressionHint: 'This is a regression test workspace, locked by environment variable and cannot be changed from the UI.',
+    workspaceRemoveConfirm: 'Remove this working directory from the list? (Disk files are not deleted)',
     tabCreate: 'New Task', tabList: 'Task List',
     ttSimple: 'Image & Video', ttCreative: 'Creative Video', ttManuscript: 'Article Video',
     subModeLabel: 'Type', subModeVideo: '🎬 Video', subModeImage: '🖼️ Image',
@@ -1097,6 +1139,13 @@ const T = {
     apiKeyPlaceholder: 'Введите Agnes API Key', apiKeyMasked: 'Настроен (●●●)', save: 'Сохранить',
     clear: 'Очистить', clearConfirm: 'Вы уверены, что хотите удалить API Key?', apiKeyFromEnv: 'Настроен (env)',
     clearEnvHint: 'API Key задан через переменную AGNES_API_KEY и не может быть удалён из интерфейса.',
+    workspaceTitle: 'Рабочий каталог', workspaceNone: 'Не задан', workspaceActive: 'Активен', workspaceAdd: 'Добавить',
+    workspacePathPlaceholder: 'Нажмите «Обзор» для выбора каталога', workspaceNamePlaceholder: 'Имя (необязательно)',
+    workspaceActivate: 'Активировать', workspaceRemove: 'Удалить', workspaceActiveBadge: 'Текущий',
+    workspaceCurrentActive: 'Текущий активный каталог', workspaceBrowse: 'Обзор…', workspaceDefault: 'По умолчанию',
+    workspaceListTitle: 'Все каталоги', workspaceListHint: 'Нажмите «Активировать» для переключения рабочего каталога',
+    workspaceRegressionHint: 'Это рабочее пространство для регрессионных тестов, заблокировано переменной окружения и не может быть изменено в интерфейсе.',
+    workspaceRemoveConfirm: 'Удалить этот рабочий каталог из списка? (Файлы на диске не удаляются)',
     tabCreate: 'Новая задача', tabList: 'Список задач',
     ttSimple: 'Изобр. и видео', ttCreative: 'Креативное видео', ttManuscript: 'Видео из статьи',
     subModeLabel: 'Тип', subModeVideo: '🎬 Видео', subModeImage: '🖼️ Изображение',
@@ -1187,6 +1236,13 @@ const T = {
     apiKeyPlaceholder: 'Agnes API Key を入力', apiKeyMasked: '設定済み (●●●)', save: '保存',
     clear: 'クリア', clearConfirm: '設定済みのAPI Keyを削除しますか？', apiKeyFromEnv: '設定済み (環境変数)',
     clearEnvHint: 'API Keyは環境変数 AGNES_API_KEY で設定されているため、画面から削除できません。',
+    workspaceTitle: '作業ディレクトリ', workspaceNone: '未設定', workspaceActive: '有効', workspaceAdd: '追加',
+    workspacePathPlaceholder: '右の「参照」をクリックして選択', workspaceNamePlaceholder: '名前（任意）',
+    workspaceActivate: '有効化', workspaceRemove: '削除', workspaceActiveBadge: '現在',
+    workspaceCurrentActive: '現在の有効スペース', workspaceBrowse: '参照…', workspaceDefault: 'デフォルト',
+    workspaceListTitle: 'すべてのスペース', workspaceListHint: '「有効化」をクリックして作業ディレクトリを切り替え',
+    workspaceRegressionHint: '現在は回帰テスト専用スペースです。環境変数でロックされており、画面では変更できません。',
+    workspaceRemoveConfirm: 'この作業ディレクトリをリストから削除しますか？（ディスク上のファイルは削除されません）',
     tabCreate: '新規タスク', tabList: 'タスク一覧',
     ttSimple: '画像＆動画', ttCreative: 'クリエイティブ動画', ttManuscript: '記事動画',
     subModeLabel: '生成タイプ', subModeVideo: '🎬 動画', subModeImage: '🖼️ 画像',
@@ -1274,6 +1330,13 @@ const T = {
     apiKeyPlaceholder: 'Agnes API Key 입력', apiKeyMasked: '설정됨 (●●●)', save: '저장',
     clear: '초기화', clearConfirm: '설정된 API Key를 삭제하시겠습니까?', apiKeyFromEnv: '설정됨 (환경변수)',
     clearEnvHint: 'API Key가 환경변수 AGNES_API_KEY로 설정되어 있어 화면에서 삭제할 수 없습니다.',
+    workspaceTitle: '작업 디렉토리', workspaceNone: '미설정', workspaceActive: '활성', workspaceAdd: '추가',
+    workspacePathPlaceholder: '오른쪽 "찾아보기"를 클릭하여 선택', workspaceNamePlaceholder: '이름 (선택)',
+    workspaceActivate: '활성화', workspaceRemove: '제거', workspaceActiveBadge: '현재',
+    workspaceCurrentActive: '현재 활성 공간', workspaceBrowse: '찾아보기…', workspaceDefault: '기본',
+    workspaceListTitle: '모든 공간', workspaceListHint: '「활성화」를 클릭하여 작업 디렉토리를 전환',
+    workspaceRegressionHint: '현재 회귀 테스트 전용 공간입니다. 환경 변수로 잠겨 있어 화면에서 변경할 수 없습니다.',
+    workspaceRemoveConfirm: '이 작업 디렉토리를 목록에서 제거하시겠습니까? (디스크 파일은 삭제되지 않음)',
     tabCreate: '새 작업', tabList: '작업 목록',
     ttSimple: '이미지 & 영상', ttCreative: '크리에이티브 영상', ttManuscript: '기사 영상',
     subModeLabel: '생성 유형', subModeVideo: '🎬 영상', subModeImage: '🖼️ 이미지',
@@ -1361,6 +1424,13 @@ const T = {
     apiKeyPlaceholder: 'Masukkan Agnes API Key', apiKeyMasked: 'Sudah (●●●)', save: 'Simpan',
     clear: 'Padam', clearConfirm: 'Pasti mahu padam API Key?', apiKeyFromEnv: 'Sudah (env)',
     clearEnvHint: 'API Key ditetapkan melalui pembolehubah AGNES_API_KEY dan tidak boleh dipadam dari UI.',
+    workspaceTitle: 'Direktori Kerja', workspaceNone: 'Tidak ditetapkan', workspaceActive: 'Aktif', workspaceAdd: 'Tambah',
+    workspacePathPlaceholder: 'Klik "Lihat" untuk memilih direktori', workspaceNamePlaceholder: 'Nama (pilihan)',
+    workspaceActivate: 'Aktifkan', workspaceRemove: 'Buang', workspaceActiveBadge: 'Semasa',
+    workspaceCurrentActive: 'Ruang Kerja Aktif Semasa', workspaceBrowse: 'Lihat…', workspaceDefault: 'Lalai',
+    workspaceListTitle: 'Semua Ruang Kerja', workspaceListHint: 'Klik "Aktifkan" untuk tukar direktori kerja semasa',
+    workspaceRegressionHint: 'Ini ruang kerja khusus untuk ujian regresi, dikunci oleh pembolehubah persekitaran dan tidak boleh diubah dari UI.',
+    workspaceRemoveConfirm: 'Buang direktori kerja ini dari senarai? (Fail pada cakera tidak dipadam)',
     tabCreate: 'Tugas Baru', tabList: 'Senarai Tugas',
     ttSimple: 'Imej & Video', ttCreative: 'Video Kreatif', ttManuscript: 'Video Artikel',
     subModeLabel: 'Jenis', subModeVideo: '🎬 Video', subModeImage: '🖼️ Imej',
@@ -1448,6 +1518,13 @@ const T = {
     apiKeyPlaceholder: 'Masukkan Agnes API Key', apiKeyMasked: 'Sudah (●●●)', save: 'Simpan',
     clear: 'Hapus', clearConfirm: 'Yakin ingin menghapus API Key?', apiKeyFromEnv: 'Sudah (env)',
     clearEnvHint: 'API Key diatur melalui variabel AGNES_API_KEY dan tidak dapat dihapus dari UI.',
+    workspaceTitle: 'Direktori Kerja', workspaceNone: 'Belum diatur', workspaceActive: 'Aktif', workspaceAdd: 'Tambah',
+    workspacePathPlaceholder: 'Klik "Telusuri" untuk memilih direktori', workspaceNamePlaceholder: 'Nama (opsional)',
+    workspaceActivate: 'Aktifkan', workspaceRemove: 'Hapus', workspaceActiveBadge: 'Saat ini',
+    workspaceCurrentActive: 'Ruang Kerja Aktif Saat Ini', workspaceBrowse: 'Telusuri…', workspaceDefault: 'Bawaan',
+    workspaceListTitle: 'Semua Ruang Kerja', workspaceListHint: 'Klik "Aktifkan" untuk mengganti direktori kerja saat ini',
+    workspaceRegressionHint: 'Ini ruang kerja khusus untuk uji regresi, dikunci oleh variabel lingkungan dan tidak dapat diubah dari UI.',
+    workspaceRemoveConfirm: 'Hapus direktori kerja ini dari daftar? (File di disk tidak dihapus)',
     tabCreate: 'Tugas Baru', tabList: 'Daftar Tugas',
     ttSimple: 'Gambar & Video', ttCreative: 'Video Kreatif', ttManuscript: 'Video Artikel',
     subModeLabel: 'Jenis', subModeVideo: '🎬 Video', subModeImage: '🖼️ Gambar',
@@ -1650,6 +1727,7 @@ const STEPS = {
     if (d.api_key) {
       setApiKeyConfiguredUI(d.source, d.can_clear);
     }
+    renderWorkspaces(d.workspaces || [], d.active_workspace || '', d.working_dir_source || 'config');
   } catch(e) {}
 
   // Character count for manuscript
@@ -2507,6 +2585,173 @@ document.getElementById('apikey-clear').onclick = async () => {
     }
   } catch(e) {
     alert('Network error');
+  }
+};
+
+// ═══════════════════════════════════════════════════
+// 工作目录管理
+// ═══════════════════════════════════════════════════
+
+function renderWorkspaces(workspaces, activePath, source) {
+  const listEl = document.getElementById('workspace-list');
+  const statusEl = document.getElementById('workspace-status');
+  const hintEl = document.getElementById('workspace-regression-hint');
+  const addBtn = document.getElementById('workspace-add');
+  const browseBtn = document.getElementById('workspace-browse');
+  const pathInput = document.getElementById('workspace-path-input');
+  const nameInput = document.getElementById('workspace-name-input');
+  const activeDisplay = document.getElementById('workspace-active-display');
+  const activeNameEl = document.getElementById('workspace-active-name');
+  const activePathEl = document.getElementById('workspace-active-path');
+  const isRegression = source === 'regression';
+
+  const setDisabled = (el, disabled) => {
+    el.disabled = disabled;
+    el.classList.toggle('opacity-50', disabled);
+    el.classList.toggle('cursor-not-allowed', disabled);
+  };
+
+  setDisabled(addBtn, isRegression);
+  setDisabled(browseBtn, isRegression);
+  setDisabled(nameInput, isRegression);
+  hintEl.classList.toggle('hidden', !isRegression);
+
+  if (activePath) {
+    statusEl.dataset.i18n = 'workspaceActive';
+    statusEl.textContent = t('workspaceActive');
+    statusEl.className = 'text-xs px-2 py-1 rounded-full bg-green-900 text-green-300';
+    const activeWs = workspaces.find(ws => ws.path === activePath);
+    activeDisplay.classList.remove('hidden');
+    activeNameEl.textContent = (activeWs && (activeWs.name || activeWs.path)) || activePath;
+    activePathEl.textContent = activePath;
+  } else {
+    statusEl.dataset.i18n = 'workspaceNone';
+    statusEl.textContent = t('workspaceNone');
+    statusEl.className = 'text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400';
+    activeDisplay.classList.add('hidden');
+  }
+
+  listEl.innerHTML = '';
+  if (isRegression) {
+    const row = document.createElement('div');
+    row.className = 'flex items-center justify-between glass-input rounded-lg px-4 py-2.5';
+    row.innerHTML = `
+      <div class="flex-1 min-w-0">
+        <p class="text-sm text-gray-100 font-mono truncate">${escapeHtml(activePath)}</p>
+      </div>
+      <span class="text-xs px-2 py-1 rounded-full bg-amber-900 text-amber-300 ml-3" data-i18n="workspaceActiveBadge">${t('workspaceActiveBadge')}</span>`;
+    listEl.appendChild(row);
+    return;
+  }
+
+  workspaces.forEach(ws => {
+    const isActive = ws.path === activePath;
+    const row = document.createElement('div');
+    row.className = 'flex items-center justify-between glass-input rounded-lg px-4 py-2.5';
+    const info = document.createElement('div');
+    info.className = 'flex-1 min-w-0';
+    info.innerHTML = `
+      <p class="text-sm text-gray-100 truncate">${escapeHtml(ws.name || ws.path)}${ws.is_default ? ' <span class="text-xs text-gray-500">(' + escapeHtml(t('workspaceDefault')) + ')</span>' : ''}</p>
+      <p class="text-xs text-gray-500 font-mono truncate">${escapeHtml(ws.path)}</p>`;
+    row.appendChild(info);
+
+    const btns = document.createElement('div');
+    btns.className = 'flex gap-2 ml-3';
+    if (isActive) {
+      const badge = document.createElement('span');
+      badge.className = 'text-xs px-2 py-1 rounded-full bg-green-900 text-green-300';
+      badge.dataset.i18n = 'workspaceActiveBadge';
+      badge.textContent = t('workspaceActiveBadge');
+      btns.appendChild(badge);
+    } else {
+      const actBtn = document.createElement('button');
+      actBtn.className = 'px-3 py-1 bg-green-600 hover:bg-green-500 rounded-lg text-xs font-medium transition';
+      actBtn.dataset.i18n = 'workspaceActivate';
+      actBtn.textContent = t('workspaceActivate');
+      actBtn.onclick = () => activateWorkspace(ws.path);
+      btns.appendChild(actBtn);
+    }
+    if (!ws.is_default) {
+      const rmBtn = document.createElement('button');
+      rmBtn.className = 'px-3 py-1 bg-red-600/80 hover:bg-red-500 rounded-lg text-xs font-medium transition';
+      rmBtn.dataset.i18n = 'workspaceRemove';
+      rmBtn.textContent = t('workspaceRemove');
+      rmBtn.onclick = () => removeWorkspaceEntry(ws.path);
+      btns.appendChild(rmBtn);
+    }
+    row.appendChild(btns);
+    listEl.appendChild(row);
+  });
+}
+
+async function refreshWorkspaces() {
+  try {
+    const r = await fetch('/api/workspaces');
+    const d = await r.json();
+    const cfgR = await fetch('/api/config');
+    const cfg = await cfgR.json();
+    renderWorkspaces(d.workspaces || [], d.active_workspace || '', cfg.working_dir_source || 'config');
+  } catch(e) {}
+}
+
+async function activateWorkspace(path) {
+  const form = new FormData();
+  form.append('path', path);
+  const r = await fetch('/api/workspaces/active', { method: 'POST', body: form });
+  if (r.ok) {
+    refreshWorkspaces();
+  } else {
+    const d = await r.json();
+    alert(d.detail || 'Failed');
+  }
+}
+
+async function removeWorkspaceEntry(path) {
+  if (!confirm(t('workspaceRemoveConfirm'))) return;
+  const form = new FormData();
+  form.append('path', path);
+  const r = await fetch('/api/workspaces', { method: 'DELETE', body: form });
+  if (r.ok) {
+    refreshWorkspaces();
+  } else {
+    const d = await r.json();
+    alert(d.detail || 'Failed');
+  }
+}
+
+document.getElementById('workspace-browse').onclick = async () => {
+  const browseBtn = document.getElementById('workspace-browse');
+  browseBtn.disabled = true;
+  browseBtn.textContent = '...';
+  try {
+    const r = await fetch('/api/workspaces/pick-directory');
+    const d = await r.json();
+    if (d.ok && d.path) {
+      document.getElementById('workspace-path-input').value = d.path;
+    }
+  } catch(e) {
+    alert('Network error');
+  } finally {
+    browseBtn.disabled = false;
+    browseBtn.textContent = t('workspaceBrowse');
+  }
+};
+
+document.getElementById('workspace-add').onclick = async () => {
+  const path = document.getElementById('workspace-path-input').value.trim();
+  const name = document.getElementById('workspace-name-input').value.trim();
+  if (!path) return;
+  const form = new FormData();
+  form.append('path', path);
+  form.append('name', name);
+  const r = await fetch('/api/workspaces', { method: 'POST', body: form });
+  if (r.ok) {
+    document.getElementById('workspace-path-input').value = '';
+    document.getElementById('workspace-name-input').value = '';
+    refreshWorkspaces();
+  } else {
+    const d = await r.json();
+    alert(d.detail || 'Failed');
   }
 };
 </script>

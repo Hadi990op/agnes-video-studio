@@ -49,7 +49,10 @@ import requests
 # ═══════════════════════════════════════════════════
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-WORKING_DIR = os.path.join(PROJECT_ROOT, ".working_dir")
+# 回归测试专用工作目录：与 regression_runner.py 保持一致
+REGRESSION_WORKING_DIR = os.path.join(PROJECT_ROOT, ".regression_workspace")
+REGRESSION_WORKING_DIR_ENV = "AGNES_REGRESSION_WORKING_DIR"
+WORKING_DIR = REGRESSION_WORKING_DIR
 SERVER_URL = "http://localhost:8765"
 TEST_REF_IMAGE = os.path.join(PROJECT_ROOT, "test_ref.png")
 TEST_END_IMAGE = os.path.join(PROJECT_ROOT, "test_end.png")

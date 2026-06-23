@@ -125,14 +125,34 @@
 2. **回归不改代码**：问题只记录，不修业务代码。
 3. **失败记录具体原因**：含 HTTP 状态码、错误信息、超时时长。
 4. **无明显原因须续传**：可恢复的失败通过 `--resume` 续传。
+5. **测试专用空间隔离**：回归测试使用固定独立的工作目录，与用户日常任务完全隔离（见 4.0）。
+
+### 4.0 测试专用工作目录（回归空间）
+
+回归测试**必须**使用固定的测试专用工作目录，避免污染用户日常任务数据。
+
+| 项 | 值 |
+|----|------|
+| 目录路径 | `{PROJECT_ROOT}/.regression_workspace/` |
+| 环境变量 | `AGNES_REGRESSION_WORKING_DIR` |
+| 优先级 | 服务端 `get_working_dir()` 检测到该环境变量时，**最高优先级**，覆盖界面配置的 active workspace |
+| 隔离性 | 回归产物（任务目录、uploads、manifest）全部写入此空间，与用户 `.working_dir/` 或自定义工作目录互不干扰 |
+| 界面表现 | 回归模式下 `/api/config` 返回 `working_dir_source: "regression"`，前端工作目录卡片显示锁定提示，禁用增删改 |
+
+**自动注入**：`regression_runner.py --auto-start` 启动服务时自动设置该环境变量；若手动启动服务用于回归，需显式设置：
+
+```bash
+export AGNES_REGRESSION_WORKING_DIR="{PROJECT_ROOT}/.regression_workspace"
+bash start.sh
+```
 
 ### 4.1 准备阶段
 
 ```
 1. git status 确认工作区干净
 2. 确认 test_ref.png 和 test_end.png 存在
-3. bash start.sh & 启动服务
-4. 确保 .working_dir/ 中无残留任务
+3. 启动服务（回归专用空间，由 regression_runner.py --auto-start 自动注入环境变量）
+4. 确保 .regression_workspace/ 中无残留任务（可用 --cleanup 清理）
 ```
 
 ### 4.2 执行方式
@@ -271,7 +291,7 @@ python scripts/regression_runner.py --resume
 
 ## 六、素材来源说明
 
-测试素材从 `.working_dir/` 中已完成任务获取，或使用自动生成脚本：
+测试素材从 `.regression_workspace/`（回归专用空间）中已完成任务获取，或使用自动生成脚本：
 
 ```bash
 python -c "

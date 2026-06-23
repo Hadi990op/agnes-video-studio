@@ -155,8 +155,130 @@ def get_api_key_source() -> str:
     return "none"
 
 
+# ═══════════════════════════════════════════════════
+# 工作目录管理（多工作目录，同时仅一个 active）
+# ═══════════════════════════════════════════════════
+
+# 回归测试专用工作目录环境变量名
+REGRESSION_WORKING_DIR_ENV = "AGNES_REGRESSION_WORKING_DIR"
+
+# 默认工作目录的固定名称标识
+DEFAULT_WORKSPACE_NAME = "默认空间"
+
+
+def _default_working_dir() -> str:
+    """默认工作目录（项目根目录下的 .working_dir）。"""
+    return os.path.join(_PROJECT_ROOT, ".working_dir")
+
+
+def _default_workspace_entry() -> dict:
+    """返回默认工作目录条目。"""
+    return {"path": _default_working_dir(), "name": DEFAULT_WORKSPACE_NAME, "is_default": True}
+
+
 def get_working_dir() -> str:
-    return os.path.join(os.getcwd(), ".working_dir")
+    """返回当前激活的工作目录。
+
+    优先级：
+    1. 环境变量 AGNES_REGRESSION_WORKING_DIR（回归测试专用空间，最高优先级）
+    2. 配置文件中的 active_workspace
+    3. 默认 .working_dir
+    """
+    env_dir = os.environ.get(REGRESSION_WORKING_DIR_ENV, "")
+    if env_dir:
+        return env_dir
+    config = load_config()
+    active = config.get("active_workspace", "")
+    if active:
+        return active
+    return _default_working_dir()
+
+
+def get_workspaces() -> list:
+    """返回所有已配置的工作目录列表（含默认空间，始终排在首位）。
+
+    Returns:
+        [{"path": "...", "name": "...", "is_default": bool}, ...]
+    """
+    config = load_config()
+    user_workspaces = config.get("workspaces", [])
+    default_path = _default_working_dir()
+    filtered = [ws for ws in user_workspaces if os.path.abspath(ws.get("path", "")) != default_path]
+    return [_default_workspace_entry()] + filtered
+
+
+def add_workspace(path: str, name: str = "") -> dict:
+    """添加一个工作目录。若路径已存在则更新名称。
+
+    Returns:
+        添加后的工作目录条目
+    """
+    path = os.path.abspath(path)
+    config = load_config()
+    workspaces = config.get("workspaces", [])
+    for ws in workspaces:
+        if os.path.abspath(ws.get("path", "")) == path:
+            if name:
+                ws["name"] = name
+            save_config(config)
+            return ws
+    entry = {"path": path, "name": name or os.path.basename(path) or path}
+    workspaces.append(entry)
+    config["workspaces"] = workspaces
+    if not config.get("active_workspace"):
+        config["active_workspace"] = path
+    save_config(config)
+    return entry
+
+
+def remove_workspace(path: str) -> bool:
+    """移除一个工作目录。默认空间不可移除。
+
+    若移除的是当前激活项，则激活默认空间。
+
+    Returns:
+        True if removed, False if not found or is default
+    """
+    path = os.path.abspath(path)
+    if path == _default_working_dir():
+        return False
+    config = load_config()
+    workspaces = config.get("workspaces", [])
+    new_list = [ws for ws in workspaces if os.path.abspath(ws.get("path", "")) != path]
+    if len(new_list) == len(workspaces):
+        return False
+    config["workspaces"] = new_list
+    if os.path.abspath(config.get("active_workspace", "")) == path:
+        config.pop("active_workspace", None)
+    save_config(config)
+    return True
+
+
+def get_active_workspace() -> str:
+    """返回当前激活的工作目录路径。"""
+    return get_working_dir()
+
+
+def set_active_workspace(path: str) -> str:
+    """设置当前激活的工作目录。路径必须已在列表中（含默认空间）。
+
+    Returns:
+        激活的工作目录路径
+
+    Raises:
+        ValueError: 路径不在已配置列表中
+    """
+    path = os.path.abspath(path)
+    valid_paths = [os.path.abspath(ws.get("path", "")) for ws in get_workspaces()]
+    if path not in valid_paths:
+        raise ValueError(f"工作目录未配置: {path}")
+    config = load_config()
+    if path == _default_working_dir():
+        config.pop("active_workspace", None)
+    else:
+        config["active_workspace"] = path
+    save_config(config)
+    return path
 
 
 # ═══════════════════════════════════════════════════
