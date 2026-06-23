@@ -188,14 +188,15 @@ given story into detailed visual scene descriptions for AI video generation.
 [Output Format] Return a JSON object:
 {
   "scenes": [
-    "Scene 1 visual prompt (detailed English description for video generation)...",
+    "Scene 1 visual prompt...",
     "Scene 2 visual prompt...",
     ...
   ]
 }
 
 Rules:
-- Each scene MUST be a detailed VISUAL DESCRIPTION in ENGLISH, suitable for AI video generation.
+- Each scene MUST be a detailed VISUAL DESCRIPTION, written in the SAME LANGUAGE \
+as the input story.
 - Do NOT include character names in angle brackets or dialogue tags.
 - Focus on: camera movement, lighting, colors, environment, character actions, atmosphere, mood.
 - Include specific visual details: lens type (wide/telephoto), depth of field, camera angle, \
@@ -251,8 +252,8 @@ the prompt MUST also specify:
 - Even, diffused lighting (no harsh shadows on the face)
 - Neutral or slight smile expression
 
-The prompt should be in ENGLISH regardless of the story language, for best \
-image generation results. It should be a single paragraph, 3-5 sentences, \
+The prompt should be in the SAME LANGUAGE as the input story, for best \
+consistency with the overall production. It should be a single paragraph, 3-5 sentences, \
 rich in visual detail. Include the art style (e.g., "realistic cinematic", \
 "anime style", "watercolor illustration").
 
@@ -319,7 +320,7 @@ Rules:
 lighting, background elements — everything visible in a single frozen frame.
 - Include art style (e.g., "realistic cinematic", "anime").
 - 3-5 sentences, rich in visual detail.
-- MUST be in ENGLISH.
+- MUST be in the SAME LANGUAGE as the input scene.
 - Do NOT describe the character's appearance (hair, clothing, face) — only the \
 scene environment, pose, lighting, and mood.
 
@@ -402,11 +403,12 @@ Rules:
         """
         system_prompt = """\
 You are a professional video director and visual prompt engineer. Given a \
-paragraph of Chinese text that will be narrated as voiceover, generate a \
-detailed ENGLISH visual description for AI video generation.
+paragraph of text that will be narrated as voiceover, generate a \
+detailed VISUAL DESCRIPTION for AI video generation.
 
 Rules:
-- Write a detailed VISUAL DESCRIPTION in ENGLISH, 80-150 words.
+- Write a detailed VISUAL DESCRIPTION in the SAME LANGUAGE as the input paragraph, \
+80-150 words.
 - Focus on: environment, lighting, colors, camera movement, atmosphere, mood.
 - Include cinematic details: lens type, depth of field, color grading, \
 weather, time of day.
@@ -423,7 +425,7 @@ Output ONLY the visual prompt text, no JSON, no explanation.
 {text}
 </paragraph>
 {style_block}
-Generate a detailed English visual prompt for this paragraph.
+Generate a detailed visual prompt for this paragraph.
 """
         logger.info(f"[Screenwriter] Generating scene prompt for paragraph ({len(text)} chars)...")
         prompt = strip_code_fence(self._chat(system_prompt, user_prompt))
@@ -454,8 +456,8 @@ Generate a detailed English visual prompt for this paragraph.
         """
         system_prompt = """\
 You are a professional video director specializing in digital human anchorperson videos.
-Given a segment of Chinese narration text and the anchor's appearance description, \
-generate a SHORT English motion prompt for AI video generation (i2v).
+Given a segment of narration text and the anchor's appearance description, \
+generate a SHORT motion prompt for AI video generation (i2v).
 
 Rules:
 - Describe the anchorperson's NATURAL MOTIONS while speaking this segment.
@@ -465,7 +467,7 @@ slight head tilt, smile, earnest expression, thoughtful pause, etc.
 - The motion should MATCH the emotional tone of the text content.
 - Keep the starting and ending posture nearly identical (for smooth concatenation).
 - Motions should be GENTLE and NATURAL — no exaggerated movements.
-- 30-60 words, English only.
+- 30-60 words, in the SAME LANGUAGE as the input narration text.
 - Do NOT describe the environment or lighting (those are fixed from the anchor image).
 - Do NOT describe the anchor's clothing or appearance (already in the reference image).
 
@@ -487,7 +489,7 @@ Output ONLY the motion prompt text, no JSON, no explanation.
 {paragraph_text}
 </narration_segment>
 
-Generate the English motion prompt for this segment.
+Generate the motion prompt for this segment.
 """
         logger.info(
             f"[Screenwriter] Generating anchor clip prompt for segment "
@@ -514,7 +516,7 @@ Generate the English motion prompt for this segment.
         """
         system_prompt = """\
 You are a professional video director specializing in digital human anchorperson videos.
-Generate a SHORT English motion prompt for AI video generation (i2v).
+Generate a SHORT motion prompt for AI video generation (i2v).
 
 This video will be LOOPED (played on repeat) to cover the full narration duration.
 Therefore the motion MUST be designed for seamless loop playback.
@@ -529,7 +531,7 @@ CRITICAL RULES:
   with the faintest living-person micro-motions.
 - Mouth should have near-zero movement (this is a loop-clip, audio is added in post).
 - Think "living portrait" — a photo that barely breathes.
-- 20-40 words, English only.
+- 20-40 words, in the SAME LANGUAGE as the anchor appearance description.
 - Do NOT describe environment, lighting, clothing, or appearance.
 
 Output ONLY the motion prompt text, no JSON, no explanation.
@@ -569,14 +571,14 @@ Generate the smooth-loop motion prompt for a 5-second looping clip.
         """
         system_prompt = """\
 You are a professional video director specializing in digital human anchorperson videos.
-Generate a SHORT English video prompt for AI video generation (i2v).
+Generate a SHORT video prompt for AI video generation (i2v).
 
 The video model will generate BOTH video and audio (the anchor speaking the narration).
 Therefore:
 - Include the anchor's lip/mouth movements matching the speech.
 - The motion should be gentle and natural — subtle head nods, slight hand gestures.
 - Keep body position relatively stable.
-- 30-50 words, English only.
+- 30-50 words, in the SAME LANGUAGE as the narration text.
 - Do NOT describe environment, lighting, clothing, or appearance.
 
 Output ONLY the prompt text, no JSON, no explanation.
@@ -627,14 +629,14 @@ Generate the video prompt for this anchor segment with built-in audio.
 
         system_prompt = f"""\
 You are a professional video narrator and scriptwriter. Given the full story \
-and all scene visual descriptions, write a SINGLE CONTINUOUS Chinese narration \
+and all scene visual descriptions, write a SINGLE CONTINUOUS narration \
 voiceover that covers the ENTIRE video from beginning to end.
 
 Rules:
-- Write in CHINESE (中文), natural and suitable for voiceover narration.
+- Write in the SAME LANGUAGE as the input story, natural and suitable for voiceover narration.
 - The narration should be {max_chars} characters or fewer to fit a \
 {total_duration:.0f}-second video ({scene_count} scenes × {total_duration/scene_count:.0f}s each, \
-Chinese speech rate ~4 chars/sec).
+speech rate ~4 chars/sec).
 - Tell the complete story as a cohesive voiceover — do NOT treat each \
 scene as a separate narration. This is ONE continuous narration for the \
 whole video.
@@ -645,7 +647,7 @@ context as the scene appears, describe actions/emotions/atmosphere.
 - End with a natural sentence boundary (。！？).
 - Output ONLY the narration text, no quotes, no explanation.
 
-The target length is approximately {max_chars} Chinese characters total.
+The target length is approximately {max_chars} characters total.
 """
         style_block = f"\n<style>{style}</style>\n" if style else ""
         user_prompt = f"""\
@@ -657,7 +659,7 @@ The target length is approximately {max_chars} Chinese characters total.
 {scene_summary}
 </scenes>
 {style_block}
-Write ONE continuous Chinese narration voiceover for the entire video, \
+Write ONE continuous narration voiceover in the SAME LANGUAGE as the story for the entire video, \
 approximately {max_chars} characters total.
 """
         logger.info(
