@@ -151,6 +151,18 @@ IMPORTANT: Write the story in the SAME LANGUAGE as the input idea.
 Keep it concise but vivid, suitable for adaptation into short video scenes.
 Include DETAILED character appearance descriptions (clothing, body type, \
 hair, distinguishing features, color palette) to enable consistent image generation.
+
+STORYTELLING GUIDANCE:
+- Use evocative, literary language that conveys emotional depth through \
+atmosphere, tension, and subtext rather than explicit depictions.
+- For intense or charged moments, express through: cinematic atmosphere, \
+emotional staging, charged silences, visual symbolism, and character reactions.
+- Romantic or intimate beats: focus on emotional connection, tender gestures, \
+meaningful glances, and the mood of the moment.
+- Action/tension: emphasize stakes, urgency, determination, and the visual \
+drama of the situation through energetic pacing.
+- The story will be adapted into video — describe what HAPPENS and how it \
+FEELS, using language suitable for cinematic interpretation.
 """
         user_prompt = f"""\
 <idea>
@@ -206,6 +218,22 @@ lighting direction, color grading, particle effects, weather.
 - Number of scenes MUST respect the user requirement constraints.
 - The art style should match the requested style (realistic cinematic, anime, etc.).
 - Describe MOTION and ACTION, not static images — this is for video generation.
+
+VOCABULARY GUIDANCE FOR INTENSE/TENSE CONTENT:
+- Frame dramatic or tense moments through cinematic terms: "intense standoff", \
+"dramatic confrontation", "charged atmosphere", "high-stakes encounter".
+- Use genre-appropriate visual language: "dark fantasy aesthetic", "noir shadow work", \
+"gothic atmosphere", "psychological thriller lighting".
+- Describe emotional intensity via lighting and composition: "harsh shadows suggest tension", \
+"warm golden light evokes intimacy", "cold blue grading creates unease".
+- For action sequences: "dynamic camera work", "rapid montage cutting", \
+"explosive choreography", "energy-filled movement".
+- For romantic/intimate scenes: "tender proximity", "warm embrace", "intimate close-up", \
+"soft focus and gentle lighting".
+- Avoid clinical or graphic terminology — express through visual metaphor and \
+cinematic technique.
+- The goal is to CONVEY THE SAME NARRATIVE IMPACT using professional filmmaking \
+language that focuses on what the camera sees and how it feels.
 """
         user_prompt = f"""\
 <story>
@@ -332,6 +360,18 @@ lighting, background elements — everything visible in a single frozen frame.
 - Do NOT describe the character's appearance (hair, clothing, face) — only the \
 scene environment, pose, lighting, and mood.
 
+VOCABULARY GUIDANCE:
+- Frame dramatic or intense elements through visual atmosphere: "charged \
+stillness", "tense silence captured in frame", "dramatic shadow work".
+- Use lighting and composition to convey emotional weight: "harsh overhead light \
+creates a somber mood", "soft golden backlight suggests hope", "cold blue tint \
+adds emotional distance".
+- For emotionally charged scenes, focus on body language and environmental \
+storytelling: "defeated posture silhouetted against a stark window", \
+"tender closeness in warm ambient light", "powerful stance centered in frame".
+- Let the camera language carry the narrative impact — composition, color, and \
+lighting do the storytelling.
+
 Output ONLY the image prompt text, no JSON, no explanation.
 """
         end_frames = []
@@ -381,6 +421,22 @@ Rules:
 - Motion description includes all movement AND dialogue.
 - Include rich visual details for image generation (lighting, colors, composition).
 - Output in the SAME LANGUAGE as the input scene.
+
+VOCABULARY GUIDANCE FOR COMPOSITION:
+- For dramatic/tension-filled scenes: "striking composition with strong diagonals", \
+"tight framing heightens claustrophobic feel", "low angle emphasizes power dynamic", \
+"camera push creates mounting intensity".
+- Use cinematic shorthand for emotional beats: "wider shot creates emotional \
+distance", "shallow focus isolates the character emotionally", \
+"slow dolly pull reveals the gravity of the moment".
+- Frame action/excitement as: "dynamic composition with kinetic energy", \
+"rapid whip-pan suggests chaos", "explosive movement captured in frame".
+- Frame romantic/intimate content as: "soft, warm intimacy in close-up", \
+"bathing in gentle golden light", "tender proximity framed in medium shot".
+- Express ALL narrative content through professional cinematography terminology \
+and visual composition language.
+
+Output in the SAME LANGUAGE as the input scene.
 """
         user_prompt = f"""\
 <scene>
@@ -424,6 +480,18 @@ weather, time of day.
 - Do NOT describe the narration itself — describe what the VIEWER SEES.
 - The visual should complement and enhance the meaning of the text.
 - Describe MOTION and ACTION, not a static image.
+
+VOCABULARY GUIDANCE:
+- Use cinematic language to convey emotional tone: "charged atmosphere", \
+"dramatic lighting", "intimate framing", "lyrical camera movement".
+- For intense or tense segments, rely on visual metaphor and atmospheric \
+description: "shadows deepen as tension mounts", "restless camera work \
+mirrors inner turmoil", "stark contrast between light and shadow".
+- For emotionally resonant moments: "gentle camera push captures the \
+tenderness", "warm color palette evokes nostalgia", "soft focus lends a \
+dreamlike quality".
+- Express the narrative impact through what the CAMERA sees — let visual \
+composition carry the emotional weight.
 
 Output ONLY the visual prompt text, no JSON, no explanation.
 """
@@ -478,6 +546,17 @@ slight head tilt, smile, earnest expression, thoughtful pause, etc.
 - 30-60 words, in the SAME LANGUAGE as the input narration text.
 - Do NOT describe the environment or lighting (those are fixed from the anchor image).
 - Do NOT describe the anchor's clothing or appearance (already in the reference image).
+
+EMOTIONAL TONE EXPRESSION:
+- Express emotional tone through facial micro-expressions and subtle body \
+language: "warm concerned expression", "earnest nod with gentle emphasis", \
+"thoughtful pause with slight head tilt", "serious focused gaze".
+- For intense/serious content: "measured deliberate gestures", "solemn \
+expression", "composed and grounded posture".
+- For warm/uplifting content: "genuine warm smile", "open inviting gesture", \
+"bright engaging expression".
+- Convey emotional depth through subtle professional delivery — like a \
+skilled news anchor conveying gravitas without melodrama.
 
 Context for variation:
 - This is segment {segment_index} of {total_segments}.
@@ -542,6 +621,13 @@ CRITICAL RULES:
 - 20-40 words, in the SAME LANGUAGE as the anchor appearance description.
 - Do NOT describe environment, lighting, clothing, or appearance.
 
+EMOTIONAL TONE:
+- Use subtle micro-expressions to convey mood: "barely perceptible gentle \
+smile", "subtle warmth in the eyes", "faint serious composure", \
+"micro-expression of concerned sincerity".
+- Keep all expression within the "living portrait" constraint — tiny shifts \
+in mouth corners and eyes only, no visible performance.
+
 Output ONLY the motion prompt text, no JSON, no explanation.
 """
 
@@ -588,6 +674,13 @@ Therefore:
 - Keep body position relatively stable.
 - 30-50 words, in the SAME LANGUAGE as the narration text.
 - Do NOT describe environment, lighting, clothing, or appearance.
+
+TONE EXPRESSION:
+- Express the emotional tone of the narration through subtle delivery cues: \
+"warm conversational tone", "earnest and sincere delivery", \
+"measured serious demeanor", "gentle emphatic gestures".
+- Keep all expression within natural, professional anchor delivery \
+— nuanced but not theatrical.
 
 Output ONLY the prompt text, no JSON, no explanation.
 """
@@ -654,6 +747,17 @@ context as the scene appears, describe actions/emotions/atmosphere.
 - Do NOT repeat the visual descriptions verbatim — narrate the STORY.
 - End with a natural sentence boundary (。！？).
 - Output ONLY the narration text, no quotes, no explanation.
+
+NARRATION GUIDANCE:
+- Use evocative, literary language that conveys emotional depth through \
+atmosphere, pacing, and subtext.
+- Intense or charged moments: express through dramatic pacing, implied \
+tension, atmospheric detail, and character emotional response.
+- Romantic or tender beats: focus on emotional connection, unspoken feelings, \
+the mood of the moment.
+- Action/tension: energetic pacing, vivid sensory details, stakes and urgency.
+- The narration should feel like a compelling audio story — let implication \
+and atmosphere carry weight rather than explicit description.
 
 The target length is approximately {max_chars} characters total.
 """
