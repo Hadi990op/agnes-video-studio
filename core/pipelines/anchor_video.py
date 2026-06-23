@@ -315,6 +315,7 @@ class AnchorPipeline(BasePipeline):
                 )
                 video_output = await self.video_generator.wait_for_video(video_id)
                 video_output.save(clip_path)
+                self._save_task(clip_dir, video_id)
                 break
             except Exception as e:
                 if attempt < 2:
@@ -490,3 +491,18 @@ class AnchorPipeline(BasePipeline):
     def _check_shutdown(self) -> None:
         if self._is_shutdown():
             raise PipelineShutdown("Pipeline shutdown requested")
+
+    @staticmethod
+    def _make_curl(video_id: str) -> str:
+        return (
+            f'curl -s -H "Authorization: Bearer $AGNES_API_KEY" '
+            f'"https://apihub.agnes-ai.com/agnesapi?video_id={video_id}"'
+        )
+
+    def _save_task(self, clip_dir: str, video_id: str) -> None:
+        task_file = os.path.join(clip_dir, "task.json")
+        with open(task_file, "w") as f:
+            json.dump({"video_id": video_id}, f, indent=2)
+        curl_file = os.path.join(clip_dir, "curl.sh")
+        with open(curl_file, "w") as f:
+            f.write(self._make_curl(video_id) + "\n")
