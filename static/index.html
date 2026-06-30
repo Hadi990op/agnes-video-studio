@@ -320,6 +320,15 @@
         </div>
       </div>
 
+      <!-- Watermark toggle -->
+      <div class="flex items-center justify-between px-1 py-2">
+        <p class="text-xs text-gray-500 leading-relaxed mr-3 watermark-promo"></p>
+        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0" title="Video Watermark">
+          <input type="checkbox" class="watermark-toggle sr-only peer" onchange="toggleWatermark(this)">
+          <div class="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+        </label>
+      </div>
+
       <button id="btn-simple" onclick="submitSimple()" class="w-full py-3.5 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 hover:from-blue-500 hover:via-blue-400 hover:to-blue-500 rounded-xl text-base font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed glow-btn" data-i18n="startGenerate">
         开始生成视频
       </button>
@@ -635,6 +644,15 @@
         </div>
       </div>
 
+      <!-- Watermark toggle -->
+      <div class="flex items-center justify-between px-1 py-2 mb-4">
+        <p class="text-xs text-gray-500 leading-relaxed mr-3 watermark-promo"></p>
+        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0" title="Video Watermark">
+          <input type="checkbox" class="watermark-toggle sr-only peer" onchange="toggleWatermark(this)">
+          <div class="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+        </label>
+      </div>
+
       <button id="btn-creative" onclick="submitCreative()" class="w-full py-3.5 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 hover:from-blue-500 hover:via-blue-400 hover:to-blue-500 rounded-xl text-base font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed glow-btn" data-i18n="startGenerate">
         开始生成视频
       </button>
@@ -773,6 +791,15 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Watermark toggle -->
+      <div class="flex items-center justify-between px-1 py-2 mb-4">
+        <p class="text-xs text-gray-500 leading-relaxed mr-3 watermark-promo"></p>
+        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0" title="Video Watermark">
+          <input type="checkbox" class="watermark-toggle sr-only peer" onchange="toggleWatermark(this)">
+          <div class="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+        </label>
       </div>
 
       <button id="btn-manuscript" onclick="submitManuscript()" class="w-full py-3.5 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 hover:from-blue-500 hover:via-blue-400 hover:to-blue-500 rounded-xl text-base font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed glow-btn" data-i18n="startGenerate">
@@ -960,6 +987,15 @@
         </div>
       </div>
 
+      <!-- Watermark toggle -->
+      <div class="flex items-center justify-between px-1 py-2 mb-4">
+        <p class="text-xs text-gray-500 leading-relaxed mr-3 watermark-promo"></p>
+        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0" title="Video Watermark">
+          <input type="checkbox" class="watermark-toggle sr-only peer" onchange="toggleWatermark(this)">
+          <div class="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+        </label>
+      </div>
+
       <button id="btn-anchor" onclick="submitAnchor()" class="w-full py-3.5 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 hover:from-blue-500 hover:via-blue-400 hover:to-blue-500 rounded-xl text-base font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed glow-btn" data-i18n="startGenerate">
         开始生成
       </button>
@@ -971,17 +1007,6 @@
   <div id="panel-list" class="hidden">
     <div id="task-list-container" class="space-y-3">
       <p class="text-gray-500 text-sm" data-i18n="loading">加载中...</p>
-    </div>
-  </div>
-
-  <!-- Watermark toggle -->
-  <div class="border-t border-gray-800/50 pt-3 mt-1 mb-4 px-1">
-    <div class="flex items-center justify-between">
-      <p class="text-xs text-gray-500 leading-relaxed mr-3" id="watermark-promo"></p>
-      <label class="relative inline-flex items-center cursor-pointer flex-shrink-0" title="Video Watermark">
-        <input type="checkbox" id="watermark-toggle" class="sr-only peer" onchange="toggleWatermark()">
-        <div class="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-      </label>
     </div>
   </div>
 
@@ -1795,8 +1820,7 @@ function applyLanguage(lang) {
   };
   updateDefault('c_style', 'styleDefault');
   // 更新水印宣传文案
-  const promoEl = document.getElementById('watermark-promo');
-  if (promoEl) promoEl.textContent = t('watermarkPromo');
+  document.querySelectorAll('.watermark-promo').forEach(el => el.textContent = t('watermarkPromo'));
 }
 
 function switchLang(lang) { applyLanguage(lang); }
@@ -1868,7 +1892,7 @@ const STEPS = {
     renderWorkspaces(d.workspaces || [], d.active_workspace || '', d.working_dir_source || 'config');
     // 加载水印配置
     if (d.watermark !== undefined) {
-      document.getElementById('watermark-toggle').checked = !!d.watermark.enabled;
+      document.querySelectorAll('.watermark-toggle').forEach(el => el.checked = !!d.watermark.enabled);
     }
   } catch(e) {}
 
@@ -2902,13 +2926,14 @@ document.getElementById('apikey-clear').onclick = async () => {
 // 水印开关
 // ═══════════════════════════════════════════════════
 
-async function toggleWatermark() {
-  const enabled = document.getElementById('watermark-toggle').checked;
+async function toggleWatermark(el) {
+  const enabled = el.checked;
   const form = new FormData();
   form.append('enabled', enabled);
   try {
     const r = await fetch('/api/config/watermark', { method: 'POST', body: form });
     if (r.ok) {
+      document.querySelectorAll('.watermark-toggle').forEach(t => t.checked = enabled);
       showToast(enabled ? t('watermarkEnabled') : t('watermarkDisabled'));
     }
   } catch(e) {}
