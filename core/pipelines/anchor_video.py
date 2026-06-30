@@ -146,8 +146,6 @@ class AnchorPipeline(BasePipeline):
             wm_output = final_video + ".wm_tmp.mp4"
             if add_watermark(
                 final_video, wm_output,
-                video_width=self._state.video_width,
-                video_height=self._state.video_height,
                 language=lang,
             ):
                 os.replace(wm_output, final_video)
@@ -189,8 +187,6 @@ class AnchorPipeline(BasePipeline):
             wm_output = clip_path + ".wm_tmp.mp4"
             if add_watermark(
                 clip_path, wm_output,
-                video_width=self._state.video_width,
-                video_height=self._state.video_height,
                 language=lang,
             ):
                 os.replace(wm_output, clip_path)

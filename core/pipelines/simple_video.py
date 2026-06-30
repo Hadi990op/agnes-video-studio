@@ -59,8 +59,6 @@ class SimpleVideoPipeline(BasePipeline):
                 wm_output = video_path + ".wm_tmp.mp4"
                 if add_watermark(
                     video_path, wm_output,
-                    video_width=self._state.video_width,
-                    video_height=self._state.video_height,
                     language=lang,
                 ):
                     os.replace(wm_output, video_path)

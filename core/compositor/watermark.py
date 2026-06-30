@@ -1,6 +1,6 @@
 """core.compositor.watermark — 视频水印处理器
 
-基于 ffmpeg drawtext 滤镜，在视频右下角叠加双行水印：
+基于 moviepy TextClip + CompositeVideoClip，在视频右下角叠加双行水印：
 - 归属行 + 地址行（如 "Agnes Video Generator 生成 / video.lichuanyang.top"）
 - 根据 prompt 语言自动选择中/英文
 - 字号自适应视频分辨率
@@ -9,18 +9,19 @@
 import logging
 import os
 import re
-import subprocess
+
+from moviepy import (
+    CompositeVideoClip,
+    TextClip,
+    VideoFileClip,
+)
+
+from core.config import resolve_font_path
 
 logger = logging.getLogger(__name__)
 
 # CJK 字符检测（覆盖中文）
 _CJK_RE = re.compile(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]')
-
-# 字体路径（项目内置）
-_DEFAULT_FONT = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "resource", "fonts", "STHeitiMedium.ttc",
-)
 
 # 水印文本模板
 WATERMARK_TEXTS = {
@@ -35,29 +36,12 @@ WATERMARK_TEXTS = {
 }
 
 
-def _compute_params(video_width: int, video_height: int) -> dict:
-    """根据视频分辨率计算水印字号、边距等参数。
+def _compute_font_size(video_height: int) -> int:
+    """根据视频高度计算归属行字号。
 
-    字号依据视频高度自适应：
-        font_size = max(12, round(video_height * 0.022))
-
-    Returns:
-        dict with font_size, url_font_size, boxborderw, right_margin, bottom_margin, line_spacing
-    """
     font_size = max(12, round(video_height * 0.022))
-    url_font_size = max(10, round(font_size * 0.85))
-    boxborderw = max(4, round(font_size * 0.4))
-    right_margin = max(16, round(video_width * 0.02))
-    bottom_margin = max(12, round(video_height * 0.015))
-    line_spacing = max(2, round(font_size * 0.15))
-    return {
-        "font_size": font_size,
-        "url_font_size": url_font_size,
-        "boxborderw": boxborderw,
-        "right_margin": right_margin,
-        "bottom_margin": bottom_margin,
-        "line_spacing": line_spacing,
-    }
+    """
+    return max(12, round(video_height * 0.022))
 
 
 def detect_language(text: str) -> str:
@@ -76,28 +60,52 @@ def detect_language(text: str) -> str:
     return "en"
 
 
-def build_watermark_text(language: str) -> str:
-    """构建双行水印文本。
+def _build_watermark_text(language: str) -> str:
+    """构建双行水印文本（用换行符分隔）。
 
     Args:
         language: "zh" | "en"
 
     Returns:
-        ffmpeg drawtext 文本字符串（两行用 \\n 分隔）
+        两行文本，用 \\n 分隔
     """
     texts = WATERMARK_TEXTS.get(language, WATERMARK_TEXTS["en"])
-    return f"{texts['line1']}\\n{texts['line2']}"
+    return f"{texts['line1']}\n{texts['line2']}"
+
+
+def _get_video_dimensions(input_path: str) -> tuple:
+    """用 ffprobe 快速获取视频宽高。"""
+    import json, subprocess
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json",
+             "-show_streams", input_path],
+            capture_output=True, text=True, timeout=30,
+        )
+        info = json.loads(result.stdout)
+        for s in info.get("streams", []):
+            if s.get("codec_type") == "video":
+                return s["width"], s["height"]
+    except Exception:
+        pass
+    return None, None
 
 
 def add_watermark(
     input_path: str,
     output_path: str,
-    video_width: int,
-    video_height: int,
+    video_width: int = None,
+    video_height: int = None,
     language: str = "en",
-    font_path: str = _DEFAULT_FONT,
+    font_path: str = None,
 ) -> bool:
-    """使用 ffmpeg drawtext 在视频右下角叠加水印。
+    """使用 moviepy TextClip 在视频右下角叠加双行水印。
+
+    整体流程：
+      1. 用 VideoFileClip 加载输入视频
+      2. 创建带半透明黑底的两行文字 TextClip
+      3. 用 CompositeVideoClip 合成
+      4. 写回硬盘
 
     Args:
         input_path: 输入视频路径
@@ -105,73 +113,140 @@ def add_watermark(
         video_width: 视频宽度
         video_height: 视频高度
         language: 水印语言 "zh" | "en"
-        font_path: 字体文件路径
+        font_path: 字体路径（默认从项目 resource/fonts 解析）
 
     Returns:
-        True on success, False on failure (不会抛异常)
+        True on success, False on failure（不会抛异常）
     """
     if not os.path.exists(input_path):
         logger.error(f"[Watermark] Input not found: {input_path}")
         return False
 
-    if not os.path.exists(font_path):
-        logger.warning(f"[Watermark] Font not found: {font_path}, skipping watermark")
-        # 字体缺失时，直接复制原文件（优雅降级）
-        import shutil
-        shutil.copy2(input_path, output_path)
-        return False
-
-    params = _compute_params(video_width, video_height)
-    text = build_watermark_text(language)
-
-    drawtext = (
-        f"fontfile={font_path}:"
-        f"text='{text}':"
-        f"fontsize={params['font_size']}:"
-        f"fontcolor=white@0.85:"
-        f"box=1:boxcolor=black@0.35:boxborderw={params['boxborderw']}:"
-        f"x=w-tw-{params['right_margin']}:"
-        f"y=h-th-{params['bottom_margin']}:"
-        f"shadowx=1:shadowy=1:shadowcolor=black@0.4:"
-        f"line_spacing={params['line_spacing']}"
-    )
-
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-i", input_path,
-        "-vf", f"drawtext={drawtext}",
-        "-c:v", "libx264",
-        "-preset", "fast",
-        "-crf", "18",
-        "-c:a", "copy",
-        output_path,
-    ]
-
-    logger.info(f"[Watermark] Processing {os.path.basename(input_path)} "
-                f"({video_width}x{video_height}, lang={language}, "
-                f"fontsize={params['font_size']})")
-
-    try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=300,
-        )
-        if result.returncode != 0:
-            logger.error(f"[Watermark] ffmpeg failed: {result.stderr[:500]}")
-            # 降级：复制原文件
+    # 自动检测视频尺寸（如果未传入）
+    if video_width is None or video_height is None:
+        vw, vh = _get_video_dimensions(input_path)
+        if vw is None or vh is None:
+            logger.error(f"[Watermark] Cannot detect video dimensions: {input_path}")
             import shutil
             shutil.copy2(input_path, output_path)
             return False
+        video_width, video_height = vw, vh
 
-        logger.info(f"[Watermark] Complete: {os.path.basename(output_path)}")
-        return True
-    except subprocess.TimeoutExpired:
-        logger.error("[Watermark] ffmpeg timed out after 300s")
+    if font_path is None:
+        font_path = resolve_font_path("STHeitiMedium.ttc")
+    if not os.path.exists(font_path):
+        logger.warning(f"[Watermark] Font not found: {font_path}, copying original")
         import shutil
         shutil.copy2(input_path, output_path)
         return False
+
+    font_size = _compute_font_size(video_height)
+    url_font_size = max(10, round(font_size * 0.85))
+    right_margin = max(16, round(video_width * 0.02))
+    bottom_margin = max(12, round(video_height * 0.015))
+    line_spacing = max(2, round(font_size * 0.15))
+    box_padding = max(4, round(font_size * 0.35))
+
+    text = _build_watermark_text(language)
+
+    # 拆分为归属行和地址行，分别创建 TextClip
+    lines = text.split("\n")
+    line1_text = lines[0] if len(lines) > 0 else ""
+    line2_text = lines[1] if len(lines) > 1 else ""
+
+    logger.info(f"[Watermark] Processing {os.path.basename(input_path)} "
+                f"({video_width}x{video_height}, lang={language}, "
+                f"fontsize={font_size})")
+
+    try:
+        with VideoFileClip(input_path) as video:
+            # 第一行：归属行
+            clip1 = TextClip(
+                text=line1_text,
+                font=font_path,
+                font_size=font_size,
+                color="white",
+                stroke_color="black",
+                stroke_width=1,
+            )
+
+            # 第二行：地址行（缩小 15%）
+            clip2 = TextClip(
+                text=line2_text,
+                font=font_path,
+                font_size=url_font_size,
+                color="white",
+                stroke_color="black",
+                stroke_width=1,
+            )
+
+            # 计算背景框尺寸（取两行中较宽的宽度 + 内边距）
+            cw1, ch1 = clip1.size if clip1.size else (0, 0)
+            cw2, ch2 = clip2.size if clip2.size else (0, 0)
+            box_w = max(cw1, cw2) + box_padding * 2
+            box_h = ch1 + ch2 + line_spacing + box_padding * 2
+
+            # 位置：右下角
+            pos_x = video.w - box_w - right_margin
+            pos_y = video.h - box_h - bottom_margin
+
+            # 创建背景框（半透明黑色矩形）
+            from moviepy import ColorClip
+            bg = ColorClip(
+                size=(int(box_w), int(box_h)),
+                color=(0, 0, 0, 0),
+            )
+            bg = bg.with_opacity(0.35)
+            bg = bg.with_position((pos_x, pos_y))
+
+            # 放置文字（在背景框内居中）
+            clip1 = clip1.with_position((
+                pos_x + box_padding,
+                pos_y + box_padding,
+            )).with_duration(video.duration)
+            clip2 = clip2.with_position((
+                pos_x + box_padding,
+                pos_y + box_padding + ch1 + line_spacing,
+            )).with_duration(video.duration)
+
+            # 合成
+            composite = CompositeVideoClip([
+                video,
+                bg.with_duration(video.duration),
+                clip1,
+                clip2,
+            ], size=video.size)
+
+            # 写回 - 使用与输入一致的编码参数
+            # 读取输入视频的音频编码信息
+            import subprocess
+            import json
+            probe = subprocess.run(
+                ["ffprobe", "-v", "quiet", "-print_format", "json",
+                 "-show_streams", input_path],
+                capture_output=True, text=True, timeout=30,
+            )
+            streams = json.loads(probe.stdout).get("streams", [])
+            has_audio = any(s.get("codec_type") == "audio" for s in streams)
+
+            write_kwargs = {
+                "codec": "libx264",
+                "preset": "fast",
+                "bitrate": None,
+                "audio": has_audio,
+                "audio_codec": "aac",
+                "audio_bitrate": "192k",
+                "ffmpeg_params": ["-crf", "18"],
+                "logger": None,
+            }
+
+            composite.write_videofile(output_path, **write_kwargs)
+
+        logger.info(f"[Watermark] Complete: {os.path.basename(output_path)}")
+        return True
+
     except Exception as e:
-        logger.error(f"[Watermark] Unexpected error: {e}")
+        logger.error(f"[Watermark] Failed: {e}")
         import shutil
         shutil.copy2(input_path, output_path)
         return False
