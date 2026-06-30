@@ -334,8 +334,8 @@ def get_default_audio_config() -> AudioConfig:
 DEFAULT_WATERMARK_ENABLED = False
 DEFAULT_WATERMARK_LANGUAGE = "auto"  # "auto" | "zh" | "en"
 
-WATERMARK_PROMO_TEXT_ZH = "通过在社交媒体发布 Agnes Video Generator 生成的视频来支持开发者"
-WATERMARK_PROMO_TEXT_EN = "Support the developer by sharing Agnes Video Generator videos on social media"
+WATERMARK_PROMO_TEXT_ZH = "为视频添加 Agnes Video Generator 水印，分享时让更多人发现这个工具"
+WATERMARK_PROMO_TEXT_EN = "Add an Agnes Video Generator watermark to help more creators discover this tool"
 
 
 def get_watermark_config() -> dict:
