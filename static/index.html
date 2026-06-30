@@ -141,7 +141,10 @@
     <div id="apikey-body" class="p-6 pt-4">
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-lg font-semibold text-blue-300" data-i18n="apiKeyTitle">API Key 配置</h2>
-        <span id="apikey-status" class="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400" data-i18n="apiKeyNotConfigured">未配置</span>
+        <div class="flex items-center gap-2">
+          <span id="apikey-status" class="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400" data-i18n="apiKeyNotConfigured">未配置</span>
+          <button onclick="toggleConfigPanel('apikey')" class="text-xs text-gray-500 hover:text-gray-300 transition px-2 py-1 rounded" title="收起" aria-label="收起 API Key 配置">▲</button>
+        </div>
       </div>
       <div class="flex gap-3">
         <input id="apikey-input" type="password" data-i18n-placeholder="apiKeyPlaceholder" placeholder="输入 Agnes API Key" class="flex-1 glass-input rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-600">
@@ -165,7 +168,10 @@
     <div id="workspace-body" class="p-6 pt-4">
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-lg font-semibold text-blue-300" data-i18n="workspaceTitle">工作目录</h2>
-        <span id="workspace-status" class="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400" data-i18n="workspaceNone">未设置</span>
+        <div class="flex items-center gap-2">
+          <span id="workspace-status" class="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400" data-i18n="workspaceNone">未设置</span>
+          <button onclick="toggleConfigPanel('workspace')" class="text-xs text-gray-500 hover:text-gray-300 transition px-2 py-1 rounded" title="收起" aria-label="收起工作区配置">▲</button>
+        </div>
       </div>
       <div id="workspace-regression-hint" class="hidden mb-3 text-xs text-amber-300 bg-amber-900/30 rounded-lg px-3 py-2" data-i18n="workspaceRegressionHint">当前为回归测试专用空间，由环境变量锁定，无法在界面修改。</div>
       <!-- 当前激活空间显示 -->
