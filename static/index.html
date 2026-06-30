@@ -128,44 +128,66 @@
   </div>
 
   <!-- API Key -->
-  <div id="apikey-section" class="glass-card rounded-2xl p-6 mb-6">
-    <div class="flex items-center justify-between mb-3">
-      <h2 class="text-lg font-semibold text-blue-300" data-i18n="apiKeyTitle">API Key 配置</h2>
-      <span id="apikey-status" class="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400" data-i18n="apiKeyNotConfigured">未配置</span>
+  <div id="apikey-section" class="glass-card rounded-2xl mb-6 overflow-hidden transition-all duration-300">
+    <!-- Compact bar (shown when collapsed) -->
+    <div id="apikey-compact" class="hidden flex items-center justify-between px-6 py-3 cursor-pointer hover:bg-white/[0.02] transition" onclick="toggleConfigPanel('apikey')" role="button" tabindex="0" aria-expanded="false" aria-label="展开 API Key 配置" onkeydown="if(event.key==='Enter')toggleConfigPanel('apikey')">
+      <div class="flex items-center gap-3">
+        <span class="text-sm">🔑</span>
+        <span id="apikey-compact-text" class="text-sm text-gray-400"></span>
+      </div>
+      <span id="apikey-arrow" class="text-gray-600 text-xs transition-transform duration-300">▶</span>
     </div>
-    <div class="flex gap-3">
-      <input id="apikey-input" type="password" data-i18n-placeholder="apiKeyPlaceholder" placeholder="输入 Agnes API Key" class="flex-1 glass-input rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-600">
-      <button id="apikey-save" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition shadow-lg shadow-blue-600/20" data-i18n="save">保存</button>
-      <button id="apikey-clear" class="px-5 py-2.5 bg-red-600/80 hover:bg-red-500 rounded-lg text-sm font-medium transition hidden" data-i18n="clear">清除</button>
+    <!-- Expanded body -->
+    <div id="apikey-body" class="p-6 pt-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold text-blue-300" data-i18n="apiKeyTitle">API Key 配置</h2>
+        <span id="apikey-status" class="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400" data-i18n="apiKeyNotConfigured">未配置</span>
+      </div>
+      <div class="flex gap-3">
+        <input id="apikey-input" type="password" data-i18n-placeholder="apiKeyPlaceholder" placeholder="输入 Agnes API Key" class="flex-1 glass-input rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-600">
+        <button id="apikey-save" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition shadow-lg shadow-blue-600/20" data-i18n="save">保存</button>
+        <button id="apikey-clear" class="px-5 py-2.5 bg-red-600/80 hover:bg-red-500 rounded-lg text-sm font-medium transition hidden" data-i18n="clear">清除</button>
+      </div>
     </div>
   </div>
 
   <!-- 工作目录 -->
-  <div id="workspace-section" class="glass-card rounded-2xl p-6 mb-6">
-    <div class="flex items-center justify-between mb-3">
-      <h2 class="text-lg font-semibold text-blue-300" data-i18n="workspaceTitle">工作目录</h2>
-      <span id="workspace-status" class="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400" data-i18n="workspaceNone">未设置</span>
+  <div id="workspace-section" class="glass-card rounded-2xl mb-6 overflow-hidden transition-all duration-300">
+    <!-- Compact bar (shown when collapsed) -->
+    <div id="workspace-compact" class="hidden flex items-center justify-between px-6 py-3 cursor-pointer hover:bg-white/[0.02] transition" onclick="toggleConfigPanel('workspace')" role="button" tabindex="0" aria-expanded="false" aria-label="展开工作区配置" onkeydown="if(event.key==='Enter')toggleConfigPanel('workspace')">
+      <div class="flex items-center gap-3">
+        <span class="text-sm">📁</span>
+        <span id="workspace-compact-text" class="text-sm text-gray-400"></span>
+      </div>
+      <span id="workspace-arrow" class="text-gray-600 text-xs transition-transform duration-300">▶</span>
     </div>
-    <div id="workspace-regression-hint" class="hidden mb-3 text-xs text-amber-300 bg-amber-900/30 rounded-lg px-3 py-2" data-i18n="workspaceRegressionHint">当前为回归测试专用空间，由环境变量锁定，无法在界面修改。</div>
-    <!-- 当前激活空间显示 -->
-    <div id="workspace-active-display" class="mb-3 glass-input rounded-lg px-4 py-2.5 hidden">
-      <p class="text-xs text-gray-500 mb-0.5" data-i18n="workspaceCurrentActive">当前激活空间</p>
-      <p id="workspace-active-name" class="text-sm text-green-300 font-medium"></p>
-      <p id="workspace-active-path" class="text-xs text-gray-500 font-mono truncate"></p>
+    <!-- Expanded body -->
+    <div id="workspace-body" class="p-6 pt-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold text-blue-300" data-i18n="workspaceTitle">工作目录</h2>
+        <span id="workspace-status" class="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400" data-i18n="workspaceNone">未设置</span>
+      </div>
+      <div id="workspace-regression-hint" class="hidden mb-3 text-xs text-amber-300 bg-amber-900/30 rounded-lg px-3 py-2" data-i18n="workspaceRegressionHint">当前为回归测试专用空间，由环境变量锁定，无法在界面修改。</div>
+      <!-- 当前激活空间显示 -->
+      <div id="workspace-active-display" class="mb-3 glass-input rounded-lg px-4 py-2.5 hidden">
+        <p class="text-xs text-gray-500 mb-0.5" data-i18n="workspaceCurrentActive">当前激活空间</p>
+        <p id="workspace-active-name" class="text-sm text-green-300 font-medium"></p>
+        <p id="workspace-active-path" class="text-xs text-gray-500 font-mono truncate"></p>
+      </div>
+      <!-- 添加新空间 -->
+      <div class="flex gap-3 mb-4">
+        <input id="workspace-path-input" data-i18n-placeholder="workspacePathPlaceholder" placeholder="/path/to/working_dir" class="flex-1 glass-input rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-600" readonly>
+        <input id="workspace-name-input" data-i18n-placeholder="workspaceNamePlaceholder" placeholder="名称（可选）" class="w-40 glass-input rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-600">
+        <button id="workspace-browse" class="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition" data-i18n="workspaceBrowse">浏览…</button>
+        <button id="workspace-add" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition shadow-lg shadow-blue-600/20" data-i18n="workspaceAdd">添加</button>
+      </div>
+      <!-- 所有空间列表 -->
+      <div class="flex items-center gap-2 mb-2">
+        <h3 class="text-sm font-medium text-gray-400" data-i18n="workspaceListTitle">所有空间</h3>
+        <span class="text-xs text-gray-600" data-i18n="workspaceListHint">点击「激活」切换当前使用的工作目录</span>
+      </div>
+      <div id="workspace-list" class="space-y-2"></div>
     </div>
-    <!-- 添加新空间 -->
-    <div class="flex gap-3 mb-4">
-      <input id="workspace-path-input" data-i18n-placeholder="workspacePathPlaceholder" placeholder="/path/to/working_dir" class="flex-1 glass-input rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-600" readonly>
-      <input id="workspace-name-input" data-i18n-placeholder="workspaceNamePlaceholder" placeholder="名称（可选）" class="w-40 glass-input rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-600">
-      <button id="workspace-browse" class="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition" data-i18n="workspaceBrowse">浏览…</button>
-      <button id="workspace-add" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition shadow-lg shadow-blue-600/20" data-i18n="workspaceAdd">添加</button>
-    </div>
-    <!-- 所有空间列表 -->
-    <div class="flex items-center gap-2 mb-2">
-      <h3 class="text-sm font-medium text-gray-400" data-i18n="workspaceListTitle">所有空间</h3>
-      <span class="text-xs text-gray-600" data-i18n="workspaceListHint">点击「激活」切换当前使用的工作目录</span>
-    </div>
-    <div id="workspace-list" class="space-y-2"></div>
   </div>
 
   <!-- Main Tabs: 新建任务 / 任务列表 -->
@@ -2650,6 +2672,115 @@ function showTaskDetail(taskId, state) {
 // API Key
 // ═══════════════════════════════════════════════════
 
+// ── Collapsible config panels ──
+const COLLAPSE_PREF_KEY = 'wb_config_collapsed';
+
+function getCollapsePrefs() {
+  try { return JSON.parse(localStorage.getItem(COLLAPSE_PREF_KEY) || '{}'); } catch { return {}; }
+}
+function setCollapsePref(section, val) {
+  const prefs = getCollapsePrefs();
+  prefs[section] = val;
+  try { localStorage.setItem(COLLAPSE_PREF_KEY, JSON.stringify(prefs)); } catch {}
+}
+
+function toggleConfigPanel(section) {
+  const body = document.getElementById(section + '-body');
+  const compact = document.getElementById(section + '-compact');
+  const arrow = document.getElementById(section + '-arrow');
+  const isExpanded = body.style.display !== 'none';
+
+  if (isExpanded) {
+    body.style.display = 'none';
+    compact.style.display = 'flex';
+    arrow.style.transform = 'rotate(0deg)';
+    compact.setAttribute('aria-expanded', 'false');
+    setCollapsePref(section + '_manual', true);
+  } else {
+    body.style.display = 'block';
+    compact.style.display = 'none';
+    arrow.style.transform = 'rotate(90deg)';
+    compact.setAttribute('aria-expanded', 'true');
+    setCollapsePref(section + '_manual', false);
+  }
+}
+
+function updateApiKeyCompact() {
+  const compact = document.getElementById('apikey-compact');
+  const textEl = document.getElementById('apikey-compact-text');
+  const statusEl = document.getElementById('apikey-status');
+  const isConfigured = statusEl.classList.contains('bg-green-900');
+
+  if (isConfigured) {
+    const source = document.getElementById('apikey-clear').dataset.source;
+    textEl.textContent = source === 'env'
+      ? t('apiKeyFromEnv')
+      : t('apiKeyConfigured');
+    textEl.className = 'text-sm text-green-400';
+  } else {
+    textEl.textContent = t('apiKeyNotConfigured');
+    textEl.className = 'text-sm text-gray-400';
+  }
+
+  // Auto-manage collapse: configured → auto-collapse, not configured → expand
+  const prefs = getCollapsePrefs();
+  if (prefs.apikey_manual !== undefined) {
+    // User manually toggled — respect their choice
+    applyCollapseState('apikey', prefs.apikey_manual);
+  } else {
+    // Auto: collapse if configured, expand if not
+    applyCollapseState('apikey', isConfigured);
+  }
+}
+
+function updateWorkspaceCompact() {
+  const compact = document.getElementById('workspace-compact');
+  const textEl = document.getElementById('workspace-compact-text');
+  const statusEl = document.getElementById('workspace-status');
+
+  if (statusEl.classList.contains('bg-green-900')) {
+    const nameEl = document.getElementById('workspace-active-name');
+    const pathEl = document.getElementById('workspace-active-path');
+    textEl.textContent = (nameEl.textContent || '') + (pathEl.textContent ? ' — ' + pathEl.textContent : '');
+    textEl.className = 'text-sm text-green-400';
+  } else if (statusEl.classList.contains('bg-amber-900')) {
+    textEl.textContent = t('workspaceActive');
+    textEl.className = 'text-sm text-amber-300';
+  } else {
+    textEl.textContent = t('workspaceNone');
+    textEl.className = 'text-sm text-gray-400';
+  }
+  document.getElementById('workspace-compact').style.display = 'flex';
+
+  const prefs = getCollapsePrefs();
+  const isConfigured = statusEl.classList.contains('bg-green-900') || statusEl.classList.contains('bg-amber-900');
+  if (prefs.workspace_manual !== undefined) {
+    applyCollapseState('workspace', prefs.workspace_manual);
+  } else {
+    applyCollapseState('workspace', isConfigured);
+  }
+}
+
+function applyCollapseState(section, collapsed) {
+  const body = document.getElementById(section + '-body');
+  const compact = document.getElementById(section + '-compact');
+  const arrow = document.getElementById(section + '-arrow');
+
+  if (collapsed) {
+    body.style.display = 'none';
+    compact.style.display = 'flex';
+    arrow.style.transform = 'rotate(0deg)';
+    compact.setAttribute('aria-expanded', 'false');
+  } else {
+    body.style.display = 'block';
+    compact.style.display = 'none';
+    arrow.style.transform = 'rotate(90deg)';
+    compact.setAttribute('aria-expanded', 'true');
+  }
+}
+
+// ── API Key functions ──
+
 function setApiKeyConfiguredUI(source, canClear) {
   const input = document.getElementById('apikey-input');
   const saveBtn = document.getElementById('apikey-save');
@@ -2672,6 +2803,7 @@ function setApiKeyConfiguredUI(source, canClear) {
 
   clearBtn.classList.remove('hidden');
   clearBtn.dataset.source = source;
+  updateApiKeyCompact();
 }
 
 function resetApiKeyUI() {
@@ -2694,6 +2826,7 @@ function resetApiKeyUI() {
   statusEl.className = 'text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400';
 
   clearBtn.classList.add('hidden');
+  updateApiKeyCompact();
 }
 
 document.getElementById('apikey-save').onclick = async () => {
@@ -2820,6 +2953,7 @@ function renderWorkspaces(workspaces, activePath, source) {
     row.appendChild(btns);
     listEl.appendChild(row);
   });
+  updateWorkspaceCompact();
 }
 
 async function refreshWorkspaces() {
