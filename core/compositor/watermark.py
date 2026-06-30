@@ -1,29 +1,21 @@
 """core.compositor.watermark — 视频水印处理器
 
-基于 moviepy TextClip + CompositeVideoClip，在视频右下角叠加双行水印：
-- 归属行 + 地址行（如 "Agnes Video Generator 生成 / video.lichuanyang.top"）
-- 根据 prompt 语言自动选择中/英文
-- 字号自适应视频分辨率
+使用 moviepy TextClip 生成水印 PNG 图片后，通过 ffmpeg overlay 滤镜叠加。
+避免 moviepy CompositeVideoClip 重编码整个视频导致 OOM。
 """
 
 import logging
 import os
 import re
-
-from moviepy import (
-    CompositeVideoClip,
-    TextClip,
-    VideoFileClip,
-)
+import subprocess
+import tempfile
 
 from core.config import resolve_font_path
 
 logger = logging.getLogger(__name__)
 
-# CJK 字符检测（覆盖中文）
 _CJK_RE = re.compile(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]')
 
-# 水印文本模板
 WATERMARK_TEXTS = {
     "zh": {
         "line1": "由 Agnes Video Generator 生成",
@@ -37,22 +29,10 @@ WATERMARK_TEXTS = {
 
 
 def _compute_font_size(video_height: int) -> int:
-    """根据视频高度计算归属行字号。
-
-    font_size = max(12, round(video_height * 0.022))
-    """
     return max(12, round(video_height * 0.022))
 
 
 def detect_language(text: str) -> str:
-    """根据文本检测水印语言。
-
-    Args:
-        text: 用户输入的 prompt / idea / manuscript_text / script_text
-
-    Returns:
-        "zh" if CJK characters found, "en" otherwise
-    """
     if not text:
         return "en"
     if _CJK_RE.search(text):
@@ -61,34 +41,90 @@ def detect_language(text: str) -> str:
 
 
 def _build_watermark_text(language: str) -> str:
-    """构建双行水印文本（用换行符分隔）。
-
-    Args:
-        language: "zh" | "en"
-
-    Returns:
-        两行文本，用 \\n 分隔
-    """
     texts = WATERMARK_TEXTS.get(language, WATERMARK_TEXTS["en"])
     return f"{texts['line1']}\n{texts['line2']}"
 
 
 def _get_video_dimensions(input_path: str) -> tuple:
-    """用 ffprobe 快速获取视频宽高。"""
-    import json, subprocess
     try:
         result = subprocess.run(
             ["ffprobe", "-v", "quiet", "-print_format", "json",
              "-show_streams", input_path],
             capture_output=True, text=True, timeout=30,
         )
-        info = json.loads(result.stdout)
+        info = __import__('json').loads(result.stdout)
         for s in info.get("streams", []):
             if s.get("codec_type") == "video":
                 return s["width"], s["height"]
     except Exception:
         pass
     return None, None
+
+
+def _render_watermark_png(
+    output_png: str,
+    video_width: int,
+    video_height: int,
+    language: str = "en",
+    font_path: str = None,
+) -> bool:
+    """用 moviepy TextClip 渲染水印为 PNG 图片（仅一帧，内存极低）。"""
+    from moviepy import TextClip
+
+    if font_path is None:
+        font_path = resolve_font_path("STHeitiMedium.ttc")
+    if not os.path.exists(font_path):
+        return False
+
+    font_size = _compute_font_size(video_height)
+    url_font_size = max(10, round(font_size * 0.85))
+    right_margin = max(16, round(video_width * 0.02))
+    bottom_margin = max(100, round(video_height * 0.12))
+    line_spacing = max(2, round(font_size * 0.15))
+    box_padding = max(4, round(font_size * 0.35))
+
+    brand_blue_rgb = (30, 64, 175)
+
+    text = _build_watermark_text(language)
+    lines = text.split("\n")
+    line1_text = lines[0] if len(lines) > 0 else ""
+    line2_text = lines[1] if len(lines) > 1 else ""
+
+    try:
+        t1 = TextClip(text=line1_text, font=font_path, font_size=font_size,
+                       color="white", stroke_color="black", stroke_width=1)
+        t2 = TextClip(text=line2_text, font=font_path, font_size=url_font_size,
+                       color="white", stroke_color="black", stroke_width=1)
+
+        cw1, ch1 = t1.size if t1.size else (0, 0)
+        cw2, ch2 = t2.size if t2.size else (0, 0)
+        box_w = int(max(cw1, cw2) + box_padding * 2)
+        box_h = int(ch1 + ch2 + line_spacing + box_padding * 2)
+
+        pos_x = video_width - box_w - right_margin
+        pos_y = video_height - box_h - bottom_margin
+
+        from moviepy import ColorClip
+        bg = ColorClip(size=(box_w, box_h), color=brand_blue_rgb).with_opacity(0.30)
+
+        from moviepy import CompositeVideoClip
+        composite = CompositeVideoClip([
+            bg.with_duration(1),
+            t1.with_position((box_padding, box_padding)).with_duration(1),
+            t2.with_position((box_padding, box_padding + ch1 + line_spacing)).with_duration(1),
+        ], size=(box_w, box_h))
+
+        composite.save_frame(output_png, t=0)
+
+        # 返回相对于视频的位置信息
+        setattr(_render_watermark_png, '_wm_pos_x', pos_x)
+        setattr(_render_watermark_png, '_wm_pos_y', pos_y)
+        setattr(_render_watermark_png, '_wm_box_w', box_w)
+        setattr(_render_watermark_png, '_wm_box_h', box_h)
+        return True
+    except Exception as e:
+        logger.error(f"[Watermark] Render PNG failed: {e}")
+        return False
 
 
 def add_watermark(
@@ -99,30 +135,15 @@ def add_watermark(
     language: str = "en",
     font_path: str = None,
 ) -> bool:
-    """使用 moviepy TextClip 在视频右下角叠加双行水印。
+    """使用 ffmpeg overlay 滤镜在视频右下角叠加水印。
 
-    整体流程：
-      1. 用 VideoFileClip 加载输入视频
-      2. 创建带半透明黑底的两行文字 TextClip
-      3. 用 CompositeVideoClip 合成
-      4. 写回硬盘
-
-    Args:
-        input_path: 输入视频路径
-        output_path: 输出视频路径
-        video_width: 视频宽度
-        video_height: 视频高度
-        language: 水印语言 "zh" | "en"
-        font_path: 字体路径（默认从项目 resource/fonts 解析）
-
-    Returns:
-        True on success, False on failure（不会抛异常）
+    先生成水印 PNG（moviepy TextClip，一帧而已），
+    再用 ffmpeg overlay 滤镜流式合成，不加载全视频到内存。
     """
     if not os.path.exists(input_path):
         logger.error(f"[Watermark] Input not found: {input_path}")
         return False
 
-    # 自动检测视频尺寸（如果未传入）
     if video_width is None or video_height is None:
         vw, vh = _get_video_dimensions(input_path)
         if vw is None or vh is None:
@@ -140,119 +161,61 @@ def add_watermark(
         shutil.copy2(input_path, output_path)
         return False
 
-    font_size = _compute_font_size(video_height)
-    url_font_size = max(10, round(font_size * 0.85))
-    right_margin = max(16, round(video_width * 0.02))
-    # 底边距加大，避开字幕区域（字幕默认 bottom-80，水印在 ~12% 高度处）
-    bottom_margin = max(100, round(video_height * 0.12))
-    line_spacing = max(2, round(font_size * 0.15))
-    box_padding = max(4, round(font_size * 0.35))
-
-    # 品牌蓝色系
-    brand_blue = (30, 64, 175)   # blue-800
-    text_color = "white"
-    stroke_color = "black"
-
-    text = _build_watermark_text(language)
-
-    # 拆分为归属行和地址行，分别创建 TextClip
-    lines = text.split("\n")
-    line1_text = lines[0] if len(lines) > 0 else ""
-    line2_text = lines[1] if len(lines) > 1 else ""
-
     logger.info(f"[Watermark] Processing {os.path.basename(input_path)} "
-                f"({video_width}x{video_height}, lang={language}, "
-                f"fontsize={font_size})")
+                f"({video_width}x{video_height}, lang={language}) via ffmpeg overlay")
 
+    # 生成水印 PNG（内存友好 — 仅一帧）
+    wm_png_fd, wm_png_path = tempfile.mkstemp(suffix=".png", prefix="watermark_")
+    os.close(wm_png_fd)
     try:
-        with VideoFileClip(input_path) as video:
-            # 第一行：归属行
-            clip1 = TextClip(
-                text=line1_text,
-                font=font_path,
-                font_size=font_size,
-                color=text_color,
-                stroke_color=stroke_color,
-                stroke_width=1,
-            )
+        if not _render_watermark_png(wm_png_path, video_width, video_height, language, font_path):
+            logger.error("[Watermark] Failed to render watermark PNG, copying original")
+            import shutil
+            shutil.copy2(input_path, output_path)
+            return False
 
-            # 第二行：地址行（缩小 15%）
-            clip2 = TextClip(
-                text=line2_text,
-                font=font_path,
-                font_size=url_font_size,
-                color=text_color,
-                stroke_color=stroke_color,
-                stroke_width=1,
-            )
+        pos_x = getattr(_render_watermark_png, '_wm_pos_x', 0)
+        pos_y = getattr(_render_watermark_png, '_wm_pos_y', 0)
 
-            # 计算背景框尺寸（取两行中较宽的宽度 + 内边距）
-            cw1, ch1 = clip1.size if clip1.size else (0, 0)
-            cw2, ch2 = clip2.size if clip2.size else (0, 0)
-            box_w = max(cw1, cw2) + box_padding * 2
-            box_h = ch1 + ch2 + line_spacing + box_padding * 2
+        # ffmpeg overlay: 将水印 PNG 叠加到视频上，无损流式拷贝
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", input_path,
+            "-i", wm_png_path,
+            "-filter_complex", f"[0:v][1:v]overlay={pos_x}:{pos_y}[v]",
+            "-map", "[v]",
+            "-map", "0:a?",  # 保留原音频
+            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-c:a", "copy",
+            output_path,
+        ]
 
-            # 位置：右下角
-            pos_x = video.w - box_w - right_margin
-            pos_y = video.h - box_h - bottom_margin
+        logger.debug(f"[Watermark] ffmpeg cmd: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
-            # 创建背景框（半透明品牌蓝色矩形）
-            from moviepy import ColorClip
-            bg = ColorClip(
-                size=(int(box_w), int(box_h)),
-                color=brand_blue,
-            )
-            bg = bg.with_opacity(0.30)
-            bg = bg.with_position((pos_x, pos_y))
-
-            # 放置文字（在背景框内居中）
-            clip1 = clip1.with_position((
-                pos_x + box_padding,
-                pos_y + box_padding,
-            )).with_duration(video.duration)
-            clip2 = clip2.with_position((
-                pos_x + box_padding,
-                pos_y + box_padding + ch1 + line_spacing,
-            )).with_duration(video.duration)
-
-            # 合成
-            composite = CompositeVideoClip([
-                video,
-                bg.with_duration(video.duration),
-                clip1,
-                clip2,
-            ], size=video.size)
-
-            # 写回 - 使用与输入一致的编码参数
-            # 读取输入视频的音频编码信息
-            import subprocess
-            import json
-            probe = subprocess.run(
-                ["ffprobe", "-v", "quiet", "-print_format", "json",
-                 "-show_streams", input_path],
-                capture_output=True, text=True, timeout=30,
-            )
-            streams = json.loads(probe.stdout).get("streams", [])
-            has_audio = any(s.get("codec_type") == "audio" for s in streams)
-
-            write_kwargs = {
-                "codec": "libx264",
-                "preset": "fast",
-                "bitrate": None,
-                "audio": has_audio,
-                "audio_codec": "aac",
-                "audio_bitrate": "192k",
-                "ffmpeg_params": ["-crf", "18"],
-                "logger": None,
-            }
-
-            composite.write_videofile(output_path, **write_kwargs)
+        if result.returncode != 0:
+            logger.error(f"[Watermark] ffmpeg failed (rc={result.returncode}): "
+                         f"{result.stderr[:500]}")
+            import shutil
+            shutil.copy2(input_path, output_path)
+            return False
 
         logger.info(f"[Watermark] Complete: {os.path.basename(output_path)}")
         return True
 
+    except subprocess.TimeoutExpired:
+        logger.error("[Watermark] ffmpeg timed out")
+        import shutil
+        shutil.copy2(input_path, output_path)
+        return False
     except Exception as e:
         logger.error(f"[Watermark] Failed: {e}")
         import shutil
         shutil.copy2(input_path, output_path)
         return False
+    finally:
+        if os.path.exists(wm_png_path):
+            try:
+                os.remove(wm_png_path)
+            except OSError:
+                pass
