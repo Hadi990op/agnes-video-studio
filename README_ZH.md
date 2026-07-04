@@ -14,6 +14,8 @@
 
 **[🌐 官网](https://video.lichuanyang.top)** | **[📝 博客文章（中文）](https://lichuanyang.top/posts/22470/)** | **[📝 Blog (English)](https://lichuanyang.top/en/posts/22470/)**
 
+> 🖥️ **在线体验**：访问官网即可直接在浏览器中使用 **简单视频** 模式 — 无需安装，无需配置。输入提示词，立刻生成免费的 AI 视频。
+
 ## 🎥 Demo
 
 ### 1. 创意视频 — 无配音

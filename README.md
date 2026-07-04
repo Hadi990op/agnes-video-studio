@@ -14,6 +14,8 @@
 
 **[🌐 Official Website](https://video.lichuanyang.top)** | **[📝 Blog (中文)](https://lichuanyang.top/posts/22470/)** | **[📝 Blog (English)](https://lichuanyang.top/en/posts/22470/)**
 
+> 🖥️ **Try it now**: Visit the official website to experience **Simple Video** mode directly in your browser — no installation, no setup required. Just enter a prompt and generate a free AI video instantly.
+
 ## 🎥 Demo
 
 ### 1. Creative Video — No Narration
