@@ -2560,7 +2560,7 @@ const STEPS = {
 
 (async function init() {
   try { currentLang = localStorage.getItem('lang') || 'zh'; } catch(e) { currentLang = 'zh'; }
-  applyLanguage(currentLang);
+  try { applyLanguage(currentLang); } catch(e) { console.error('applyLanguage error:', e); }
 
   try {
     const r = await fetch('/api/config');
@@ -2573,7 +2573,7 @@ const STEPS = {
     if (d.watermark !== undefined) {
       document.querySelectorAll('.watermark-toggle').forEach(el => el.checked = !!d.watermark.enabled);
     }
-  } catch(e) {}
+  } catch(e) { console.error('init config load error:', e); }
 
   // Character count for manuscript
   document.getElementById('m_text').addEventListener('input', function() {
@@ -3165,7 +3165,6 @@ async function pollTaskProgress(taskId) {
   } catch(e) {
     // 网络错误时静默，下次轮询会重试
   }
-}
 }
 
 function showResult(videoPath) {
