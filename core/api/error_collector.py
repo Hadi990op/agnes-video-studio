@@ -11,17 +11,18 @@
                       prompt="一只猫", error_type="ConnectionError",
                       error_message="Connection timed out", retry_count=3)
 
-        # 方式二：从异常对象收集
+        # 方式二：从异常对象收集（自动提取 HTTPError 响应体中的 API 错误详情）
         collect_error_from_exception("chat", "chat", exc, prompt="你好")
 """
 
 import json
 import logging
 import os
-import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+import requests as _requests_lib
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,47 @@ def _get_log_dir() -> Path:
     log_dir = _get_workspace_root() / "error_logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir
+
+
+def _extract_from_http_error(exc: Exception) -> tuple[Optional[int], str, str]:
+    """从 HTTPError 异常中提取状态码、响应体、以及 API 级错误详情。
+
+    返回 (status_code, response_body, enhanced_message)。
+    如果 exc 不是 HTTPError 或提取失败，返回 (None, "", str(exc))。
+    """
+    try:
+        if isinstance(exc, _requests_lib.exceptions.HTTPError):
+            resp = getattr(exc, "response", None)
+            if resp is not None:
+                sc = resp.status_code
+                body = resp.text or ""
+                enhanced = str(exc)
+
+                # 尝试从 JSON 响应体中提取 API 级错误详情
+                if body.strip():
+                    try:
+                        data = json.loads(body)
+                        err = data.get("error", {})
+                        api_msg = err.get("message", "") if isinstance(err, dict) else str(err)
+                        api_type = err.get("type", "") if isinstance(err, dict) else ""
+                        if api_msg:
+                            # 优先使用 API 级错误消息，避免重复拼接 type
+                            if api_type and api_msg.startswith(api_type):
+                                # message 已含 type 前缀，不再重复
+                                enhanced = f"{api_msg} (HTTP {sc})"
+                            elif api_type:
+                                enhanced = f"{api_type}: {api_msg} (HTTP {sc})"
+                            else:
+                                enhanced = f"{api_msg} (HTTP {sc})"
+                        else:
+                            enhanced = enhanced + " | body=" + body[:500]
+                    except (json.JSONDecodeError, ValueError):
+                        enhanced = enhanced + " | body=" + body[:500]
+
+                return sc, body, enhanced
+    except Exception:
+        pass
+    return None, "", str(exc)
 
 
 def collect_error(
@@ -140,14 +182,32 @@ def collect_error_from_exception(
     retry_count: int = 0,
     extra: Optional[dict] = None,
 ) -> Optional[str]:
-    """便捷包装：从异常对象自动提取 error_type 和 error_message。"""
+    """便捷包装：从异常对象自动提取 error_type 和 error_message。
+
+    对于 requests.HTTPError，会自动从 exc.response 中提取状态码和响应体，
+    并尝试解析 JSON 获取 API 级错误详情（如 content_policy_violation）。
+    如果调用方已传入 status_code / response_body，则优先使用传入值。
+    """
+    error_type = type(exc).__name__
+    error_msg = str(exc)
+
+    # 自动提取 HTTPError 的响应信息（仅在未显式传入时填充）
+    extracted_sc, extracted_body, extracted_msg = _extract_from_http_error(exc)
+    if status_code is None:
+        status_code = extracted_sc
+    if not response_body:
+        response_body = extracted_body
+    # 如果有 API 级错误详情，优先使用
+    if extracted_msg != str(exc):
+        error_msg = extracted_msg
+
     return collect_error(
         model_type=model_type,
         api_method=api_method,
         prompt=prompt,
         system_prompt=system_prompt,
-        error_type=type(exc).__name__,
-        error_message=str(exc),
+        error_type=error_type,
+        error_message=error_msg,
         status_code=status_code,
         response_body=response_body,
         retry_count=retry_count,
