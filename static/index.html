@@ -3122,13 +3122,12 @@ async function pollTaskProgress(taskId) {
       }
     }
 
-    // 步骤切换或完成后刷新产物列表
-    if (step && step !== _lastPolledStep) {
-      _lastPolledStep = step;
+    // 步骤 running 或完成时刷新产物列表（running 期间产物逐步生成）
+    if (step) {
       scheduleArtifactRefresh();
     }
-    if (status === 'completed' && step && step !== 'done' && step !== 'error') {
-      scheduleArtifactRefresh();
+    if (step && step !== _lastPolledStep) {
+      _lastPolledStep = step;
     }
 
     // 任务完成
