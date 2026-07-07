@@ -3061,7 +3061,7 @@ function showProgress(taskId, dirName) {
 // 轮询模式：定期 GET /api/tasks/{id} 获取进度
 // ═══════════════════════════════════════════════════
 
-const POLL_INTERVAL = 2000; // 2 秒轮询
+const POLL_INTERVAL = 30000; // 30 秒轮询
 let _lastPolledStep = '';
 
 function startPolling(taskId) {
@@ -3090,17 +3090,12 @@ async function pollTaskProgress(taskId) {
       document.getElementById('progress-message').textContent = state.current_message;
     }
 
+    // 根据 state 中所有 step_xxx 字段标记已完成步骤（解决反复打开面板时步骤不变绿的问题）
+    markCompletedStepsFromState(state);
+
+    // 更新当前步骤的图标（running/completed/failed）
     const step = state.current_step || '';
     const status = state.current_status || '';
-
-    // 更新步骤图标
-    if (step && step !== _lastPolledStep) {
-      _lastPolledStep = step;
-      // 步骤切换时刷新产物列表
-      if (status === 'completed') {
-        scheduleArtifactRefresh();
-      }
-    }
     if (step) {
       const stepEl = document.querySelector(`.step-item[data-step="${step}"]`);
       if (stepEl) {
@@ -3110,34 +3105,15 @@ async function pollTaskProgress(taskId) {
           icon.textContent = '◉';
           icon.className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-blue-900 text-blue-300 text-xs animate-pulse-dot';
           label.className = 'step-label text-blue-300';
-        } else if (status === 'completed') {
-          icon.textContent = '✓';
-          icon.className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-green-900 text-green-300 text-xs';
-          label.className = 'step-label text-green-400';
-        } else if (status === 'failed') {
-          icon.textContent = '✗';
-          icon.className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-red-900 text-red-300 text-xs';
-          label.className = 'step-label text-red-400';
-        }
-      }
-      // 标记前置步骤为已完成
-      if (status === 'running') {
-        const steps = getStepsForType(currentTaskType);
-        const idx = steps.findIndex(s => s.key === step);
-        if (idx > 0) {
-          for (let i = 0; i < idx; i++) {
-            const el = document.querySelector(`.step-item[data-step="${steps[i].key}"]`);
-            if (el) {
-              el.querySelector('.step-icon').textContent = '✓';
-              el.querySelector('.step-icon').className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-green-900 text-green-300 text-xs';
-              el.querySelector('.step-label').className = 'step-label text-green-400';
-            }
-          }
         }
       }
     }
 
-    // 步骤完成时刷新产物列表
+    // 步骤切换或完成后刷新产物列表
+    if (step && step !== _lastPolledStep) {
+      _lastPolledStep = step;
+      scheduleArtifactRefresh();
+    }
     if (status === 'completed' && step && step !== 'done' && step !== 'error') {
       scheduleArtifactRefresh();
     }
@@ -3146,9 +3122,6 @@ async function pollTaskProgress(taskId) {
     if (state.status === 'completed') {
       showResult(state.final_video_file);
       clearRunning();
-      // 标记所有步骤完成
-      const steps = getStepsForType(currentTaskType);
-      steps.forEach(s => markStepCompleted(s.key));
       scheduleArtifactRefresh();
     }
 
@@ -3165,6 +3138,38 @@ async function pollTaskProgress(taskId) {
   } catch(e) {
     // 网络错误时静默，下次轮询会重试
   }
+}
+
+// 根据 state 中所有 step_xxx 字段标记已完成步骤
+function markCompletedStepsFromState(state) {
+  const taskType = state.task_type || currentTaskType || 'creative';
+  const steps = getStepsForType(taskType);
+  const stepMap = {
+    creative: {
+      scene_config: 'step_scene_config', image_analysis: 'step_image_analysis',
+      story: 'step_story', character_ref: 'step_character_ref', script: 'step_script',
+      end_frame_prompts: 'step_end_frame_prompts', end_frame_gen: 'step_end_frame_generation',
+      video_gen: 'step_video_generation', audio: 'step_audio',
+      subtitle: 'step_subtitle', concatenate: 'step_concatenation',
+    },
+    manuscript: {
+      split_text: 'step_split', scene_prompts: 'step_scene_prompts',
+      video_gen: 'step_video_generation', audio: 'step_audio',
+      subtitle: 'step_subtitle', concatenate: 'step_concatenation',
+    },
+    anchor: {
+      generate_anchor: 'step_generate_anchor', split_text: 'step_split',
+      clip_prompts: 'step_clip_prompts', clip_gen: 'step_clip_generation',
+      audio: 'step_audio', subtitle: 'step_subtitle', concatenate: 'step_concatenation',
+    },
+  };
+  const map = stepMap[taskType] || stepMap.creative;
+  steps.forEach(s => {
+    const field = map[s.key];
+    if (field && state[field] === 'completed') {
+      markStepCompleted(s.key);
+    }
+  });
 }
 
 function showResult(videoPath) {
