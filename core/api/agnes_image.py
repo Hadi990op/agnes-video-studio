@@ -114,12 +114,14 @@ class AgnesImageAPI:
             try:
                 # 全局限速：在发起 HTTP 请求前获取令牌
                 await asyncio.to_thread(get_rate_limiter().acquire)
+                # 动态超时：第一次 60s，后续逐步增加
+                read_timeout = 60 * (attempt + 1)
                 resp = await asyncio.to_thread(
                     requests.post,
                     f"{BASE_URL}/images/generations",
                     headers=self.headers,
                     json=payload,
-                    timeout=(30, 120),
+                    timeout=(30, read_timeout),
                 )
 
                 # 429 限流：退避重试
