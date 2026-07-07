@@ -28,17 +28,33 @@ logger = logging.getLogger(__name__)
 _WORKSPACE_ROOT: Optional[Path] = None
 
 
-def _get_workspace_root() -> Path:
-    """获取工作目录根路径（包含 server.py 的目录）。"""
+def set_workspace_root(path: str) -> None:
+    """设置错误日志存储的根目录（通常为激活的工作空间路径）。
+
+    应在服务启动时调用一次。如果不设置，则回退到 server.py 所在目录。
+    """
     global _WORKSPACE_ROOT
+    _WORKSPACE_ROOT = Path(path).resolve()
+    logger.info(f"[ErrorCollector] Workspace root set to {_WORKSPACE_ROOT}")
+
+
+def _get_workspace_root() -> Path:
+    """获取存储根目录。
+
+    优先级：
+    1. set_workspace_root() 显式设置
+    2. 自动检测 server.py 所在目录
+    """
+    global _WORKSPACE_ROOT
+    if _WORKSPACE_ROOT is not None:
+        return _WORKSPACE_ROOT
+    current = Path(os.getcwd()).resolve()
+    for parent in [current] + list(current.parents):
+        if (parent / "server.py").exists():
+            _WORKSPACE_ROOT = parent
+            break
     if _WORKSPACE_ROOT is None:
-        current = Path(os.getcwd()).resolve()
-        for parent in [current] + list(current.parents):
-            if (parent / "server.py").exists():
-                _WORKSPACE_ROOT = parent
-                break
-        if _WORKSPACE_ROOT is None:
-            _WORKSPACE_ROOT = current
+        _WORKSPACE_ROOT = current
     return _WORKSPACE_ROOT
 
 

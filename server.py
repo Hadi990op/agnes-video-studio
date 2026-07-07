@@ -41,6 +41,7 @@ from core.pipelines import (
     ManuscriptVideoPipeline,
 )
 from core.api.agnes_image import AgnesImageAPI
+from core.api.error_collector import set_workspace_root
 from core.artifacts import list_artifacts, resolve_artifact, get_cascade_plan, apply_cascade_plan
 from core.task_manager import TaskManager
 from models.task import (
@@ -187,6 +188,7 @@ async def lifespan(app: FastAPI):
     os.makedirs(upload_dir, exist_ok=True)
 
     working_dir = get_working_dir()
+    set_workspace_root(working_dir)  # 错误收集模块使用激活的工作空间
     if os.path.exists(working_dir):
         for name in os.listdir(working_dir):
             task_file = os.path.join(working_dir, name, "task_state.json")
