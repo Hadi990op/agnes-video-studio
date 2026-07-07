@@ -2510,7 +2510,7 @@ function switchLang(lang) { applyLanguage(lang); }
 
 let currentTaskId = null;
 let currentDirName = null;
-let ws = null;
+let pollTimer = null;
 let isTaskRunning = false;
 let taskListTimer = null;
 let currentTaskType = 'creative'; // active task type tab
@@ -2721,6 +2721,7 @@ function setRunning(taskId) {
 function clearRunning() {
   isTaskRunning = false;
   currentTaskId = null;
+  stopPolling();
   // 恢复提交按钮
   ['btn-simple', 'btn-creative', 'btn-manuscript', 'btn-anchor'].forEach(id => {
     const btn = document.getElementById(id);
@@ -2763,7 +2764,7 @@ async function submitSimple() {
     setRunning(d.task_id);
     currentDirName = d.dir_name;
     showProgress(d.task_id, d.dir_name);
-    connectWS(d.task_id);
+    startPolling(d.task_id);
     showToast(t('submitted'), 5000);
   } catch(e) {
     alert(t('failCreate') + ': ' + e.message);
@@ -2880,7 +2881,7 @@ async function submitCreative() {
     setRunning(d.task_id);
     currentDirName = d.dir_name;
     showProgress(d.task_id, d.dir_name);
-    connectWS(d.task_id);
+    startPolling(d.task_id);
     showToast(t('submitted'), 5000);
   } catch(e) {
     alert(t('failCreate') + ': ' + e.message);
@@ -2926,7 +2927,7 @@ async function submitManuscript() {
     setRunning(d.task_id);
     currentDirName = d.dir_name;
     showProgress(d.task_id, d.dir_name);
-    connectWS(d.task_id);
+    startPolling(d.task_id);
     showToast(t('submitted'), 5000);
   } catch(e) {
     alert(t('failCreate') + ': ' + e.message);
@@ -2979,7 +2980,7 @@ async function submitAnchor() {
     setRunning(d.task_id);
     currentDirName = d.dir_name;
     showProgress(d.task_id, d.dir_name);
-    connectWS(d.task_id);
+    startPolling(d.task_id);
     showToast(t('submitted'), 5000);
   } catch(e) {
     alert(t('failCreate') + ': ' + e.message);
@@ -3056,111 +3057,115 @@ function showProgress(taskId, dirName) {
   loadArtifacts();
 }
 
-let _wsRetryCount = 0;
-const _WS_MAX_RETRIES = 5;
+// ═══════════════════════════════════════════════════
+// 轮询模式：定期 GET /api/tasks/{id} 获取进度
+// ═══════════════════════════════════════════════════
 
-function connectWS(taskId) {
-  if (ws) { ws.close(); ws = null; }
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(proto + '//' + location.host + '/ws/' + taskId);
+const POLL_INTERVAL = 2000; // 2 秒轮询
+let _lastPolledStep = '';
 
-  ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    if (msg.type !== 'progress') return;
+function startPolling(taskId) {
+  stopPolling();
+  _lastPolledStep = '';
+  // 立即轮询一次，不用等第一个 interval
+  pollTaskProgress(taskId);
+  pollTimer = setInterval(() => pollTaskProgress(taskId), POLL_INTERVAL);
+}
 
-    const step = msg.step;
-    const pct = Math.round(msg.progress * 100);
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+async function pollTaskProgress(taskId) {
+  if (!isTaskRunning || !taskId) return;
+  try {
+    const r = await fetch('/api/tasks/' + taskId);
+    const state = await r.json();
+
+    // 更新进度条和消息
+    const pct = Math.round((state.current_progress || 0) * 100);
     document.getElementById('progress-bar').style.width = pct + '%';
     document.getElementById('progress-pct').textContent = pct + '%';
-    document.getElementById('progress-message').textContent = msg.message;
-
-    const stepEl = document.querySelector(`.step-item[data-step="${step}"]`);
-    if (stepEl) {
-      const icon = stepEl.querySelector('.step-icon');
-      const label = stepEl.querySelector('.step-label');
-      if (msg.status === 'running') {
-        icon.textContent = '◉';
-        icon.className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-blue-900 text-blue-300 text-xs animate-pulse-dot';
-        label.className = 'step-label text-blue-300';
-      } else if (msg.status === 'completed') {
-        icon.textContent = '✓';
-        icon.className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-green-900 text-green-300 text-xs';
-        label.className = 'step-label text-green-400';
-      } else if (msg.status === 'failed') {
-        icon.textContent = '✗';
-        icon.className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-red-900 text-red-300 text-xs';
-        label.className = 'step-label text-red-400';
-      }
+    if (state.current_message) {
+      document.getElementById('progress-message').textContent = state.current_message;
     }
 
-    // Mark all prior steps as completed when a step is running
-    if (msg.status === 'running') {
-      const steps = getStepsForType(currentTaskType);
-      const idx = steps.findIndex(s => s.key === step);
-      if (idx > 0) {
-        for (let i = 0; i < idx; i++) {
-          const el = document.querySelector(`.step-item[data-step="${steps[i].key}"]`);
-          if (el) {
-            el.querySelector('.step-icon').textContent = '✓';
-            el.querySelector('.step-icon').className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-green-900 text-green-300 text-xs';
-            el.querySelector('.step-label').className = 'step-label text-green-400';
+    const step = state.current_step || '';
+    const status = state.current_status || '';
+
+    // 更新步骤图标
+    if (step && step !== _lastPolledStep) {
+      _lastPolledStep = step;
+      // 步骤切换时刷新产物列表
+      if (status === 'completed') {
+        scheduleArtifactRefresh();
+      }
+    }
+    if (step) {
+      const stepEl = document.querySelector(`.step-item[data-step="${step}"]`);
+      if (stepEl) {
+        const icon = stepEl.querySelector('.step-icon');
+        const label = stepEl.querySelector('.step-label');
+        if (status === 'running') {
+          icon.textContent = '◉';
+          icon.className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-blue-900 text-blue-300 text-xs animate-pulse-dot';
+          label.className = 'step-label text-blue-300';
+        } else if (status === 'completed') {
+          icon.textContent = '✓';
+          icon.className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-green-900 text-green-300 text-xs';
+          label.className = 'step-label text-green-400';
+        } else if (status === 'failed') {
+          icon.textContent = '✗';
+          icon.className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-red-900 text-red-300 text-xs';
+          label.className = 'step-label text-red-400';
+        }
+      }
+      // 标记前置步骤为已完成
+      if (status === 'running') {
+        const steps = getStepsForType(currentTaskType);
+        const idx = steps.findIndex(s => s.key === step);
+        if (idx > 0) {
+          for (let i = 0; i < idx; i++) {
+            const el = document.querySelector(`.step-item[data-step="${steps[i].key}"]`);
+            if (el) {
+              el.querySelector('.step-icon').textContent = '✓';
+              el.querySelector('.step-icon').className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-green-900 text-green-300 text-xs';
+              el.querySelector('.step-label').className = 'step-label text-green-400';
+            }
           }
         }
       }
     }
 
-    // 步骤完成时刷新中间产物列表（防抖 800ms）
-    if (msg.status === 'completed' && step !== 'done' && step !== 'error') {
+    // 步骤完成时刷新产物列表
+    if (status === 'completed' && step && step !== 'done' && step !== 'error') {
       scheduleArtifactRefresh();
     }
 
-    if (step === 'done' && msg.status === 'completed') {
-      showResult(msg.data && msg.data.final_video);
+    // 任务完成
+    if (state.status === 'completed') {
+      showResult(state.final_video_file);
       clearRunning();
+      // 标记所有步骤完成
+      const steps = getStepsForType(currentTaskType);
+      steps.forEach(s => markStepCompleted(s.key));
+      scheduleArtifactRefresh();
     }
 
-    if (step === 'error') {
+    // 任务失败
+    if (state.status === 'failed' || (step === 'error' && status === 'failed')) {
       clearRunning();
       document.getElementById('progress-message').innerHTML = `
         <div class="p-4 bg-red-950 border border-red-800 rounded-lg space-y-2">
           <p class="text-red-400 font-medium">${t('genFailed')}</p>
-          <p class="text-gray-400 text-xs">${msg.message || t('genFailedMsg')}</p>
+          <p class="text-gray-400 text-xs">${state.current_message || t('genFailedMsg')}</p>
           <button onclick="switchMainTab('list')" class="mt-1 text-xs px-3 py-1.5 bg-red-800 hover:bg-red-700 text-red-100 rounded-lg transition">${t('gotoResume')}</button>
         </div>`;
     }
-  };
-
-  ws.onclose = (e) => {
-    ws = null;
-    // L8: 正常关闭 (1000) 或任务已完成，不重连
-    if (e.code === 1000 || !isTaskRunning) return;
-    // L8: 指数退避重连，最多 5 次
-    if (_wsRetryCount < _WS_MAX_RETRIES) {
-      _wsRetryCount++;
-      const delay = Math.min(1000 * Math.pow(2, _wsRetryCount - 1), 16000);
-      document.getElementById('progress-message').textContent = t('reconnecting') + ` (${_wsRetryCount}/${_WS_MAX_RETRIES})`;
-      setTimeout(() => { if (isTaskRunning && !ws) connectWS(taskId); }, delay);
-    } else {
-      clearRunning();
-      document.getElementById('progress-message').innerHTML = `
-        <div class="p-4 bg-yellow-950 border border-yellow-800 rounded-lg space-y-2">
-          <p class="text-yellow-400 font-medium">${t('connLost')}</p>
-          <p class="text-gray-400 text-xs">${t('connLostMsg')}</p>
-          <button onclick="switchMainTab('list')" class="mt-1 text-xs px-3 py-1.5 bg-yellow-800 hover:bg-yellow-700 text-yellow-100 rounded-lg transition">${t('gotoList')}</button>
-        </div>`;
-    }
-  };
-
-  ws.onopen = () => {
-    _wsRetryCount = 0;  // 连接成功后重置重试计数
-  };
-
-  ws.onerror = (e) => {
-    // L8: onerror 仅记录，重连由 onclose 处理
-    if (isTaskRunning) {
-      document.getElementById('progress-message').textContent = t('reconnecting');
-    }
-  };
+  } catch(e) {
+    // 网络错误时静默，下次轮询会重试
+  }
+}
 }
 
 function showResult(videoPath) {
@@ -3184,7 +3189,7 @@ async function autoReconnectRunningTask() {
       setRunning(running.task_id);
       currentDirName = running.dir_name || running.task_id;
       showProgress(running.task_id, currentDirName);
-      connectWS(running.task_id);
+      startPolling(running.task_id);
       restoreProgressFromTask(running.task_id);
     }
   } catch(e) {}
@@ -3289,7 +3294,7 @@ async function viewRunningTask(taskId) {
   } catch(e) { currentTaskType = 'creative'; }
   setRunning(taskId);
   showProgress(taskId, null);
-  connectWS(taskId);
+  startPolling(taskId);
   restoreProgressFromTask(taskId);
 }
 
@@ -3307,7 +3312,7 @@ async function resumeTask(taskId) {
     setRunning(taskId);
     currentDirName = d.dir_name;
     showProgress(taskId, d.dir_name);
-    connectWS(taskId);
+    startPolling(taskId);
     restoreProgressFromTask(taskId);
     showToast(t('resumed'), 5000);
   } catch(e) { alert(t('failResume') + ': ' + e.message); }

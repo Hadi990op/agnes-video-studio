@@ -53,7 +53,28 @@ class BasePipeline(ABC):
         progress: float = 0.0,
         data: dict = None,
     ):
-        """发送进度消息到前端。"""
+        """更新进度并持久化到 state（轮询模式）。
+
+        将 step/status/message/progress 写入 state 的 current_* 字段，
+        前端通过 GET /api/tasks/{id} 轮询读取。
+        """
+        if self._state:
+            self._state.current_step = step
+            self._state.current_status = status
+            self._state.current_progress = progress
+            self._state.current_message = message
+            # 持久化（写盘开销 < 1ms，pipeline 步骤间隔通常 > 1s）
+            try:
+                self.task_manager.update_state(
+                    current_step=step,
+                    current_status=status,
+                    current_progress=progress,
+                    current_message=message,
+                )
+            except Exception as e:
+                logger.debug(f"[Pipeline] Failed to persist progress: {e}")
+
+        # 保留 callback 兼容性（移除 WS 后通常为 None）
         if self.progress_callback:
             await self.progress_callback(step, status, message, progress, data or {})
 

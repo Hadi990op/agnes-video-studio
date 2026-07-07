@@ -150,6 +150,12 @@ class BaseTaskState(BaseModel):
     video_height: int = 768
     final_video_file: str = ""
 
+    # 实时进度（轮询模式：pipeline _emit 时更新，前端通过 GET /api/tasks/{id} 读取）
+    current_step: str = ""        # 当前步骤 key，如 "story"、"video_gen"
+    current_status: str = ""      # "running" | "completed" | "failed"
+    current_progress: float = 0.0  # 0.0 ~ 1.0
+    current_message: str = ""     # 人类可读消息
+
 
 class SimpleVideoTask(BaseTaskState):
     """简单视频任务（类型 1）
