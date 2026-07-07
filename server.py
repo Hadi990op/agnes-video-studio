@@ -7,7 +7,7 @@ Agnes Video Generator v2.0 — FastAPI 服务层
 - POST /api/tasks/manuscript  — 稿件长视频生成
 - POST /api/tasks             — 向后兼容（映射到 creative）
 
-所有类型共享 WebSocket 进度推送、任务列表、任务详情、视频下载等端点。
+所有类型共享任务进度轮询、任务列表、任务详情、视频下载等端点。
 resume 端点根据 task_type 自动选择对应的 Pipeline。
 """
 
@@ -27,7 +27,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 
@@ -41,6 +41,8 @@ from core.pipelines import (
     ManuscriptVideoPipeline,
 )
 from core.api.agnes_image import AgnesImageAPI
+from core.api.error_collector import set_workspace_root
+from core.artifacts import list_artifacts, resolve_artifact, get_cascade_plan, apply_cascade_plan
 from core.task_manager import TaskManager
 from models.task import (
     AnchorVideoTask,
@@ -142,11 +144,6 @@ def _build_position(subtitle_position: str) -> tuple:
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-# Suppress noisy WebSocket heartbeat / protocol logs from uvicorn and websockets
-logging.getLogger("uvicorn.protocols.websockets").setLevel(logging.WARNING)
-logging.getLogger("websockets").setLevel(logging.WARNING)
-
-active_connections: Dict[str, WebSocket] = {}
 active_pipelines: Dict[str, BasePipeline] = {}
 # task_id -> asyncio.Lock, 串行化 create/resume/stop，避免并发操作同一任务导致
 # 旧 pipeline 的 finally 误删新 pipeline、或同任务双重运行。
@@ -191,6 +188,7 @@ async def lifespan(app: FastAPI):
     os.makedirs(upload_dir, exist_ok=True)
 
     working_dir = get_working_dir()
+    set_workspace_root(working_dir)  # 错误收集模块使用激活的工作空间
     if os.path.exists(working_dir):
         for name in os.listdir(working_dir):
             task_file = os.path.join(working_dir, name, "task_state.json")
@@ -225,45 +223,6 @@ app = FastAPI(title="Agnes Video Generator", lifespan=lifespan)
 def get_upload_dir() -> str:
     """返回当前激活工作目录下的 uploads 子目录。"""
     return os.path.join(get_working_dir(), "uploads")
-
-
-# ═══════════════════════════════════════════════════
-# WebSocket
-# ═══════════════════════════════════════════════════
-
-
-@app.websocket("/ws/{task_id}")
-async def websocket_endpoint(websocket: WebSocket, task_id: str):
-    await websocket.accept()
-    logger.info(f"[WS] Client connected for task {task_id}")
-
-    # 关闭并替换同一 task_id 的旧 WS 连接，避免覆盖竞态
-    old_ws = active_connections.get(task_id)
-    if old_ws is not None and old_ws is not websocket:
-        logger.info(f"[WS] Closing previous connection for task {task_id}")
-        try:
-            await old_ws.close(code=1000, reason="replaced by new connection")
-        except Exception as e:
-            logger.debug(f"[WS] Error closing old WS for {task_id}: {e}")
-    active_connections[task_id] = websocket
-
-    if task_id in active_pipelines:
-        logger.info(f"[WS] Binding existing pipeline for task {task_id}")
-        active_pipelines[task_id].progress_callback = _make_progress_callback(task_id)
-
-    try:
-        while True:
-            msg = await websocket.receive_text()
-            if not msg or msg.strip().lower() in ("ping", "pong"):
-                continue
-    except WebSocketDisconnect:
-        logger.info(f"[WS] Client disconnected for task {task_id}")
-    except Exception as e:
-        logger.warning(f"[WS] Error for task {task_id}: {e}")
-    finally:
-        # 仅当当前 WS 仍是活跃连接时才删除，避免误删已替换的新连接
-        if active_connections.get(task_id) is websocket:
-            del active_connections[task_id]
 
 
 # ═══════════════════════════════════════════════════
@@ -619,6 +578,169 @@ async def serve_video(task_id: str):
 
 
 # ═══════════════════════════════════════════════════
+# 中间产物 API
+# ═══════════════════════════════════════════════════
+
+
+# 产物类别 → MIME 类型映射
+_ARTIFACT_MEDIA_TYPES = {
+    "image": "image/png",
+    "video": "video/mp4",
+    "audio": "audio/mpeg",
+    "text": "text/plain; charset=utf-8",
+    "json": "application/json; charset=utf-8",
+    "subtitle": "text/plain; charset=utf-8",
+}
+
+
+@app.get("/api/tasks/{task_id}/artifacts")
+async def list_task_artifacts(task_id: str):
+    """列举任务的所有中间产物（含存在性检测）。"""
+    dir_name = _find_dir_name(task_id)
+    tm = TaskManager(task_id, dir_name=dir_name)
+    state = tm.load()
+    if not state:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    artifacts = list_artifacts(state, tm.task_dir)
+    return {
+        "ok": True,
+        "task_type": state.task_type.value,
+        "task_status": state.status.value if state.status else "pending",
+        "artifacts": [
+            {
+                "artifact_id": a.artifact_id,
+                "step_key": a.step_key,
+                "label_key": a.label_key,
+                "category": a.category,
+                "scope": a.scope,
+                "scope_index": a.scope_index,
+                "exists": a.exists,
+                "size": a.size,
+                "deletable": a.deletable,
+            }
+            for a in artifacts
+        ],
+    }
+
+
+@app.get("/api/tasks/{task_id}/artifacts/{artifact_id}/file")
+async def serve_artifact_file(task_id: str, artifact_id: str):
+    """安全地服务中间产物文件。"""
+    dir_name = _find_dir_name(task_id)
+    tm = TaskManager(task_id, dir_name=dir_name)
+    state = tm.load()
+    if not state:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    artifact = resolve_artifact(artifact_id, state, tm.task_dir)
+    if not artifact or not artifact.file_relpath:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    if not artifact.exists:
+        raise HTTPException(status_code=404, detail="Artifact file not found")
+
+    abs_path = os.path.join(tm.task_dir, artifact.file_relpath)
+    # 路径穿越防护
+    real_task_dir = os.path.realpath(tm.task_dir)
+    real_abs_path = os.path.realpath(abs_path)
+    if not real_abs_path.startswith(real_task_dir + os.sep):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    media_type = _ARTIFACT_MEDIA_TYPES.get(artifact.category, "application/octet-stream")
+    return FileResponse(abs_path, media_type=media_type)
+
+
+@app.get("/api/tasks/{task_id}/artifacts/{artifact_id}/cascade-preview")
+async def preview_artifact_cascade(task_id: str, artifact_id: str):
+    """预览删除产物的级联计划（不执行删除）。"""
+    dir_name = _find_dir_name(task_id)
+    tm = TaskManager(task_id, dir_name=dir_name)
+    state = tm.load()
+    if not state:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    artifact = resolve_artifact(artifact_id, state, tm.task_dir)
+    if not artifact:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+
+    plan = get_cascade_plan(artifact_id, state, tm.task_dir)
+    if not plan:
+        raise HTTPException(status_code=400, detail="Cannot compute cascade plan")
+
+    # 只返回存在的文件
+    existing_files = []
+    for f in plan.files_to_delete:
+        abs_path = os.path.join(tm.task_dir, f)
+        if os.path.exists(abs_path):
+            existing_files.append(f)
+
+    return {
+        "ok": True,
+        "artifact_id": artifact_id,
+        "files_to_delete": existing_files,
+        "steps_to_reset": plan.steps_to_reset,
+    }
+
+
+@app.delete("/api/tasks/{task_id}/artifacts/{artifact_id}")
+async def delete_task_artifact(task_id: str, artifact_id: str):
+    """删除指定中间产物（含级联删除后续产物 + 状态回退）。"""
+    # 运行中任务保护（已停止的 pipeline 允许删除产物）
+    if task_id in active_pipelines:
+        pipeline = active_pipelines[task_id]
+        if not pipeline._stop_event.is_set():
+            raise HTTPException(status_code=409, detail="Task is running, please stop it first")
+
+    dir_name = _find_dir_name(task_id)
+    tm = TaskManager(task_id, dir_name=dir_name)
+    state = tm.load()
+    if not state:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    artifact = resolve_artifact(artifact_id, state, tm.task_dir)
+    if not artifact:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+
+    plan = get_cascade_plan(artifact_id, state, tm.task_dir)
+    if not plan:
+        raise HTTPException(status_code=400, detail="Cannot compute cascade plan")
+
+    # 1. 删除文件
+    deleted_files = []
+    real_task_dir = os.path.realpath(tm.task_dir)
+    for f in plan.files_to_delete:
+        abs_path = os.path.join(tm.task_dir, f)
+        real_abs_path = os.path.realpath(abs_path)
+        # 路径穿越防护
+        if not real_abs_path.startswith(real_task_dir + os.sep):
+            continue
+        if os.path.exists(abs_path) and os.path.isfile(abs_path):
+            try:
+                os.remove(abs_path)
+                deleted_files.append(f)
+            except OSError as e:
+                logger.warning(f"[Artifacts] Failed to delete {f}: {e}")
+
+    # 2. 应用级联计划到 state
+    update_kwargs = apply_cascade_plan(state, plan)
+
+    # 3. 持久化
+    tm.update_state(**update_kwargs)
+
+    logger.info(
+        f"[Artifacts] Deleted {len(deleted_files)} files for task {task_id}, "
+        f"artifact={artifact_id}, reset_steps={plan.steps_to_reset}"
+    )
+
+    return {
+        "ok": True,
+        "deleted_files": deleted_files,
+        "reset_steps": plan.steps_to_reset,
+        "task_status": state.status.value if state.status else "pending",
+    }
+
+
+# ═══════════════════════════════════════════════════
 # 辅助函数
 # ═══════════════════════════════════════════════════
 
@@ -683,26 +805,6 @@ def _build_encrypted_image_prompt(system_prompt: str, user_prompt: str) -> str:
             f"Encrypted description:\n{encoded}"
         )
     return f"{system_prompt}\n\n{decryption}"
-
-
-def _make_progress_callback(task_id: str, ws: Optional[WebSocket] = None):
-    """创建进度回调函数。优先使用传入的 ws，否则查找 active_connections。"""
-    async def progress_callback(step: str, status: str, message: str, progress: float, data: dict):
-        try:
-            target_ws = ws or active_connections.get(task_id)
-            if target_ws:
-                await target_ws.send_json({
-                    "type": "progress",
-                    "task_id": task_id,
-                    "step": step,
-                    "status": status,
-                    "message": message,
-                    "progress": progress,
-                    "data": data,
-                })
-        except Exception as e:
-            logger.debug(f"[WS] Failed to send progress for {task_id}: {e}")
-    return progress_callback
 
 
 def _create_pipeline_for_type(
@@ -784,6 +886,12 @@ async def _run_pipeline_with_concurrency(
 
     # 标记排队状态
     task_manager.update_state(status=StepStatus.QUEUED)
+
+    # 排队时持久化进度消息（前端轮询可读取）
+    task_manager.update_state(
+        current_step="init", current_status="running",
+        current_message="任务排队中...", current_progress=0.0,
+    )
 
     try:
         # 等待并发槽位
@@ -908,9 +1016,6 @@ async def create_simple_task(
 
     pipeline = _create_pipeline_for_type(TaskType.SIMPLE, api_key, task_id, dir_name)
     active_pipelines[task_id] = pipeline
-
-    if task_id in active_connections:
-        pipeline.progress_callback = _make_progress_callback(task_id)
 
     tm = TaskManager(task_id, dir_name=dir_name)
     tm.create(state)
@@ -1056,9 +1161,6 @@ async def create_creative_task(
     pipeline = _create_pipeline_for_type(TaskType.CREATIVE, api_key, task_id, dir_name)
     active_pipelines[task_id] = pipeline
 
-    if task_id in active_connections:
-        pipeline.progress_callback = _make_progress_callback(task_id)
-
     tm = TaskManager(task_id, dir_name=dir_name)
     tm.create(state)
     _launch_background_task(_run_pipeline_with_concurrency(pipeline, state, tm))
@@ -1141,9 +1243,6 @@ async def create_manuscript_task(
     pipeline = _create_pipeline_for_type(TaskType.MANUSCRIPT, api_key, task_id, dir_name)
     active_pipelines[task_id] = pipeline
 
-    if task_id in active_connections:
-        pipeline.progress_callback = _make_progress_callback(task_id)
-
     tm = TaskManager(task_id, dir_name=dir_name)
     tm.create(state)
     _launch_background_task(_run_pipeline_with_concurrency(pipeline, state, tm))
@@ -1223,9 +1322,6 @@ async def create_anchor_task(
 
     pipeline = _create_pipeline_for_type(TaskType.ANCHOR, api_key, task_id, dir_name)
     active_pipelines[task_id] = pipeline
-
-    if task_id in active_connections:
-        pipeline.progress_callback = _make_progress_callback(task_id)
 
     tm = TaskManager(task_id, dir_name=dir_name)
     tm.create(state)
@@ -1318,10 +1414,6 @@ async def resume_task(task_id: str):
         # v2.0：根据 task_type 选择对应的 Pipeline
         pipeline = _create_pipeline_for_type(state.task_type, api_key, task_id, dir_name)
         active_pipelines[task_id] = pipeline
-
-        if task_id in active_connections:
-            logger.info(f"[Resume] Binding existing WebSocket for task {task_id}")
-            pipeline.progress_callback = _make_progress_callback(task_id)
 
         _launch_background_task(_run_pipeline_with_concurrency(pipeline, state, tm))
     return {"ok": True, "task_id": task_id, "dir_name": dir_name}

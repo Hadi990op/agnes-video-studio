@@ -11,6 +11,7 @@ from typing import List, Optional
 
 import requests
 
+from core.api.error_collector import collect_error, collect_error_from_exception
 from core.api.rate_limiter import get_rate_limiter
 from utils.video import download_video
 
@@ -221,9 +222,18 @@ class AgnesVideoAPI:
 
             elapsed = asyncio.get_event_loop().time() - start_time
             if elapsed > max_poll_duration:
-                raise RuntimeError(
-                    f"[AgnesVideo] Polling timed out after {max_poll_duration}s for video {video_id[:16]}"
+                error_msg = (
+                    f"[AgnesVideo] Polling timed out after {max_poll_duration}s "
+                    f"for video {video_id[:16]}"
                 )
+                collect_error(
+                    "video", "poll_task",
+                    prompt=curl_cmd,
+                    error_type="PollingTimeout",
+                    error_message=error_msg,
+                    extra={"video_id": video_id[:16], "elapsed_s": int(elapsed)},
+                )
+                raise RuntimeError(error_msg)
 
             try:
                 if poll_count % 10 == 0:
@@ -259,16 +269,40 @@ class AgnesVideoAPI:
 
                 if status in ("failed", "FAILED"):
                     err = result.get("error") or "unknown error"
-                    raise RuntimeError(f"Video generation failed: {err}")
+                    error_msg = f"Video generation failed: {err}"
+                    collect_error(
+                        "video", "poll_task",
+                        prompt=curl_cmd,
+                        error_type="VideoFailed",
+                        error_message=error_msg,
+                        response_body=resp.text,
+                        extra={"video_id": video_id[:16], "status": status},
+                    )
+                    raise RuntimeError(error_msg)
             except (requests.exceptions.RequestException, asyncio.TimeoutError) as e:
                 consecutive_failures += 1
                 logger.warning(
                     f"[AgnesVideo] Poll error ({consecutive_failures}/{max_consecutive_failures}): {e}"
                 )
+                # 每次轮询失败都记录
+                collect_error_from_exception(
+                    "video", "poll_task",
+                    exc=e, prompt=curl_cmd,
+                    retry_count=consecutive_failures,
+                    extra={"video_id": video_id[:16], "poll_count": poll_count},
+                )
                 if consecutive_failures >= max_consecutive_failures:
-                    raise RuntimeError(
-                        f"[AgnesVideo] Polling failed after {max_consecutive_failures} consecutive errors for video {video_id[:16]}"
+                    error_msg = (
+                        f"[AgnesVideo] Polling failed after {max_consecutive_failures} "
+                        f"consecutive errors for video {video_id[:16]}"
                     )
+                    collect_error_from_exception(
+                        "video", "poll_task",
+                        exc=e, prompt=curl_cmd,
+                        retry_count=max_consecutive_failures,
+                        extra={"video_id": video_id[:16], "poll_count": poll_count},
+                    )
+                    raise RuntimeError(error_msg)
 
             await asyncio.sleep(interval)
 
@@ -305,6 +339,16 @@ class AgnesVideoAPI:
                         f"[AgnesVideo] 429 rate limit on {mode_desc}, "
                         f"retry {attempt + 1}/{self.max_retries} in {delay:.0f}s..."
                     )
+                    collect_error(
+                        "video", "submit_video",
+                        prompt=payload.get("prompt", ""),
+                        error_type="RateLimit429",
+                        error_message="HTTP 429: rate limited",
+                        status_code=429,
+                        response_body=resp.text,
+                        retry_count=attempt + 1,
+                        extra={"mode": mode_desc},
+                    )
                     await asyncio.sleep(delay)
                     continue
 
@@ -313,6 +357,16 @@ class AgnesVideoAPI:
                     logger.warning(
                         f"[AgnesVideo] {resp.status_code} server error on {mode_desc}, "
                         f"retry {attempt + 1}/{self.max_retries} in {delay:.0f}s..."
+                    )
+                    collect_error(
+                        "video", "submit_video",
+                        prompt=payload.get("prompt", ""),
+                        error_type=f"HTTP{resp.status_code}",
+                        error_message=f"HTTP {resp.status_code}: server error",
+                        status_code=resp.status_code,
+                        response_body=resp.text,
+                        retry_count=attempt + 1,
+                        extra={"mode": mode_desc},
                     )
                     await asyncio.sleep(delay)
                     continue
@@ -329,22 +383,60 @@ class AgnesVideoAPI:
                         f"reducing to {new_nf} and retrying "
                         f"({frame_reductions_left} reductions left)..."
                     )
+                    collect_error(
+                        "video", "submit_video",
+                        prompt=payload.get("prompt", ""),
+                        error_type="NumFramesExceeded",
+                        error_message=f"HTTP 400: num_frames {old_nf} exceeded, reducing to {new_nf}",
+                        status_code=400,
+                        response_body=resp.text,
+                        retry_count=attempt + 1,
+                        extra={"mode": mode_desc, "old_nf": old_nf, "new_nf": new_nf},
+                    )
                     payload["num_frames"] = new_nf
                     frame_reductions_left -= 1
                     continue
 
                 logger.error(f"[AgnesVideo] HTTP {resp.status_code}: {error_text}")
+                collect_error(
+                    "video", "submit_video",
+                    prompt=payload.get("prompt", ""),
+                    error_type="HTTPError",
+                    error_message=f"HTTP {resp.status_code}: {error_text}",
+                    status_code=resp.status_code,
+                    response_body=resp.text,
+                    retry_count=attempt + 1,
+                    extra={"mode": mode_desc},
+                )
                 raise RuntimeError(f"Agnes video submit failed (HTTP {resp.status_code}): {error_text}")
 
-            except (requests.exceptions.Timeout, asyncio.TimeoutError):
-                delay = self.retry_base_delay * (attempt + 1)
-                logger.warning(
-                    f"[AgnesVideo] Timeout on {mode_desc}, "
-                    f"retry {attempt + 1}/{self.max_retries} in {delay:.0f}s..."
+            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError,
+                        asyncio.TimeoutError) as e:
+                # 每次失败都记录（包括中间重试）
+                collect_error_from_exception(
+                    "video", "submit_video",
+                    exc=e, prompt=payload.get("prompt", ""),
+                    retry_count=attempt + 1,
+                    extra={"mode": mode_desc},
                 )
-                await asyncio.sleep(delay)
-                continue
+                if attempt < self.max_retries - 1:
+                    delay = self.retry_base_delay * (attempt + 1)
+                    logger.warning(
+                        f"[AgnesVideo] {type(e).__name__} on {mode_desc}, "
+                        f"retry {attempt + 1}/{self.max_retries} in {delay:.0f}s..."
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                raise
 
+        collect_error(
+            "video", "submit_video",
+            prompt=payload.get("prompt", ""),
+            error_type="RetriesExhausted",
+            error_message=f"{mode_desc}: max retries ({self.max_retries}) exceeded",
+            retry_count=self.max_retries,
+            extra={"mode": mode_desc},
+        )
         raise RuntimeError(
             f"[AgnesVideo] {mode_desc}: max retries ({self.max_retries}) exceeded"
         )

@@ -10,6 +10,7 @@ from typing import List, Optional
 
 import requests
 
+from core.api.error_collector import collect_error, collect_error_from_exception
 from core.api.rate_limiter import get_rate_limiter
 from utils.image import download_image
 
@@ -114,12 +115,14 @@ class AgnesImageAPI:
             try:
                 # 全局限速：在发起 HTTP 请求前获取令牌
                 await asyncio.to_thread(get_rate_limiter().acquire)
+                # 动态超时：第一次 60s，后续逐步增加
+                read_timeout = 60 * (attempt + 1)
                 resp = await asyncio.to_thread(
                     requests.post,
                     f"{BASE_URL}/images/generations",
                     headers=self.headers,
                     json=payload,
-                    timeout=(30, 120),
+                    timeout=(30, read_timeout),
                 )
 
                 # 429 限流：退避重试
@@ -128,6 +131,15 @@ class AgnesImageAPI:
                     logger.warning(
                         f"[AgnesImage] 429 rate limit, "
                         f"retry {attempt + 1}/{max_retries} in {delay:.0f}s..."
+                    )
+                    collect_error(
+                        "image", "generate_single_image",
+                        prompt=prompt,
+                        error_type="RateLimit429",
+                        error_message=f"HTTP 429: rate limited",
+                        status_code=429,
+                        response_body=resp.text,
+                        retry_count=attempt + 1,
                     )
                     await asyncio.sleep(delay)
                     continue
@@ -139,6 +151,15 @@ class AgnesImageAPI:
                         f"[AgnesImage] {resp.status_code} server error, "
                         f"retry {attempt + 1}/{max_retries} in {delay:.0f}s..."
                     )
+                    collect_error(
+                        "image", "generate_single_image",
+                        prompt=prompt,
+                        error_type=f"HTTP{resp.status_code}",
+                        error_message=f"HTTP {resp.status_code}: server error",
+                        status_code=resp.status_code,
+                        response_body=resp.text,
+                        retry_count=attempt + 1,
+                    )
                     await asyncio.sleep(delay)
                     continue
 
@@ -148,6 +169,11 @@ class AgnesImageAPI:
                 break
 
             except (requests.ConnectionError, requests.Timeout) as e:
+                # 每次失败都记录（包括中间重试）
+                collect_error_from_exception(
+                    "image", "generate_single_image",
+                    exc=e, prompt=prompt, retry_count=attempt + 1,
+                )
                 if attempt < max_retries - 1:
                     delay = retry_base_delay * (attempt + 1)
                     logger.warning(
@@ -161,8 +187,24 @@ class AgnesImageAPI:
             # 重试耗尽
             if resp is not None:
                 logger.error(f"[AgnesImage] max retries exceeded, last response: {resp.status_code} {resp.text[:500]}")
+                collect_error(
+                    "image", "generate_single_image",
+                    prompt=prompt,
+                    error_type="HTTPError",
+                    error_message=f"Max retries exceeded, last status: {resp.status_code}",
+                    status_code=resp.status_code,
+                    response_body=resp.text,
+                    retry_count=max_retries,
+                )
                 resp.raise_for_status()
             logger.error(f"[AgnesImage] max retries ({max_retries}) exceeded with no response")
+            collect_error(
+                "image", "generate_single_image",
+                prompt=prompt,
+                error_type="RetriesExhausted",
+                error_message=f"Max retries ({max_retries}) exceeded with no response",
+                retry_count=max_retries,
+            )
             raise RuntimeError(
                 f"[AgnesImage] max retries ({max_retries}) exceeded"
             )
@@ -171,10 +213,27 @@ class AgnesImageAPI:
 
         if "error" in result:
             err = result["error"]
-            raise RuntimeError(f"Agnes image error: {err.get('message', err)}")
+            error_msg = f"Agnes image error: {err.get('message', err)}"
+            collect_error(
+                "image", "generate_single_image",
+                prompt=prompt,
+                error_type="APIError",
+                error_message=error_msg,
+                response_body=resp.text,
+                retry_count=attempt + 1 if resp else max_retries,
+            )
+            raise RuntimeError(error_msg)
 
         data_list = result.get("data", [])
         if not data_list:
+            collect_error(
+                "image", "generate_single_image",
+                prompt=prompt,
+                error_type="NoDataError",
+                error_message="Agnes image: no data returned",
+                response_body=resp.text,
+                retry_count=attempt + 1 if resp else max_retries,
+            )
             raise RuntimeError("Agnes image: no data returned")
 
         url = data_list[0].get("url", "")
@@ -183,6 +242,14 @@ class AgnesImageAPI:
             if b64_data:
                 logger.info("[AgnesImage] Got base64 response, saving...")
                 return ImageOutput(fmt="b64", ext="png", data=b64_data)
+            collect_error(
+                "image", "generate_single_image",
+                prompt=prompt,
+                error_type="NoOutputError",
+                error_message="Agnes image: no URL or base64 in response",
+                response_body=resp.text,
+                retry_count=attempt + 1 if resp else max_retries,
+            )
             raise RuntimeError("Agnes image: no URL or base64 in response")
 
         logger.info(f"[AgnesImage] Done: {url[:80]}...")

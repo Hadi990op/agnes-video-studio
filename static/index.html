@@ -1037,6 +1037,15 @@
 
     <div id="progress-message" class="mt-4 text-sm text-gray-400"></div>
 
+    <!-- 中间产物面板 -->
+    <div id="artifacts-area" class="hidden mt-4 p-4 bg-gray-900/30 rounded-lg border border-gray-700/50">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-medium text-blue-300" data-i18n="artTitle">中间产物</h3>
+        <button onclick="loadArtifacts()" class="text-xs text-gray-500 hover:text-gray-300 transition" title="刷新">↻</button>
+      </div>
+      <div id="artifacts-container" class="space-y-2 max-h-96 overflow-y-auto"></div>
+    </div>
+
     <div id="result-area" class="hidden mt-4 p-4 glass-card rounded-lg">
       <p class="text-green-400 text-sm font-medium mb-2" data-i18n="videoComplete">视频生成完成!</p>
       <video id="result-video" controls class="w-full rounded-lg max-h-96"></video>
@@ -1160,6 +1169,17 @@ const T = {
     aStepConcat: '视频拼接合成',
     systemPrompt: '系统提示词',
     systemPromptPlaceholder: '给模型的额外提示指令（如风格、质量要求），不影响生成内容的主体描述',
+    // 中间产物
+    artTitle: '中间产物', artImageAnalysis: '图片分析', artStory: '故事', artCharacterRef: '角色参考图',
+    artScript: '剧本', artEndFramePrompts: '尾帧提示词', artEndFrame: '场景{index}尾帧图',
+    artVideo: '场景{index}视频', artAudio: '旁白音频', artSubtitle: '字幕', artFinalVideo: '最终视频',
+    artAnchorImage: '主播形象图', artClipPrompts: '视频描述', artClip: '视频片段',
+    artParaVideo: '段落{index}视频', artScenePrompts: '场景描述',
+    deleteArtifactConfirm: '确定要删除此产物吗？删除后将级联删除后续产物，任务状态将回退。',
+    willDelete: '将删除以下文件', willResetSteps: '将重置以下步骤',
+    artifactDeleted: '产物已删除', artifactDeleteFailed: '删除失败',
+    clickToPreview: '点击预览', 'delete': '删除',
+    taskStarting: '任务正在启动...',
   },
   en: {
     subtitle: 'AI Video, One Click',
@@ -1266,6 +1286,17 @@ const T = {
     aStepConcat: 'Video Concat',
     systemPrompt: 'System Prompt',
     systemPromptPlaceholder: 'Extra instructions for the model (e.g. style, quality), does not affect the subject description',
+    // Artifacts
+    artTitle: 'Artifacts', artImageAnalysis: 'Image Analysis', artStory: 'Story', artCharacterRef: 'Character Reference',
+    artScript: 'Script', artEndFramePrompts: 'End Frame Prompts', artEndFrame: 'Scene {index} End Frame',
+    artVideo: 'Scene {index} Video', artAudio: 'Narration Audio', artSubtitle: 'Subtitles', artFinalVideo: 'Final Video',
+    artAnchorImage: 'Anchor Image', artClipPrompts: 'Clip Prompts', artClip: 'Video Clip',
+    artParaVideo: 'Paragraph {index} Video', artScenePrompts: 'Scene Prompts',
+    deleteArtifactConfirm: 'Delete this artifact? This will cascade delete all subsequent artifacts and reset task status.',
+    willDelete: 'Files to delete', willResetSteps: 'Steps to reset',
+    artifactDeleted: 'Artifact deleted', artifactDeleteFailed: 'Delete failed',
+    clickToPreview: 'Click to preview', 'delete': 'Delete',
+    taskStarting: 'Task starting...',
   },
   ru: {
     subtitle: 'AI Видео, Один клик',
@@ -2479,7 +2510,7 @@ function switchLang(lang) { applyLanguage(lang); }
 
 let currentTaskId = null;
 let currentDirName = null;
-let ws = null;
+let pollTimer = null;
 let isTaskRunning = false;
 let taskListTimer = null;
 let currentTaskType = 'creative'; // active task type tab
@@ -2529,7 +2560,7 @@ const STEPS = {
 
 (async function init() {
   try { currentLang = localStorage.getItem('lang') || 'zh'; } catch(e) { currentLang = 'zh'; }
-  applyLanguage(currentLang);
+  try { applyLanguage(currentLang); } catch(e) { console.error('applyLanguage error:', e); }
 
   try {
     const r = await fetch('/api/config');
@@ -2542,7 +2573,7 @@ const STEPS = {
     if (d.watermark !== undefined) {
       document.querySelectorAll('.watermark-toggle').forEach(el => el.checked = !!d.watermark.enabled);
     }
-  } catch(e) {}
+  } catch(e) { console.error('init config load error:', e); }
 
   // Character count for manuscript
   document.getElementById('m_text').addEventListener('input', function() {
@@ -2690,6 +2721,7 @@ function setRunning(taskId) {
 function clearRunning() {
   isTaskRunning = false;
   currentTaskId = null;
+  stopPolling();
   // 恢复提交按钮
   ['btn-simple', 'btn-creative', 'btn-manuscript', 'btn-anchor'].forEach(id => {
     const btn = document.getElementById(id);
@@ -2731,8 +2763,8 @@ async function submitSimple() {
     currentTaskType = 'simple';
     setRunning(d.task_id);
     currentDirName = d.dir_name;
-    showProgress(d.task_id, d.dir_name);
-    connectWS(d.task_id);
+    await showProgress(d.task_id, d.dir_name);
+    await startPolling(d.task_id);
     showToast(t('submitted'), 5000);
   } catch(e) {
     alert(t('failCreate') + ': ' + e.message);
@@ -2848,8 +2880,8 @@ async function submitCreative() {
     currentTaskType = 'creative';
     setRunning(d.task_id);
     currentDirName = d.dir_name;
-    showProgress(d.task_id, d.dir_name);
-    connectWS(d.task_id);
+    await showProgress(d.task_id, d.dir_name);
+    await startPolling(d.task_id);
     showToast(t('submitted'), 5000);
   } catch(e) {
     alert(t('failCreate') + ': ' + e.message);
@@ -2894,8 +2926,8 @@ async function submitManuscript() {
     currentTaskType = 'manuscript';
     setRunning(d.task_id);
     currentDirName = d.dir_name;
-    showProgress(d.task_id, d.dir_name);
-    connectWS(d.task_id);
+    await showProgress(d.task_id, d.dir_name);
+    await startPolling(d.task_id);
     showToast(t('submitted'), 5000);
   } catch(e) {
     alert(t('failCreate') + ': ' + e.message);
@@ -2947,8 +2979,8 @@ async function submitAnchor() {
     currentTaskType = 'anchor';
     setRunning(d.task_id);
     currentDirName = d.dir_name;
-    showProgress(d.task_id, d.dir_name);
-    connectWS(d.task_id);
+    await showProgress(d.task_id, d.dir_name);
+    await startPolling(d.task_id);
     showToast(t('submitted'), 5000);
   } catch(e) {
     alert(t('failCreate') + ': ' + e.message);
@@ -3001,7 +3033,7 @@ function getStepsForType(taskType) {
   return STEPS[taskType] || STEPS.creative;
 }
 
-function showProgress(taskId, dirName) {
+async function showProgress(taskId, dirName) {
   const panel = document.getElementById('progress-panel');
   panel.classList.remove('hidden');
   document.getElementById('result-area').classList.add('hidden');
@@ -3009,118 +3041,190 @@ function showProgress(taskId, dirName) {
   document.getElementById('progress-bar').style.width = '0%';
   document.getElementById('progress-pct').textContent = '0%';
 
+  // 获取 state 以便立即标记已完成步骤
+  let state = null;
+  try {
+    const r = await fetch('/api/tasks/' + taskId);
+    state = await r.json();
+    if (state.task_type) currentTaskType = state.task_type;
+  } catch(e) {}
+
   const steps = getStepsForType(currentTaskType);
-  document.getElementById('steps-container').innerHTML = steps.map(s => `
+  // 渲染步骤时直接根据 state 标记已完成步骤（不依赖后续 markCompletedStepsFromState）
+  document.getElementById('steps-container').innerHTML = steps.map(s => {
+    const isDone = state ? isStepDoneInState(state, s.key, currentTaskType) : false;
+    const icon = isDone ? '✓' : '○';
+    const iconClass = isDone ? 'w-5 h-5 flex items-center justify-center rounded-full bg-green-900 text-green-300 text-xs' : 'w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-xs';
+    const labelClass = isDone ? 'step-label text-green-400' : 'step-label text-gray-500';
+    return `
     <div class="step-item flex items-center gap-3 text-sm" data-step="${s.key}">
-      <span class="step-icon w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-xs">○</span>
-      <span class="step-label text-gray-500">${t(s.labelKey)}</span>
-    </div>
-  `).join('');
+      <span class="step-icon ${iconClass}">${icon}</span>
+      <span class="${labelClass}">${t(s.labelKey)}</span>
+    </div>`;
+  }).join('');
 
-  const dirInfo = dirName ? `<br><span class="text-gray-600 text-xs">${t('dir')}: <span class="font-mono">${dirName}</span></span>` : '';
-  document.getElementById('progress-message').innerHTML = `<span class="text-yellow-400">${t('watchLog')}</span><br><span class="text-gray-500">${t('task_')}: ${taskId}</span>${dirInfo}`;
-}
-
-let _wsRetryCount = 0;
-const _WS_MAX_RETRIES = 5;
-
-function connectWS(taskId) {
-  if (ws) { ws.close(); ws = null; }
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(proto + '//' + location.host + '/ws/' + taskId);
-
-  ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    if (msg.type !== 'progress') return;
-
-    const step = msg.step;
-    const pct = Math.round(msg.progress * 100);
-    document.getElementById('progress-bar').style.width = pct + '%';
-    document.getElementById('progress-pct').textContent = pct + '%';
-    document.getElementById('progress-message').textContent = msg.message;
-
-    const stepEl = document.querySelector(`.step-item[data-step="${step}"]`);
-    if (stepEl) {
-      const icon = stepEl.querySelector('.step-icon');
-      const label = stepEl.querySelector('.step-label');
-      if (msg.status === 'running') {
+  // 如果有 state，也标记当前 running 步骤
+  if (state) {
+    markCompletedStepsFromState(state);
+    const step = state.current_step || '';
+    const status = state.current_status || '';
+    if (step && status === 'running') {
+      const stepEl = document.querySelector(`.step-item[data-step="${step}"]`);
+      if (stepEl) {
+        const icon = stepEl.querySelector('.step-icon');
+        const label = stepEl.querySelector('.step-label');
         icon.textContent = '◉';
         icon.className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-blue-900 text-blue-300 text-xs animate-pulse-dot';
         label.className = 'step-label text-blue-300';
-      } else if (msg.status === 'completed') {
-        icon.textContent = '✓';
-        icon.className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-green-900 text-green-300 text-xs';
-        label.className = 'step-label text-green-400';
-      } else if (msg.status === 'failed') {
-        icon.textContent = '✗';
-        icon.className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-red-900 text-red-300 text-xs';
-        label.className = 'step-label text-red-400';
       }
     }
+  }
 
-    // Mark all prior steps as completed when a step is running
-    if (msg.status === 'running') {
-      const steps = getStepsForType(currentTaskType);
-      const idx = steps.findIndex(s => s.key === step);
-      if (idx > 0) {
-        for (let i = 0; i < idx; i++) {
-          const el = document.querySelector(`.step-item[data-step="${steps[i].key}"]`);
-          if (el) {
-            el.querySelector('.step-icon').textContent = '✓';
-            el.querySelector('.step-icon').className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-green-900 text-green-300 text-xs';
-            el.querySelector('.step-label').className = 'step-label text-green-400';
-          }
+  const dirInfo = dirName ? `<br><span class="text-gray-600 text-xs">${t('dir')}: <span class="font-mono">${dirName}</span></span>` : '';
+  document.getElementById('progress-message').innerHTML = `<span class="text-blue-400 animate-pulse">${t('taskStarting')}</span><br><span class="text-gray-500">${t('task_')}: ${taskId}</span>${dirInfo}`;
+
+  // 加载已有中间产物（任务运行中也可查看）
+  currentArtifactsTaskId = taskId;
+  loadArtifacts();
+}
+
+// ═══════════════════════════════════════════════════
+// 轮询模式：定期 GET /api/tasks/{id} 获取进度
+// ═══════════════════════════════════════════════════
+
+const POLL_INTERVAL = 30000; // 30 秒轮询
+let _lastPolledStep = '';
+
+async function startPolling(taskId) {
+  stopPolling();
+  _lastPolledStep = '';
+  await pollTaskProgress(taskId);  // 等待首次轮询，确保步骤状态立即更新
+  pollTimer = setInterval(() => pollTaskProgress(taskId), POLL_INTERVAL);
+}
+
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+async function pollTaskProgress(taskId) {
+  if (!isTaskRunning || !taskId) return;
+  try {
+    const r = await fetch('/api/tasks/' + taskId);
+    const state = await r.json();
+
+    // 更新进度条和消息
+    const pct = Math.round((state.current_progress || 0) * 100);
+    document.getElementById('progress-bar').style.width = pct + '%';
+    document.getElementById('progress-pct').textContent = pct + '%';
+    if (state.current_message) {
+      document.getElementById('progress-message').textContent = state.current_message;
+    }
+
+    // 根据 state 中所有 step_xxx 字段标记已完成步骤（解决反复打开面板时步骤不变绿的问题）
+    markCompletedStepsFromState(state);
+
+    // 更新当前步骤的图标（running/completed/failed）
+    const step = state.current_step || '';
+    const status = state.current_status || '';
+    if (step) {
+      const stepEl = document.querySelector(`.step-item[data-step="${step}"]`);
+      if (stepEl) {
+        const icon = stepEl.querySelector('.step-icon');
+        const label = stepEl.querySelector('.step-label');
+        if (status === 'running') {
+          icon.textContent = '◉';
+          icon.className = 'step-icon w-5 h-5 flex items-center justify-center rounded-full bg-blue-900 text-blue-300 text-xs animate-pulse-dot';
+          label.className = 'step-label text-blue-300';
         }
       }
     }
 
-    if (step === 'done' && msg.status === 'completed') {
-      showResult(msg.data && msg.data.final_video);
-      clearRunning();
+    // 步骤 running 或完成时刷新产物列表（running 期间产物逐步生成）
+    if (step) {
+      scheduleArtifactRefresh();
+    }
+    if (step && step !== _lastPolledStep) {
+      _lastPolledStep = step;
     }
 
-    if (step === 'error') {
+    // 任务完成
+    if (state.status === 'completed') {
+      showResult(state.final_video_file);
+      clearRunning();
+      scheduleArtifactRefresh();
+    }
+
+    // 任务失败
+    if (state.status === 'failed' || (step === 'error' && status === 'failed')) {
       clearRunning();
       document.getElementById('progress-message').innerHTML = `
         <div class="p-4 bg-red-950 border border-red-800 rounded-lg space-y-2">
           <p class="text-red-400 font-medium">${t('genFailed')}</p>
-          <p class="text-gray-400 text-xs">${msg.message || t('genFailedMsg')}</p>
+          <p class="text-gray-400 text-xs">${state.current_message || t('genFailedMsg')}</p>
           <button onclick="switchMainTab('list')" class="mt-1 text-xs px-3 py-1.5 bg-red-800 hover:bg-red-700 text-red-100 rounded-lg transition">${t('gotoResume')}</button>
         </div>`;
     }
-  };
+  } catch(e) {
+    // 网络错误时静默，下次轮询会重试
+  }
+}
 
-  ws.onclose = (e) => {
-    ws = null;
-    // L8: 正常关闭 (1000) 或任务已完成，不重连
-    if (e.code === 1000 || !isTaskRunning) return;
-    // L8: 指数退避重连，最多 5 次
-    if (_wsRetryCount < _WS_MAX_RETRIES) {
-      _wsRetryCount++;
-      const delay = Math.min(1000 * Math.pow(2, _wsRetryCount - 1), 16000);
-      document.getElementById('progress-message').textContent = t('reconnecting') + ` (${_wsRetryCount}/${_WS_MAX_RETRIES})`;
-      setTimeout(() => { if (isTaskRunning && !ws) connectWS(taskId); }, delay);
-    } else {
-      clearRunning();
-      document.getElementById('progress-message').innerHTML = `
-        <div class="p-4 bg-yellow-950 border border-yellow-800 rounded-lg space-y-2">
-          <p class="text-yellow-400 font-medium">${t('connLost')}</p>
-          <p class="text-gray-400 text-xs">${t('connLostMsg')}</p>
-          <button onclick="switchMainTab('list')" class="mt-1 text-xs px-3 py-1.5 bg-yellow-800 hover:bg-yellow-700 text-yellow-100 rounded-lg transition">${t('gotoList')}</button>
-        </div>`;
+// 检查某个 step 在 state 中是否已完成
+function isStepDoneInState(state, stepKey, taskType) {
+  const stepMap = {
+    creative: {
+      scene_config: 'step_scene_config', image_analysis: 'step_image_analysis',
+      story: 'step_story', character_ref: 'step_character_ref', script: 'step_script',
+      end_frame_prompts: 'step_end_frame_prompts', end_frame_gen: 'step_end_frame_generation',
+      video_gen: 'step_video_generation', audio: 'step_audio',
+      subtitle: 'step_subtitle', concatenate: 'step_concatenation',
+    },
+    manuscript: {
+      split_text: 'step_split', scene_prompts: 'step_scene_prompts',
+      video_gen: 'step_video_generation', audio: 'step_audio',
+      subtitle: 'step_subtitle', concatenate: 'step_concatenation',
+    },
+    anchor: {
+      generate_anchor: 'step_generate_anchor', split_text: 'step_split',
+      clip_prompts: 'step_clip_prompts', clip_gen: 'step_clip_generation',
+      audio: 'step_audio', subtitle: 'step_subtitle', concatenate: 'step_concatenation',
+    },
+  };
+  const map = stepMap[taskType] || stepMap.creative;
+  const field = map[stepKey];
+  return field && state[field] === 'completed';
+}
+
+// 根据 state 中所有 step_xxx 字段标记已完成步骤
+function markCompletedStepsFromState(state) {
+  const taskType = state.task_type || currentTaskType || 'creative';
+  const steps = getStepsForType(taskType);
+  const stepMap = {
+    creative: {
+      scene_config: 'step_scene_config', image_analysis: 'step_image_analysis',
+      story: 'step_story', character_ref: 'step_character_ref', script: 'step_script',
+      end_frame_prompts: 'step_end_frame_prompts', end_frame_gen: 'step_end_frame_generation',
+      video_gen: 'step_video_generation', audio: 'step_audio',
+      subtitle: 'step_subtitle', concatenate: 'step_concatenation',
+    },
+    manuscript: {
+      split_text: 'step_split', scene_prompts: 'step_scene_prompts',
+      video_gen: 'step_video_generation', audio: 'step_audio',
+      subtitle: 'step_subtitle', concatenate: 'step_concatenation',
+    },
+    anchor: {
+      generate_anchor: 'step_generate_anchor', split_text: 'step_split',
+      clip_prompts: 'step_clip_prompts', clip_gen: 'step_clip_generation',
+      audio: 'step_audio', subtitle: 'step_subtitle', concatenate: 'step_concatenation',
+    },
+  };
+  const map = stepMap[taskType] || stepMap.creative;
+  steps.forEach(s => {
+    const field = map[s.key];
+    if (field && state[field] === 'completed') {
+      markStepCompleted(s.key);
     }
-  };
-
-  ws.onopen = () => {
-    _wsRetryCount = 0;  // 连接成功后重置重试计数
-  };
-
-  ws.onerror = (e) => {
-    // L8: onerror 仅记录，重连由 onclose 处理
-    if (isTaskRunning) {
-      document.getElementById('progress-message').textContent = t('reconnecting');
-    }
-  };
+  });
 }
 
 function showResult(videoPath) {
@@ -3143,8 +3247,8 @@ async function autoReconnectRunningTask() {
       currentTaskType = running.task_type || 'creative';
       setRunning(running.task_id);
       currentDirName = running.dir_name || running.task_id;
-      showProgress(running.task_id, currentDirName);
-      connectWS(running.task_id);
+      await showProgress(running.task_id, currentDirName);
+      await startPolling(running.task_id);
       restoreProgressFromTask(running.task_id);
     }
   } catch(e) {}
@@ -3158,12 +3262,17 @@ async function restoreProgressFromTask(taskId) {
     currentTaskType = state.task_type || 'creative';
 
     const steps = getStepsForType(currentTaskType);
-    document.getElementById('steps-container').innerHTML = steps.map(s => `
+    document.getElementById('steps-container').innerHTML = steps.map(s => {
+      const isDone = isStepDoneInState(state, s.key, currentTaskType);
+      const icon = isDone ? '✓' : '○';
+      const iconClass = isDone ? 'w-5 h-5 flex items-center justify-center rounded-full bg-green-900 text-green-300 text-xs' : 'w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-xs';
+      const labelClass = isDone ? 'step-label text-green-400' : 'step-label text-gray-500';
+      return `
       <div class="step-item flex items-center gap-3 text-sm" data-step="${s.key}">
-        <span class="step-icon w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-xs">○</span>
-        <span class="step-label text-gray-500">${t(s.labelKey)}</span>
-      </div>
-    `).join('');
+        <span class="step-icon ${iconClass}">${icon}</span>
+        <span class="${labelClass}">${t(s.labelKey)}</span>
+      </div>`;
+    }).join('');
 
     if (state.status === 'completed') {
       document.getElementById('progress-bar').style.width = '100%';
@@ -3208,6 +3317,8 @@ async function loadTaskList() {
       const tidAttr = escapeAttr(task.task_id);
       const btnAction = isCompleted ? `viewTask('${tidAttr}')` : (isRunning ? `viewRunningTask('${tidAttr}')` : `resumeTask('${tidAttr}')`);
       const stopBtn = isRunning ? `<button onclick="stopTaskById('${tidAttr}')" class="text-xs px-3 py-1.5 bg-red-700 hover:bg-red-600 text-red-100 rounded-lg transition">${t('btnStop')}</button>` : '';
+      // pending/failed 状态额外添加"查看"按钮（查看产物）
+      const viewBtn = (!isCompleted && !isRunning) ? `<button onclick="viewTask('${tidAttr}')" class="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg transition">${t('btnView')}</button>` : '';
       const typeBadge = `<span class="text-xs px-2 py-0.5 rounded-full ${typeColors[task.task_type] || 'bg-gray-800 text-gray-400'}">${escapeHtml(typeLabels[task.task_type] || task.task_type)}</span>`;
       const desc = task.idea || task.prompt || (task.manuscript_text || '').substring(0, 80) || (task.script_text || '').substring(0, 80);
       const extra = task.scene_count ? ` · ${task.scene_count}${t('sceneUnit')}` : (task.paragraph_count ? ` · ${task.paragraph_count}${t('paraUnit')}` : '');
@@ -3219,6 +3330,7 @@ async function loadTaskList() {
         </div>
         <div class="flex items-center gap-3 ml-3">
           <span class="text-xs ${statusColors[task.status] || 'text-gray-400'}">${statusLabels[task.status] || task.status}</span>
+          ${viewBtn}
           <button onclick="${btnAction}" class="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg transition">${btnLabel}</button>
           ${stopBtn}
         </div>
@@ -3245,8 +3357,8 @@ async function viewRunningTask(taskId) {
     currentTaskType = state.task_type || 'creative';
   } catch(e) { currentTaskType = 'creative'; }
   setRunning(taskId);
-  showProgress(taskId, null);
-  connectWS(taskId);
+  await showProgress(taskId, null);
+  await startPolling(taskId);
   restoreProgressFromTask(taskId);
 }
 
@@ -3263,8 +3375,8 @@ async function resumeTask(taskId) {
     } catch(e) { currentTaskType = 'creative'; }
     setRunning(taskId);
     currentDirName = d.dir_name;
-    showProgress(taskId, d.dir_name);
-    connectWS(taskId);
+    await showProgress(taskId, d.dir_name);
+    await startPolling(taskId);
     restoreProgressFromTask(taskId);
     showToast(t('resumed'), 5000);
   } catch(e) { alert(t('failResume') + ': ' + e.message); }
@@ -3376,6 +3488,216 @@ function showTaskDetail(taskId, state) {
   if (state.final_video_file) {
     document.getElementById('result-area').classList.remove('hidden');
     document.getElementById('result-video').src = '/api/video/' + taskId;
+  }
+
+  // 加载中间产物
+  currentArtifactsTaskId = taskId;
+  loadArtifacts();
+}
+
+// ═══════════════════════════════════════════════════
+// 中间产物展示与删除
+// ═══════════════════════════════════════════════════
+
+let currentArtifactsTaskId = null;
+let _artifactRefreshTimer = null;
+
+// 防抖刷新产物列表（任务运行中步骤完成时自动调用）
+function scheduleArtifactRefresh() {
+  if (_artifactRefreshTimer) clearTimeout(_artifactRefreshTimer);
+  _artifactRefreshTimer = setTimeout(() => {
+    if (currentArtifactsTaskId) loadArtifacts();
+    _artifactRefreshTimer = null;
+  }, 800);
+}
+
+async function loadArtifacts() {
+  const taskId = currentArtifactsTaskId;
+  if (!taskId) return;
+  const area = document.getElementById('artifacts-area');
+  const container = document.getElementById('artifacts-container');
+
+  try {
+    const resp = await fetch('/api/tasks/' + taskId + '/artifacts');
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.detail || 'Failed to load artifacts');
+
+    // 只展示存在的产物
+    const existing = (data.artifacts || []).filter(a => a.exists);
+    if (existing.length === 0) {
+      area.classList.add('hidden');
+      return;
+    }
+
+    area.classList.remove('hidden');
+
+    // 按 step_key 分组
+    const groups = {};
+    existing.forEach(a => {
+      if (!groups[a.step_key]) groups[a.step_key] = [];
+      groups[a.step_key].push(a);
+    });
+
+    // 步骤标签映射
+    const stepLabelMap = {
+      scene_config: 'cStepSceneConfig', image_analysis: 'cStepImageAnalysis',
+      story: 'cStepStory', character_ref: 'cStepCharacterRef',
+      script: 'cStepScript', end_frame_prompts: 'cStepEndFramePrompts',
+      end_frame_gen: 'cStepEndFrameGen', video_gen: 'cStepVideoGen',
+      audio: 'cStepAudio', subtitle: 'cStepSubtitle', concatenate: 'cStepConcat',
+      split_text: 'mStepSplit', scene_prompts: 'mStepScenePrompts',
+      generate_anchor: 'aStepGenerateAnchor', clip_prompts: 'aStepClipPrompts',
+      clip_gen: 'aStepClipGen',
+    };
+
+    let html = '';
+    const isRunning = data.task_status === 'running';
+    for (const [stepKey, arts] of Object.entries(groups)) {
+      const stepLabel = t(stepLabelMap[stepKey] || stepKey);
+      html += '<div class="mb-3">';
+      html += '<div class="text-xs text-gray-500 mb-1">' + escapeHtml(stepLabel) + '</div>';
+      html += '<div class="space-y-1.5">';
+      for (const art of arts) {
+        html += renderArtifactCard(art, taskId, isRunning);
+      }
+      html += '</div></div>';
+    }
+    container.innerHTML = html;
+  } catch(e) {
+    console.error('loadArtifacts error:', e);
+    area.classList.add('hidden');
+  }
+}
+
+function renderArtifactCard(art, taskId, isRunning) {
+  const icons = {text:'📄', image:'🖼️', video:'🎬', audio:'🔊', json:'📋', subtitle:'💬'};
+  const icon = icons[art.category] || '📄';
+  const fileUrl = '/api/tasks/' + taskId + '/artifacts/' + encodeURIComponent(art.artifact_id) + '/file';
+
+  // 产物名称
+  let label = t(art.label_key) || art.label_key;
+  if (art.scope_index !== null && art.scope_index !== undefined) {
+    label = label.replace('{index}', art.scope_index + 1);
+  }
+
+  // 预览
+  let preview = '';
+  if (art.category === 'image') {
+    preview = '<img src="' + escapeAttr(fileUrl) + '" class="max-h-32 rounded cursor-pointer border border-gray-700/50" onclick="openImageModal(\'' + escapeAttr(fileUrl) + '\')" loading="lazy">';
+  } else if (art.category === 'video') {
+    preview = '<div style="position:relative;z-index:1;pointer-events:auto;transform:translateZ(0)"><video src="' + escapeAttr(fileUrl) + '" controls playsinline preload="metadata" class="w-full rounded border border-gray-700/50 bg-black" style="max-height:360px;min-height:200px;pointer-events:auto"></video></div>';
+  } else if (art.category === 'audio') {
+    preview = '<audio src="' + escapeAttr(fileUrl) + '" controls class="w-full" preload="metadata"></audio>';
+  } else {
+    // text/json/subtitle — 延迟加载预览
+    const previewId = 'art-preview-' + art.artifact_id.replace(/[:.]/g, '-');
+    preview = '<pre id="' + previewId + '" class="text-xs text-gray-400 max-h-24 overflow-auto bg-gray-900/70 p-2 rounded border border-gray-800 cursor-pointer" onclick="toggleArtifactPreview(\'' + escapeAttr(previewId) + '\', \'' + escapeAttr(fileUrl) + '\')">' + escapeHtml(t('clickToPreview')) + '</pre>';
+  }
+
+  // 文件大小
+  const sizeStr = art.size > 1048576 ? (art.size / 1048576).toFixed(1) + ' MB' : (art.size / 1024).toFixed(0) + ' KB';
+
+  return '<div class="artifact-card flex items-start gap-2 p-2 bg-gray-800/30 rounded">'
+    + '<span class="text-sm mt-0.5">' + icon + '</span>'
+    + '<div class="flex-1 min-w-0">'
+    +   '<div class="flex items-center gap-2 mb-1">'
+    +     '<span class="text-xs text-gray-300">' + escapeHtml(label) + '</span>'
+    +     '<span class="text-xs text-gray-600">' + sizeStr + '</span>'
+    +   '</div>'
+    +   preview
+    + '</div>'
+    + (art.deletable && !isRunning ? '<button onclick="confirmDeleteArtifact(\'' + escapeAttr(art.artifact_id) + '\')" class="text-xs px-2 py-1 bg-red-700/50 hover:bg-red-600 text-red-100 rounded transition flex-shrink-0" title="' + escapeAttr(t('delete')) + '">✕</button>' : '')
+    + '</div>';
+}
+
+// 文本类产物预览切换
+const _artPreviewCache = {};
+async function toggleArtifactPreview(previewId, fileUrl) {
+  const el = document.getElementById(previewId);
+  if (!el) return;
+
+  // 已展开 → 收起
+  if (el.dataset.expanded === '1') {
+    el.dataset.expanded = '0';
+    el.textContent = t('clickToPreview');
+    return;
+  }
+
+  // 展开
+  el.dataset.expanded = '1';
+  if (_artPreviewCache[fileUrl]) {
+    el.textContent = _artPreviewCache[fileUrl];
+    return;
+  }
+  el.textContent = t('loading') + '...';
+  try {
+    const resp = await fetch(fileUrl);
+    let text = await resp.text();
+    if (text.length > 2000) text = text.substring(0, 2000) + '\n...';
+    _artPreviewCache[fileUrl] = text;
+    el.textContent = text;
+  } catch(e) {
+    el.textContent = 'Error: ' + e.message;
+  }
+}
+
+// 图片放大弹窗
+function openImageModal(url) {
+  const modal = document.createElement('div');
+  modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/80 cursor-pointer';
+  modal.onclick = () => modal.remove();
+  modal.innerHTML = '<img src="' + escapeAttr(url) + '" class="max-w-[90vw] max-h-[90vh] rounded-lg">';
+  document.body.appendChild(modal);
+}
+
+// 删除确认
+async function confirmDeleteArtifact(artifactId) {
+  const taskId = currentArtifactsTaskId;
+  if (!taskId) return;
+
+  // 获取级联预览
+  let preview;
+  try {
+    const resp = await fetch('/api/tasks/' + taskId + '/artifacts/' + encodeURIComponent(artifactId) + '/cascade-preview');
+    preview = await resp.json();
+    if (!preview.ok) throw new Error(preview.detail);
+  } catch(e) {
+    alert(t('artifactDeleteFailed') + ': ' + e.message);
+    return;
+  }
+
+  const fileList = (preview.files_to_delete || []).map(f => '  • ' + f).join('\n');
+  const stepList = (preview.steps_to_reset || []).map(s => '  • ' + s).join('\n');
+  const msg = t('deleteArtifactConfirm') + '\n\n'
+    + t('willDelete') + ':\n' + fileList + '\n\n'
+    + t('willResetSteps') + ':\n' + stepList;
+
+  if (!confirm(msg)) return;
+  await deleteArtifact(artifactId);
+}
+
+async function deleteArtifact(artifactId) {
+  const taskId = currentArtifactsTaskId;
+  if (!taskId) return;
+
+  try {
+    const resp = await fetch('/api/tasks/' + taskId + '/artifacts/' + encodeURIComponent(artifactId), {method: 'DELETE'});
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.detail || 'Delete failed');
+
+    // 清除预览缓存
+    Object.keys(_artPreviewCache).forEach(k => delete _artPreviewCache[k]);
+
+    // 刷新任务详情（包含步骤状态和产物列表）
+    try {
+      const taskResp = await fetch('/api/tasks/' + taskId);
+      const taskData = await taskResp.json();
+      if (taskData.task_type) {
+        showTaskDetail(taskId, taskData);
+      }
+    } catch(e) { /* 忽略刷新错误 */ }
+  } catch(e) {
+    alert(t('artifactDeleteFailed') + ': ' + e.message);
   }
 }
 
