@@ -122,12 +122,27 @@ class AgnesChatAPI:
                         f"[AgnesChat] Server error {resp.status_code}, "
                         f"retry {attempt + 1}/{_MAX_RETRIES} in {delay}s..."
                     )
+                    collect_error(
+                        "chat", "chat",
+                        prompt=self._extract_prompt_from_payload(payload),
+                        error_type=f"HTTP{resp.status_code}",
+                        error_message=f"HTTP {resp.status_code}: server error",
+                        status_code=resp.status_code,
+                        response_body=resp.text,
+                        retry_count=attempt + 1,
+                    )
                     time.sleep(delay)
                     continue
                 resp.raise_for_status()
                 return resp.json()
             except (requests.ConnectionError, requests.Timeout) as e:
                 last_exc = e
+                # 每次失败都记录（包括中间重试）
+                collect_error_from_exception(
+                    "chat", "chat",
+                    exc=e, prompt=self._extract_prompt_from_payload(payload),
+                    retry_count=attempt + 1,
+                )
                 if attempt < _MAX_RETRIES - 1:
                     delay = _RETRY_BASE_DELAY * (attempt + 1)
                     logger.warning(
@@ -136,12 +151,6 @@ class AgnesChatAPI:
                     )
                     time.sleep(delay)
                     continue
-                # 最终失败：收集错误
-                collect_error_from_exception(
-                    "chat", "chat",
-                    exc=e, prompt=self._extract_prompt_from_payload(payload),
-                    retry_count=_MAX_RETRIES,
-                )
                 raise
         # 重试耗尽
         if last_exc:

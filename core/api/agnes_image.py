@@ -132,6 +132,15 @@ class AgnesImageAPI:
                         f"[AgnesImage] 429 rate limit, "
                         f"retry {attempt + 1}/{max_retries} in {delay:.0f}s..."
                     )
+                    collect_error(
+                        "image", "generate_single_image",
+                        prompt=prompt,
+                        error_type="RateLimit429",
+                        error_message=f"HTTP 429: rate limited",
+                        status_code=429,
+                        response_body=resp.text,
+                        retry_count=attempt + 1,
+                    )
                     await asyncio.sleep(delay)
                     continue
 
@@ -142,6 +151,15 @@ class AgnesImageAPI:
                         f"[AgnesImage] {resp.status_code} server error, "
                         f"retry {attempt + 1}/{max_retries} in {delay:.0f}s..."
                     )
+                    collect_error(
+                        "image", "generate_single_image",
+                        prompt=prompt,
+                        error_type=f"HTTP{resp.status_code}",
+                        error_message=f"HTTP {resp.status_code}: server error",
+                        status_code=resp.status_code,
+                        response_body=resp.text,
+                        retry_count=attempt + 1,
+                    )
                     await asyncio.sleep(delay)
                     continue
 
@@ -151,6 +169,11 @@ class AgnesImageAPI:
                 break
 
             except (requests.ConnectionError, requests.Timeout) as e:
+                # 每次失败都记录（包括中间重试）
+                collect_error_from_exception(
+                    "image", "generate_single_image",
+                    exc=e, prompt=prompt, retry_count=attempt + 1,
+                )
                 if attempt < max_retries - 1:
                     delay = retry_base_delay * (attempt + 1)
                     logger.warning(
@@ -159,11 +182,6 @@ class AgnesImageAPI:
                     )
                     await asyncio.sleep(delay)
                     continue
-                # 最终失败：收集错误
-                collect_error_from_exception(
-                    "image", "generate_single_image",
-                    exc=e, prompt=prompt, retry_count=max_retries,
-                )
                 raise
         else:
             # 重试耗尽

@@ -284,6 +284,13 @@ class AgnesVideoAPI:
                 logger.warning(
                     f"[AgnesVideo] Poll error ({consecutive_failures}/{max_consecutive_failures}): {e}"
                 )
+                # 每次轮询失败都记录
+                collect_error_from_exception(
+                    "video", "poll_task",
+                    exc=e, prompt=curl_cmd,
+                    retry_count=consecutive_failures,
+                    extra={"video_id": video_id[:16], "poll_count": poll_count},
+                )
                 if consecutive_failures >= max_consecutive_failures:
                     error_msg = (
                         f"[AgnesVideo] Polling failed after {max_consecutive_failures} "
@@ -332,6 +339,16 @@ class AgnesVideoAPI:
                         f"[AgnesVideo] 429 rate limit on {mode_desc}, "
                         f"retry {attempt + 1}/{self.max_retries} in {delay:.0f}s..."
                     )
+                    collect_error(
+                        "video", "submit_video",
+                        prompt=payload.get("prompt", ""),
+                        error_type="RateLimit429",
+                        error_message="HTTP 429: rate limited",
+                        status_code=429,
+                        response_body=resp.text,
+                        retry_count=attempt + 1,
+                        extra={"mode": mode_desc},
+                    )
                     await asyncio.sleep(delay)
                     continue
 
@@ -340,6 +357,16 @@ class AgnesVideoAPI:
                     logger.warning(
                         f"[AgnesVideo] {resp.status_code} server error on {mode_desc}, "
                         f"retry {attempt + 1}/{self.max_retries} in {delay:.0f}s..."
+                    )
+                    collect_error(
+                        "video", "submit_video",
+                        prompt=payload.get("prompt", ""),
+                        error_type=f"HTTP{resp.status_code}",
+                        error_message=f"HTTP {resp.status_code}: server error",
+                        status_code=resp.status_code,
+                        response_body=resp.text,
+                        retry_count=attempt + 1,
+                        extra={"mode": mode_desc},
                     )
                     await asyncio.sleep(delay)
                     continue
@@ -355,6 +382,16 @@ class AgnesVideoAPI:
                         f"[AgnesVideo] 400 num_frames error ({old_nf} frames), "
                         f"reducing to {new_nf} and retrying "
                         f"({frame_reductions_left} reductions left)..."
+                    )
+                    collect_error(
+                        "video", "submit_video",
+                        prompt=payload.get("prompt", ""),
+                        error_type="NumFramesExceeded",
+                        error_message=f"HTTP 400: num_frames {old_nf} exceeded, reducing to {new_nf}",
+                        status_code=400,
+                        response_body=resp.text,
+                        retry_count=attempt + 1,
+                        extra={"mode": mode_desc, "old_nf": old_nf, "new_nf": new_nf},
                     )
                     payload["num_frames"] = new_nf
                     frame_reductions_left -= 1
@@ -375,6 +412,13 @@ class AgnesVideoAPI:
 
             except (requests.exceptions.Timeout, requests.exceptions.ConnectionError,
                         asyncio.TimeoutError) as e:
+                # 每次失败都记录（包括中间重试）
+                collect_error_from_exception(
+                    "video", "submit_video",
+                    exc=e, prompt=payload.get("prompt", ""),
+                    retry_count=attempt + 1,
+                    extra={"mode": mode_desc},
+                )
                 if attempt < self.max_retries - 1:
                     delay = self.retry_base_delay * (attempt + 1)
                     logger.warning(
@@ -383,13 +427,6 @@ class AgnesVideoAPI:
                     )
                     await asyncio.sleep(delay)
                     continue
-                # 最终失败：收集错误
-                collect_error_from_exception(
-                    "video", "submit_video",
-                    exc=e, prompt=payload.get("prompt", ""),
-                    retry_count=self.max_retries,
-                    extra={"mode": mode_desc},
-                )
                 raise
 
         collect_error(
