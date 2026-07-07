@@ -2763,7 +2763,7 @@ async function submitSimple() {
     currentTaskType = 'simple';
     setRunning(d.task_id);
     currentDirName = d.dir_name;
-    showProgress(d.task_id, d.dir_name);
+    await showProgress(d.task_id, d.dir_name);
     await startPolling(d.task_id);
     showToast(t('submitted'), 5000);
   } catch(e) {
@@ -2880,7 +2880,7 @@ async function submitCreative() {
     currentTaskType = 'creative';
     setRunning(d.task_id);
     currentDirName = d.dir_name;
-    showProgress(d.task_id, d.dir_name);
+    await showProgress(d.task_id, d.dir_name);
     await startPolling(d.task_id);
     showToast(t('submitted'), 5000);
   } catch(e) {
@@ -2926,7 +2926,7 @@ async function submitManuscript() {
     currentTaskType = 'manuscript';
     setRunning(d.task_id);
     currentDirName = d.dir_name;
-    showProgress(d.task_id, d.dir_name);
+    await showProgress(d.task_id, d.dir_name);
     await startPolling(d.task_id);
     showToast(t('submitted'), 5000);
   } catch(e) {
@@ -2979,7 +2979,7 @@ async function submitAnchor() {
     currentTaskType = 'anchor';
     setRunning(d.task_id);
     currentDirName = d.dir_name;
-    showProgress(d.task_id, d.dir_name);
+    await showProgress(d.task_id, d.dir_name);
     await startPolling(d.task_id);
     showToast(t('submitted'), 5000);
   } catch(e) {
@@ -3033,13 +3033,21 @@ function getStepsForType(taskType) {
   return STEPS[taskType] || STEPS.creative;
 }
 
-function showProgress(taskId, dirName) {
+async function showProgress(taskId, dirName) {
   const panel = document.getElementById('progress-panel');
   panel.classList.remove('hidden');
   document.getElementById('result-area').classList.add('hidden');
   document.getElementById('btn-stop').classList.remove('hidden');
   document.getElementById('progress-bar').style.width = '0%';
   document.getElementById('progress-pct').textContent = '0%';
+
+  // 获取 state 以便立即标记已完成步骤
+  let state = null;
+  try {
+    const r = await fetch('/api/tasks/' + taskId);
+    state = await r.json();
+    if (state.task_type) currentTaskType = state.task_type;
+  } catch(e) {}
 
   const steps = getStepsForType(currentTaskType);
   document.getElementById('steps-container').innerHTML = steps.map(s => `
@@ -3048,6 +3056,12 @@ function showProgress(taskId, dirName) {
       <span class="step-label text-gray-500">${t(s.labelKey)}</span>
     </div>
   `).join('');
+
+  // 如果有 state，立即标记已完成步骤（避免灰色闪烁）
+  if (state) {
+    currentTaskType = state.task_type || currentTaskType;
+    markCompletedStepsFromState(state);
+  }
 
   const dirInfo = dirName ? `<br><span class="text-gray-600 text-xs">${t('dir')}: <span class="font-mono">${dirName}</span></span>` : '';
   document.getElementById('progress-message').innerHTML = `<span class="text-blue-400 animate-pulse">${t('taskStarting')}</span><br><span class="text-gray-500">${t('task_')}: ${taskId}</span>${dirInfo}`;
@@ -3191,7 +3205,7 @@ async function autoReconnectRunningTask() {
       currentTaskType = running.task_type || 'creative';
       setRunning(running.task_id);
       currentDirName = running.dir_name || running.task_id;
-      showProgress(running.task_id, currentDirName);
+      await showProgress(running.task_id, currentDirName);
       await startPolling(running.task_id);
       restoreProgressFromTask(running.task_id);
     }
@@ -3296,7 +3310,7 @@ async function viewRunningTask(taskId) {
     currentTaskType = state.task_type || 'creative';
   } catch(e) { currentTaskType = 'creative'; }
   setRunning(taskId);
-  showProgress(taskId, null);
+  await showProgress(taskId, null);
   await startPolling(taskId);
   restoreProgressFromTask(taskId);
 }
@@ -3314,7 +3328,7 @@ async function resumeTask(taskId) {
     } catch(e) { currentTaskType = 'creative'; }
     setRunning(taskId);
     currentDirName = d.dir_name;
-    showProgress(taskId, d.dir_name);
+    await showProgress(taskId, d.dir_name);
     await startPolling(taskId);
     restoreProgressFromTask(taskId);
     showToast(t('resumed'), 5000);
