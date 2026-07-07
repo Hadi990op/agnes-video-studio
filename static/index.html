@@ -1179,6 +1179,7 @@ const T = {
     willDelete: '将删除以下文件', willResetSteps: '将重置以下步骤',
     artifactDeleted: '产物已删除', artifactDeleteFailed: '删除失败',
     clickToPreview: '点击预览', 'delete': '删除',
+    taskStarting: '任务正在启动...',
   },
   en: {
     subtitle: 'AI Video, One Click',
@@ -1295,6 +1296,7 @@ const T = {
     willDelete: 'Files to delete', willResetSteps: 'Steps to reset',
     artifactDeleted: 'Artifact deleted', artifactDeleteFailed: 'Delete failed',
     clickToPreview: 'Click to preview', 'delete': 'Delete',
+    taskStarting: 'Task starting...',
   },
   ru: {
     subtitle: 'AI Видео, Один клик',
@@ -3047,7 +3049,7 @@ function showProgress(taskId, dirName) {
   `).join('');
 
   const dirInfo = dirName ? `<br><span class="text-gray-600 text-xs">${t('dir')}: <span class="font-mono">${dirName}</span></span>` : '';
-  document.getElementById('progress-message').innerHTML = `<span class="text-yellow-400">${t('watchLog')}</span><br><span class="text-gray-500">${t('task_')}: ${taskId}</span>${dirInfo}`;
+  document.getElementById('progress-message').innerHTML = `<span class="text-blue-400 animate-pulse">${t('taskStarting')}</span><br><span class="text-gray-500">${t('task_')}: ${taskId}</span>${dirInfo}`;
 
   // 加载已有中间产物（任务运行中也可查看）
   currentArtifactsTaskId = taskId;

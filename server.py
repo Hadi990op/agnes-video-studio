@@ -252,6 +252,36 @@ async def websocket_endpoint(websocket: WebSocket, task_id: str):
         logger.info(f"[WS] Binding existing pipeline for task {task_id}")
         active_pipelines[task_id].progress_callback = _make_progress_callback(task_id)
 
+    # 连接建立后主动推送当前任务状态（避免 init 消息丢失导致空白面板）
+    try:
+        dir_name = _find_dir_name(task_id)
+        tm = TaskManager(task_id, dir_name=dir_name)
+        state = tm.load()
+        if state:
+            if task_id in _queued_tasks:
+                await websocket.send_json({
+                    "type": "progress", "task_id": task_id,
+                    "step": "init", "status": "running",
+                    "message": f"任务排队中... (权重={_queued_tasks[task_id]})",
+                    "progress": 0.0, "data": {},
+                })
+            elif state.status == StepStatus.RUNNING:
+                await websocket.send_json({
+                    "type": "progress", "task_id": task_id,
+                    "step": "init", "status": "running",
+                    "message": "任务正在运行...",
+                    "progress": 0.0, "data": {},
+                })
+            elif state.status == StepStatus.QUEUED:
+                await websocket.send_json({
+                    "type": "progress", "task_id": task_id,
+                    "step": "init", "status": "running",
+                    "message": "任务排队中...",
+                    "progress": 0.0, "data": {},
+                })
+    except Exception as e:
+        logger.debug(f"[WS] Failed to send initial state for {task_id}: {e}")
+
     try:
         while True:
             msg = await websocket.receive_text()
@@ -946,6 +976,14 @@ async def _run_pipeline_with_concurrency(
 
     # 标记排队状态
     task_manager.update_state(status=StepStatus.QUEUED)
+
+    # 排队时主动推送进度消息（让用户知道任务在排队）
+    cb = pipeline.progress_callback
+    if cb:
+        try:
+            await cb("init", "running", "任务排队中...", 0.0, {})
+        except Exception:
+            pass
 
     try:
         # 等待并发槽位
