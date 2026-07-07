@@ -15,6 +15,7 @@ from typing import List
 
 import requests
 
+from core.api.error_collector import collect_error, collect_error_from_exception
 from core.api.rate_limiter import get_rate_limiter
 
 logger = logging.getLogger(__name__)
@@ -73,6 +74,21 @@ class AgnesChatAPI:
         """判断 HTTP 响应是否应重试（5xx 和 429 重试，4xx 不重试）。"""
         return resp.status_code >= 500 or resp.status_code == 429
 
+    @staticmethod
+    def _extract_prompt_from_payload(payload: dict) -> str:
+        """从 Chat payload 中提取 user prompt 文本（用于错误收集）。"""
+        messages = payload.get("messages", [])
+        for msg in reversed(messages):
+            content = msg.get("content", "")
+            if isinstance(content, list):
+                # 多模态：提取 text 部分
+                texts = [item.get("text", "") for item in content if isinstance(item, dict) and item.get("type") == "text"]
+                if texts:
+                    return texts[0]
+            elif isinstance(content, str) and content.strip():
+                return content
+        return ""
+
     def _request_with_retry(self, payload: dict, timeout: int = 120) -> dict:
         """带重试的 API 请求。
 
@@ -120,11 +136,35 @@ class AgnesChatAPI:
                     )
                     time.sleep(delay)
                     continue
+                # 最终失败：收集错误
+                collect_error_from_exception(
+                    "chat", "chat",
+                    exc=e, prompt=self._extract_prompt_from_payload(payload),
+                    retry_count=_MAX_RETRIES,
+                )
                 raise
         # 重试耗尽
         if last_exc:
+            collect_error_from_exception(
+                "chat", "chat",
+                exc=last_exc, prompt=self._extract_prompt_from_payload(payload),
+                retry_count=_MAX_RETRIES,
+            )
             raise last_exc
-        resp.raise_for_status()  # type: ignore[possibly-undefined]
+        # 不可重试的 HTTP 错误（4xx 非 429）
+        try:
+            resp.raise_for_status()  # type: ignore[possibly-undefined]
+        except requests.HTTPError as e:
+            collect_error(
+                "chat", "chat",
+                prompt=self._extract_prompt_from_payload(payload),
+                error_type=type(e).__name__,
+                error_message=str(e),
+                status_code=resp.status_code,  # type: ignore[possibly-undefined]
+                response_body=resp.text[:5000],  # type: ignore[possibly-undefined]
+                retry_count=_MAX_RETRIES,
+            )
+            raise
         return resp.json()  # type: ignore[possibly-undefined]
 
     def chat(self, system_prompt: str, user_prompt: str, max_tokens: int = 4096) -> str:
@@ -188,10 +228,19 @@ class AgnesChatAPI:
                 continue
             # 最终失败
             preview = content[:200]
-            raise ValueError(
+            error_msg = (
                 f"[AgnesChat] Failed to parse JSON after 2 attempts. "
                 f"Response preview: {preview}..."
             )
+            collect_error(
+                "chat", "chat_json",
+                prompt=user_prompt, system_prompt=system_prompt,
+                error_type="JSONParseError",
+                error_message=error_msg,
+                response_body=content[:5000],
+                retry_count=2,
+            )
+            raise ValueError(error_msg)
         # 不应到达此处，但保险起见
         raise ValueError("[AgnesChat] Unexpected flow in chat_json")
 

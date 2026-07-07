@@ -21,3 +21,6 @@ __pycache__/
 dist/
 build/
 static/generated/
+
+# 模型接口报错收集
+error_logs/
