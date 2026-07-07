@@ -2764,7 +2764,7 @@ async function submitSimple() {
     setRunning(d.task_id);
     currentDirName = d.dir_name;
     showProgress(d.task_id, d.dir_name);
-    startPolling(d.task_id);
+    await startPolling(d.task_id);
     showToast(t('submitted'), 5000);
   } catch(e) {
     alert(t('failCreate') + ': ' + e.message);
@@ -2881,7 +2881,7 @@ async function submitCreative() {
     setRunning(d.task_id);
     currentDirName = d.dir_name;
     showProgress(d.task_id, d.dir_name);
-    startPolling(d.task_id);
+    await startPolling(d.task_id);
     showToast(t('submitted'), 5000);
   } catch(e) {
     alert(t('failCreate') + ': ' + e.message);
@@ -2927,7 +2927,7 @@ async function submitManuscript() {
     setRunning(d.task_id);
     currentDirName = d.dir_name;
     showProgress(d.task_id, d.dir_name);
-    startPolling(d.task_id);
+    await startPolling(d.task_id);
     showToast(t('submitted'), 5000);
   } catch(e) {
     alert(t('failCreate') + ': ' + e.message);
@@ -2980,7 +2980,7 @@ async function submitAnchor() {
     setRunning(d.task_id);
     currentDirName = d.dir_name;
     showProgress(d.task_id, d.dir_name);
-    startPolling(d.task_id);
+    await startPolling(d.task_id);
     showToast(t('submitted'), 5000);
   } catch(e) {
     alert(t('failCreate') + ': ' + e.message);
@@ -3064,11 +3064,10 @@ function showProgress(taskId, dirName) {
 const POLL_INTERVAL = 30000; // 30 秒轮询
 let _lastPolledStep = '';
 
-function startPolling(taskId) {
+async function startPolling(taskId) {
   stopPolling();
   _lastPolledStep = '';
-  // 立即轮询一次，不用等第一个 interval
-  pollTaskProgress(taskId);
+  await pollTaskProgress(taskId);  // 等待首次轮询，确保步骤状态立即更新
   pollTimer = setInterval(() => pollTaskProgress(taskId), POLL_INTERVAL);
 }
 
@@ -3193,7 +3192,7 @@ async function autoReconnectRunningTask() {
       setRunning(running.task_id);
       currentDirName = running.dir_name || running.task_id;
       showProgress(running.task_id, currentDirName);
-      startPolling(running.task_id);
+      await startPolling(running.task_id);
       restoreProgressFromTask(running.task_id);
     }
   } catch(e) {}
@@ -3298,7 +3297,7 @@ async function viewRunningTask(taskId) {
   } catch(e) { currentTaskType = 'creative'; }
   setRunning(taskId);
   showProgress(taskId, null);
-  startPolling(taskId);
+  await startPolling(taskId);
   restoreProgressFromTask(taskId);
 }
 
@@ -3316,7 +3315,7 @@ async function resumeTask(taskId) {
     setRunning(taskId);
     currentDirName = d.dir_name;
     showProgress(taskId, d.dir_name);
-    startPolling(taskId);
+    await startPolling(taskId);
     restoreProgressFromTask(taskId);
     showToast(t('resumed'), 5000);
   } catch(e) { alert(t('failResume') + ': ' + e.message); }
