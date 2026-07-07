@@ -3262,12 +3262,17 @@ async function restoreProgressFromTask(taskId) {
     currentTaskType = state.task_type || 'creative';
 
     const steps = getStepsForType(currentTaskType);
-    document.getElementById('steps-container').innerHTML = steps.map(s => `
+    document.getElementById('steps-container').innerHTML = steps.map(s => {
+      const isDone = isStepDoneInState(state, s.key, currentTaskType);
+      const icon = isDone ? '✓' : '○';
+      const iconClass = isDone ? 'w-5 h-5 flex items-center justify-center rounded-full bg-green-900 text-green-300 text-xs' : 'w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-xs';
+      const labelClass = isDone ? 'step-label text-green-400' : 'step-label text-gray-500';
+      return `
       <div class="step-item flex items-center gap-3 text-sm" data-step="${s.key}">
-        <span class="step-icon w-5 h-5 flex items-center justify-center rounded-full bg-gray-800 text-xs">○</span>
-        <span class="step-label text-gray-500">${t(s.labelKey)}</span>
-      </div>
-    `).join('');
+        <span class="step-icon ${iconClass}">${icon}</span>
+        <span class="${labelClass}">${t(s.labelKey)}</span>
+      </div>`;
+    }).join('');
 
     if (state.status === 'completed') {
       document.getElementById('progress-bar').style.width = '100%';
