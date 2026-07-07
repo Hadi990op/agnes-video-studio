@@ -3585,7 +3585,7 @@ function renderArtifactCard(art, taskId, isRunning) {
   if (art.category === 'image') {
     preview = '<img src="' + escapeAttr(fileUrl) + '" class="max-h-32 rounded cursor-pointer border border-gray-700/50" onclick="openImageModal(\'' + escapeAttr(fileUrl) + '\')" loading="lazy">';
   } else if (art.category === 'video') {
-    preview = '<video src="' + escapeAttr(fileUrl) + '" controls playsinline type="video/mp4" class="max-h-48 w-full rounded border border-gray-700/50" preload="metadata"></video>';
+    preview = '<div style="position:relative;z-index:1;pointer-events:auto;transform:translateZ(0)"><video src="' + escapeAttr(fileUrl) + '" controls playsinline preload="metadata" class="w-full rounded border border-gray-700/50 bg-black" style="max-height:360px;min-height:200px;pointer-events:auto"></video></div>';
   } else if (art.category === 'audio') {
     preview = '<audio src="' + escapeAttr(fileUrl) + '" controls class="w-full" preload="metadata"></audio>';
   } else {
