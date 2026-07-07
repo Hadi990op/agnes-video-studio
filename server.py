@@ -683,9 +683,11 @@ async def preview_artifact_cascade(task_id: str, artifact_id: str):
 @app.delete("/api/tasks/{task_id}/artifacts/{artifact_id}")
 async def delete_task_artifact(task_id: str, artifact_id: str):
     """删除指定中间产物（含级联删除后续产物 + 状态回退）。"""
-    # 运行中任务保护
+    # 运行中任务保护（已停止的 pipeline 允许删除产物）
     if task_id in active_pipelines:
-        raise HTTPException(status_code=409, detail="Task is running, please stop it first")
+        pipeline = active_pipelines[task_id]
+        if not pipeline._stop_event.is_set():
+            raise HTTPException(status_code=409, detail="Task is running, please stop it first")
 
     dir_name = _find_dir_name(task_id)
     tm = TaskManager(task_id, dir_name=dir_name)
