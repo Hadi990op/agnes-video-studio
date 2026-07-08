@@ -50,7 +50,7 @@ To be honest, Agnes's video model isn't perfect yet. The generated frames are so
 
 | Feature | Agnes Video Generator | Runway Gen-3 | Pika 2.0 | OpenAI Sora | Kling 1.6 |
 |---------|:---:|:---:|:---:|:---:|:---:|
-| **Price** | Free | $15–$95/month | $10–$28/month | $20+/month (limited) | Free quota, then pay-per-second |
+| **Price** | Free | $15–$95/month | $10–$95/month | $20+/month (limited) | Free quota, then pay-per-second |
 | **Open Source** | ✅ Yes (MIT) | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Self-Hosted** | ✅ Yes | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Max Video Length** | 20s per clip, unlimited scenes | 10s per clip | 10s per clip | 20s per clip | 10s per clip |
@@ -128,7 +128,7 @@ Designed specifically for AI coding assistants (Claude, Cursor, QoderWork, etc.)
 
 ### 🌐 Multilingual Web UI
 
-One-click launch, operate entirely in the browser. Interface available in **7 languages**: 中文, English, Русский, 日本語, 한국어, Bahasa Melayu, Bahasa Indonesia.
+One-click launch, operate entirely in the browser. Interface available in **13 languages**: 中文, English, Deutsch, Français, Nederlands, Español, Português, Italiano, Русский, 日本語, 한국어, Bahasa Melayu, Bahasa Indonesia.
 
 ## 🚀 Quick Start
 
@@ -273,7 +273,7 @@ agnes-video-generator/
 ├── requirements.txt                  # Python dependencies
 ├── server.py                         # FastAPI server (REST + WebSocket)
 ├── static/
-│   └── index.html                    # Frontend SPA — 5 task tabs, 7 languages (Tailwind CSS)
+│   └── index.html                    # Frontend SPA — 5 task tabs, 13 languages (Tailwind CSS)
 ├── core/
 │   ├── config.py                     # API key, font resolution, default configs
 │   ├── screenwriter.py               # Screenwriter Agent (LLM-powered story/script/narration)
@@ -453,7 +453,7 @@ Yes. You can upload reference images for character or scene consistency across s
 
 ### What languages does the UI support?
 
-The Web UI supports 7 languages: 中文, English, Русский, 日本語, 한국어, Bahasa Melayu, and Bahasa Indonesia. Subtitles are generated in the source text language with CJK font support built-in.
+The Web UI supports 13 languages: 中文, English, Deutsch, Français, Nederlands, Español, Português, Italiano, Русский, 日本語, 한국어, Bahasa Melayu, and Bahasa Indonesia. Subtitles are generated in the source text language with CJK font support built-in.
 
 ### Can I host this on my own server?
 

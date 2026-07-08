@@ -50,7 +50,7 @@
 
 | 特性 | Agnes Video Generator | Runway Gen-3 | Pika 2.0 | OpenAI Sora | 可灵 Kling 1.6 |
 |------|:---:|:---:|:---:|:---:|:---:|
-| **价格** | 完全免费 | $15–$95/月 | $10–$28/月 | $20+/月（限量） | 免费额度后按秒计费 |
+| **价格** | 完全免费 | $15–$95/月 | $10–$95/月 | $20+/月（限量） | 免费额度后按秒计费 |
 | **开源** | ✅ 是（MIT） | ❌ 否 | ❌ 否 | ❌ 否 | ❌ 否 |
 | **自托管** | ✅ 支持 | ❌ 不支持 | ❌ 不支持 | ❌ 不支持 | ❌ 不支持 |
 | **单段最长时长** | 20秒，场景数不限 | 10秒 | 10秒 | 20秒 | 10秒 |
@@ -128,7 +128,7 @@
 
 ### 🌐 多语言 Web UI
 
-一键启动后在浏览器中完成所有操作。界面支持 **7 种语言**：中文、English、Русский、日本語、한국어、Bahasa Melayu、Bahasa Indonesia。
+一键启动后在浏览器中完成所有操作。界面支持 **13 种语言**：中文、English、Deutsch、Français、Nederlands、Español、Português、Italiano、Русский、日本語、한국어、Bahasa Melayu、Bahasa Indonesia。
 
 ## 🚀 快速开始
 
@@ -273,7 +273,7 @@ agnes-video-generator/
 ├── requirements.txt                  # Python 依赖
 ├── server.py                         # FastAPI 主服务 (REST + WebSocket)
 ├── static/
-│   └── index.html                    # 前端 SPA — 五种任务 Tab，7 种语言 (Tailwind CSS)
+│   └── index.html                    # 前端 SPA — 五种任务 Tab，13 种语言 (Tailwind CSS)
 ├── core/
 │   ├── config.py                     # API Key、字体解析、默认配置
 │   ├── screenwriter.py               # 编剧 Agent (LLM 驱动的故事/脚本/旁白生成)
@@ -453,7 +453,7 @@ MIT
 
 ### Web UI 支持哪些语言？
 
-界面支持 7 种语言：中文、English、Русский、日本語、한국어、Bahasa Melayu、Bahasa Indonesia。字幕以源文本语言生成，内置 CJK 字体支持。
+界面支持 13 种语言：中文、English、Deutsch、Français、Nederlands、Español、Português、Italiano、Русский、日本語、한국어、Bahasa Melayu、Bahasa Indonesia。字幕以源文本语言生成，内置 CJK 字体支持。
 
 ### 可以部署在自己的服务器上吗？
 
