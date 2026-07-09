@@ -16,6 +16,22 @@
 
 > **🖥️ Try it now — no install needed:** Visit [video.lichuanyang.top](https://video.lichuanyang.top) and experience **Simple Video** mode directly in your browser. Just enter a prompt and generate a free AI video instantly.
 
+## ⭐ Support & Contribute
+
+If you find this project useful, please **star the [GitHub repository](https://github.com/lcy362/agnes-video-generator)** ⭐ — your support helps more people discover this free and open-source AI video generator.
+
+Bug reports and feature suggestions are welcome via [GitHub Issues](https://github.com/lcy362/agnes-video-generator/issues).
+
+### 💝 Support the Developer
+
+Agnes Video Generator is and will always remain completely free and open-source. There will be **no paid plans, no premium features, and no subscription services** — now or in the future.
+
+If you find this project helpful, here are a few ways to support its continued development:
+
+- **⭐ Star on GitHub** — Star the [repository](https://github.com/lcy362/agnes-video-generator) to help others discover this project.
+- **🌐 Whitelist the official website** — Turn off your ad blocker on [video.lichuanyang.top](https://video.lichuanyang.top) and click on an ad if something catches your eye. A small gesture that makes a real difference.
+- **📢 Share your creations** — Post videos made with Agnes Video Generator on social media (Douyin, YouTube, Xiaohongshu, etc.) and tag the project. More exposure means more users, more feedback, and a better tool for everyone.
+
 ## 🎥 Demo
 
 ### 1. Creative Video — No Narration
@@ -409,19 +425,6 @@ This project is built upon the following open-source projects:
 - [vimax-agnes](https://github.com/easyeye163/vimax-agnes) — Agnes AI adaptation based on ViMax
 
 Special thanks to [Agnes AI](https://platform.agnes-ai.com) for providing **completely free**, high-quality AI model APIs (text, image, and video generation) — this project runs at absolute zero cost thanks to their generosity.
-
-## Feedback & Contributing
-
-Bug reports and feature suggestions are welcome via [GitHub Issues](../../issues).
-
-## 💝 Support the Developer
-
-Agnes Video Generator is and will always remain completely free and open-source. There will be **no paid plans, no premium features, and no subscription services** — now or in the future.
-
-If you find this project helpful, here are a few ways to support its continued development:
-
-- **Whitelist the official website** — Turn off your ad blocker on [video.lichuanyang.top](https://video.lichuanyang.top) and click on an ad if something catches your eye. A small gesture that makes a real difference.
-- **Share your creations** — Post videos made with Agnes Video Generator on social media (Douyin, YouTube, Xiaohongshu, etc.) and tag the project. More exposure means more users, more feedback, and a better tool for everyone.
 
 ## 📄 License
 
