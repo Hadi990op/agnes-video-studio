@@ -1271,11 +1271,11 @@ async def create_poetry_task(
     video_width: int = Form(768),
     video_height: int = Form(1152),
     video_duration: int = Form(30),
-    scene_count: int = Form(0),
+    scene_count: int = Form(3),
     # 音频配置（默认开启朗诵配音）
     audio_enabled: bool = Form(True),
     audio_voice: str = Form("zh-CN-XiaoxiaoNeural"),
-    audio_rate: str = Form("+0%"),
+    audio_rate: str = Form("-15%"),
     # 字幕配置（默认开启，固定诗歌样式，用户仅开关）
     subtitle_enabled: bool = Form(True),
 ):
@@ -1288,8 +1288,8 @@ async def create_poetry_task(
         raise HTTPException(status_code=400, detail="古诗原文不能为空")
     if len(poem_text) > 2000:
         raise HTTPException(status_code=422, detail="古诗原文最多 2000 字符")
-    if scene_count < 0 or scene_count > 30:
-        raise HTTPException(status_code=422, detail="scene_count 范围 0-30（0=由 LLM 决定）")
+    if scene_count < 1 or scene_count > 30:
+        raise HTTPException(status_code=422, detail="scene_count 范围 1-30")
     if video_duration < 5 or video_duration > 300:
         raise HTTPException(status_code=422, detail="video_duration 范围 5-300 秒")
 

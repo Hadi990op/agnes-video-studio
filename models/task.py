@@ -371,8 +371,8 @@ class PoetryVideoTask(BaseTaskState):
     video_height: int = 1152
     # 目标总时长（秒）。LLM 在此基础上决定分镜数与每段时长分配。
     video_duration: int = 30
-    # 期望分镜数；0 表示由 LLM 依据诗歌自行决定。
-    scene_count: int = 0
+    # 期望分镜数（与创意视频一致：默认 3，范围 1-30）
+    scene_count: int = 3
 
     audio_config: AudioConfig = Field(default_factory=AudioConfig)
     subtitle_config: SubtitleConfig = Field(default_factory=SubtitleConfig)

@@ -1049,8 +1049,7 @@
             <div>
               <label class="block text-xs text-gray-400 mb-1" data-i18n="sceneCount">场景数量</label>
               <div class="flex items-center gap-2">
-                <input id="p_scene_count" type="number" min="0" max="30" value="0" class="w-24 glass-input rounded-lg px-3 py-2 text-sm text-gray-100">
-                <span class="text-xs text-gray-500" data-i18n="sceneCountAuto">0=自动</span>
+                <input id="p_scene_count" type="number" min="1" max="30" value="3" class="w-24 glass-input rounded-lg px-3 py-2 text-sm text-gray-100">
               </div>
             </div>
           </div>
@@ -1104,8 +1103,8 @@
               <label class="block text-sm text-gray-400 mb-1.5" data-i18n="speechRate">语速</label>
               <select id="p_rate" class="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-gray-100">
                 <option value="-30%">-30% (慢)</option>
-                <option value="-15%">-15%</option>
-                <option value="+0%" selected data-i18n="rateNormal">正常</option>
+                <option value="-15%" selected>-15% (诗词朗诵偏慢)</option>
+                <option value="+0%" data-i18n="rateNormal">正常</option>
                 <option value="+15%">+15%</option>
                 <option value="+30%">+30% (快)</option>
               </select>
@@ -1129,6 +1128,15 @@
           </div>
           <p class="text-xs text-gray-500" data-i18n="poetrySubtitleFixed">诗词字幕采用固定通用样式（居中偏下、白字黑描边），仅可开关，不可自定义。</p>
         </div>
+      </div>
+
+      <!-- Watermark toggle -->
+      <div class="flex items-center justify-between px-1 py-2 mb-4">
+        <p class="text-xs text-gray-500 leading-relaxed mr-3 watermark-promo"></p>
+        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0" title="Video Watermark">
+          <input type="checkbox" class="watermark-toggle sr-only peer" onchange="toggleWatermark(this)">
+          <div class="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+        </label>
       </div>
 
       <button id="btn-poetry" onclick="submitPoetry()" class="w-full py-3.5 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 hover:from-blue-500 hover:via-blue-400 hover:to-blue-500 rounded-xl text-base font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed glow-btn" data-i18n="startGenerate">
@@ -3157,7 +3165,7 @@ async function submitPoetry() {
   form.append('video_width', res.width);
   form.append('video_height', res.height);
   form.append('video_duration', parseInt(document.getElementById('p_duration').value) || 30);
-  form.append('scene_count', parseInt(document.getElementById('p_scene_count').value) || 0);
+  form.append('scene_count', parseInt(document.getElementById('p_scene_count').value) || 3);
   // Audio config
   form.append('audio_enabled', document.getElementById('p_audio_enabled').checked);
   form.append('audio_voice', document.getElementById('p_voice').value);
