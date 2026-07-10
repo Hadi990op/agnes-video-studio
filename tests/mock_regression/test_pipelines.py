@@ -389,6 +389,29 @@ class TestPoetryVideoPipeline(BasePipelineTest):
         logger.info(f"  ✓ user_scene_prompts override verified for {len(user_prompts)} scenes")
 
     @pytest.mark.asyncio
+    async def test_poetry_user_prompts_formatted(self, temp_workdir):
+        """诗词视频 — 「诗句 | 描述」格式：直接构建分镜，诗句↔场景精确对应，不调用 LLM。"""
+        from core.pipelines.poetry_video import PoetryVideoPipeline
+        from unittest.mock import patch
+        user_prompts = [
+            "春眠不觉晓，处处闻啼鸟。 | 春日清晨薄雾，枝头鸟鸣",
+            "夜来风雨声，花落知多少。 | 夜雨敲窗，落花满地",
+        ]
+        state = await self._make_state(user_scene_prompts=user_prompts)
+        pipe = PoetryVideoPipeline(api_key="k", task_id="t", dir_name=temp_workdir)
+        pipe._state = state
+        with patch.object(pipe.screenwriter, "generate_poetry_scenes") as mock_llm:
+            await pipe._build_scenes()
+        # 用户已完整定义分镜 → LLM 不应被调用
+        mock_llm.assert_not_called()
+        assert len(state.scenes) == 2, state.scenes
+        assert state.scenes[0].narration_text == "春眠不觉晓，处处闻啼鸟。"
+        assert state.scenes[0].scene_prompt == "春日清晨薄雾，枝头鸟鸣"
+        assert state.scenes[1].narration_text == "夜来风雨声，花落知多少。"
+        assert state.scenes[1].scene_prompt == "夜雨敲窗，落花满地"
+        logger.info("  ✓ formatted user prompts built scenes directly (verse->narration, desc->prompt)")
+
+    @pytest.mark.asyncio
     async def test_poetry_resolve_manual_uniform(self, temp_workdir):
         """场景配置 — 手动/统一：每场景时长取自统一值。"""
         state = await self._make_state(
