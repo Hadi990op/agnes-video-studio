@@ -4,17 +4,13 @@
 """
 
 import asyncio
-import json
 import logging
 import os
 import re
 from typing import Callable, Optional
 
 from core.api.agnes_video import AgnesVideoAPI
-from core.compositor.watermark import add_watermark, detect_language
-from core.config import get_watermark_config
 from core.pipelines import BasePipeline, PipelineShutdown
-from core.task_manager import TaskManager
 from models.task import SimpleVideoTask, StepStatus
 
 logger = logging.getLogger(__name__)
@@ -50,18 +46,8 @@ class SimpleVideoPipeline(BasePipeline):
         try:
             video_path = await self._submit_and_wait()
 
-            # 水印后处理
-            wm_config = get_watermark_config()
-            if wm_config.get("enabled") and os.path.exists(video_path):
-                lang = wm_config.get("language", "auto")
-                if lang == "auto":
-                    lang = detect_language(self._state.prompt)
-                wm_output = video_path + ".wm_tmp.mp4"
-                if add_watermark(
-                    video_path, wm_output,
-                    language=lang,
-                ):
-                    os.replace(wm_output, video_path)
+            # 水印后处理（共享实现）
+            video_path = self._apply_watermark(video_path)
 
             self._state.status = StepStatus.COMPLETED
             self._state.final_video_file = video_path
@@ -83,34 +69,11 @@ class SimpleVideoPipeline(BasePipeline):
             raise
 
     # ------------------------------------------------------------------
-    # Curl / task persistence helpers
+    # 水印语言来源（共享 _apply_watermark 用）
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _make_curl(video_id: str) -> str:
-        return (
-            f'curl -s -H "Authorization: Bearer $AGNES_API_KEY" '
-            f'"https://apihub.agnes-ai.com/agnesapi?video_id={video_id}"'
-        )
-
-    def _save_task(self, video_id: str) -> None:
-        task_file = os.path.join(self.working_dir, "task.json")
-        with open(task_file, "w") as f:
-            json.dump({"video_id": video_id}, f, indent=2)
-        curl_file = os.path.join(self.working_dir, "curl.sh")
-        with open(curl_file, "w") as f:
-            f.write(self._make_curl(video_id) + "\n")
-
-    def _load_task(self) -> Optional[str]:
-        task_file = os.path.join(self.working_dir, "task.json")
-        if os.path.exists(task_file):
-            try:
-                with open(task_file, "r") as f:
-                    data = json.load(f)
-                return data.get("video_id") or data.get("task_id")
-            except Exception as e:
-                logger.debug(f"[Simple] Failed to load cached task.json: {e}")
-        return None
+    def _get_watermark_language_text(self) -> str:
+        return self._state.prompt
 
     async def _submit_and_wait(self) -> str:
         """提交视频任务并等待完成。支持 resume。"""
@@ -121,7 +84,7 @@ class SimpleVideoPipeline(BasePipeline):
             return video_path
 
         # 尝试从 task.json 恢复（resume 场景）
-        saved_video_id = self._load_task()
+        saved_video_id = self._load_task_json(self.working_dir)
         if saved_video_id:
             logger.info(f"[Simple] Resuming from saved task.json video_id: {saved_video_id}")
             self._state.video_id = saved_video_id
@@ -134,7 +97,7 @@ class SimpleVideoPipeline(BasePipeline):
         # 也检查 state 中的 video_id（旧版 resume 兼容）
         if self._state.video_id:
             logger.info(f"[Simple] Resuming from state video_id: {self._state.video_id}")
-            self._save_task(self._state.video_id)
+            self._save_task_json(self.working_dir, {"video_id": self._state.video_id})
             await self._emit("video_gen", "running", f"恢复轮询视频任务 {self._state.video_id[:16]}...", 0.3)
             video_output = await self.video_api.wait_for_video(self._state.video_id)
             video_output.save(video_path)
@@ -165,7 +128,7 @@ class SimpleVideoPipeline(BasePipeline):
 
         # 持久化 video_id + curl 命令
         self._state.video_id = video_id
-        self._save_task(video_id)
+        self._save_task_json(self.working_dir, {"video_id": video_id})
         self.task_manager.update_state(video_id=video_id)
 
         await self._emit("video_gen", "running", f"等待视频生成 {video_id[:16]}...", 0.3)

@@ -1637,3 +1637,75 @@ Styling rules:
             }
             for s in subs
         ]
+
+    def generate_poetry_scene_prompt(
+        self,
+        stanza: str,
+        style: str = "诗意写实风格",
+        poem_context: str = "",
+    ) -> str:
+        """为诗词段落生成视频场景 prompt（语言跟随输入）。
+
+        将诗词意境转化为适合视频生成的视觉描述。
+
+        Args:
+            stanza: 诗词段落文本。
+            style: 视觉风格偏好。
+            poem_context: 整首诗上下文（可选）。
+
+        Returns:
+            视频 prompt 字符串。
+        """
+        system_prompt = self._prompt(
+            zh_text="""\
+你是一位诗意的视觉艺术家，专精将诗词转化为视觉画面描述。\
+为 AI 视频生成创建一个简短的视觉描述 prompt。
+
+关键规则：
+- 将诗词的意境、色彩、情绪转化为视觉元素。
+- 描述画面中应该出现的场景、动作和氛围。
+- 15-30 词，语言与诗词输入保持一致。
+- 不包含故事叙述或说教性语言。
+- 只描述视觉画面，不描述声音或文字。
+
+只输出视觉描述 prompt 文本，不要 JSON，不要解释。
+""",
+            en_text="""\
+You are a poetic visual artist specializing in transforming poetry into \
+visual descriptions. Create a SHORT visual prompt for AI video generation.
+
+CRITICAL RULES:
+- Transform the poem's imagery, mood, and emotion into visual elements.
+- Describe the scene, motion, and atmosphere that should appear in the video.
+- 15-30 words, in the same language as the poem stanza.
+- Do NOT include storytelling or didactic language.
+- Describe ONLY visuals — no audio, no text overlays.
+
+Output ONLY the visual description prompt text, no JSON, no explanation.
+""",
+        )
+
+        user_prompt = f"""\
+<poem_stanza>
+{stanza}
+</poem_stanza>
+"""
+
+        if poem_context:
+            user_prompt += f"""
+<poem_context>
+{poem_context}
+</poem_context>
+"""
+
+        user_prompt += "\n" + self._prompt(
+            zh_text=f"请将此诗词段落转化为 {style} 的视觉描述。",
+            en_text=f"Transform this poem stanza into a visual description in {style} style.",
+        )
+
+        logger.info(
+            f"[Screenwriter] Generating poetry scene prompt ({len(stanza)} chars)..."
+        )
+        prompt = strip_code_fence(self._chat(system_prompt, user_prompt))
+        logger.info(f"[Screenwriter] Poetry scene prompt: {prompt[:100]}...")
+        return prompt

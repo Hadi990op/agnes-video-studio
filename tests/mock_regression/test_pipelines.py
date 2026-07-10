@@ -17,6 +17,7 @@ from models.task import (
     CreativeVideoTask,
     ManuscriptVideoTask,
     AnchorVideoTask,
+    PoetryVideoTask,
     VideoMode,
 )
 
@@ -67,7 +68,7 @@ class BasePipelineTest:
 
         # ── 3. 步骤状态全部非 FAILED ──
         if verify_steps:
-            for field_name in state.model_fields:
+            for field_name in type(state).model_fields:
                 if field_name.startswith("step_") and not field_name.endswith("_subtitle"):
                     step_status = getattr(state, field_name, None)
                     if step_status is not None:
@@ -309,6 +310,47 @@ class TestAnchorVideoPipeline(BasePipelineTest):
             subtitle_config=SubtitleConfig(enabled=False),
         )
         await self._run_and_verify(AnchorPipeline, state, temp_workdir)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# PoetryVideo Pipeline
+# ══════════════════════════════════════════════════════════════════════
+
+class TestPoetryVideoPipeline(BasePipelineTest):
+
+    _POEM_TEXT = (
+        "春眠不觉晓，处处闻啼鸟。\n\n"
+        "夜来风雨声，花落知多少。"
+    )
+
+    async def _make_state(self, **kwargs):
+        return PoetryVideoTask(
+            task_type="poetry",
+            creative_name="mock_poetry",
+            poem_text=kwargs.get("poem_text", self._POEM_TEXT),
+            video_width=kwargs.get("video_width", 768),
+            video_height=kwargs.get("video_height", 1152),
+            audio_config=kwargs.get("audio_config", AudioConfig(enabled=True)),
+            subtitle_config=kwargs.get("subtitle_config", SubtitleConfig(enabled=True)),
+        )
+
+    @pytest.mark.asyncio
+    async def test_poetry_basic(self, temp_workdir):
+        """诗词视频 — 基础全流程。"""
+        from core.pipelines.poetry_video import PoetryVideoPipeline
+        state = await self._make_state()
+        await self._run_and_verify(PoetryVideoPipeline, state, temp_workdir,
+                                    verify_prompts=True)
+
+    @pytest.mark.asyncio
+    async def test_poetry_no_audio(self, temp_workdir):
+        """诗词视频 — 禁用音频和字幕。"""
+        from core.pipelines.poetry_video import PoetryVideoPipeline
+        state = await self._make_state(
+            audio_config=AudioConfig(enabled=False),
+            subtitle_config=SubtitleConfig(enabled=False),
+        )
+        await self._run_and_verify(PoetryVideoPipeline, state, temp_workdir)
 
 
 # ══════════════════════════════════════════════════════════════════════

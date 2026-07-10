@@ -191,13 +191,14 @@ _CHAT_FIXTURES = [
     ("仅从此故事中提取主要角色的物理外貌", "", "character_appearance"),
     ("end frame prompt", "", "end_frame_prompts"),
     ("generate end frame", "", "end_frame_prompts"),
-    ("anchor_smooth_loop", "", "anchor_smooth"),
-    ("anchor_model_audio", "", "anchor_model_audio"),
+    ("无缝循环播放", "<anchor_appearance>", "anchor_smooth"),
+    ("同时生成视频和音频", "<anchor_appearance>", "anchor_model_audio"),
     ("narration_for_video", "", "narration"),
     ("narration for video", "", "narration"),
     ("视频旁白员和剧本作家", "", "narration"),
     ("subtitle_styles", "", "subtitle_styles"),
     ("subtitle_style_designer", "", "subtitle_styles"),
+    ("诗意的视觉艺术家", "<poem_stanza>", "poetry_scene_prompt"),
 ]
 
 

@@ -20,9 +20,7 @@ from core.api.agnes_image import AgnesImageAPI
 from core.api.agnes_video import AgnesVideoAPI
 from core.audio.tts import EdgeTTSEngine, SilentTTSEngine
 from core.compositor.concatenator import VideoConcatenator
-from core.compositor.watermark import add_watermark, detect_language
-from core.config import get_watermark_config
-from core.pipelines import BasePipeline, PipelineShutdown
+from core.pipelines import MultiScenePipeline, PipelineShutdown
 from core.screenwriter import Screenwriter
 from models.task import CreativeVideoTask, SceneTask, StepStatus, SubtitleConfig
 
@@ -162,7 +160,7 @@ def _split_narration_into_scenes(text: str, num_scenes: int) -> list[str]:
 logger = logging.getLogger(__name__)
 
 
-class CreativeVideoPipeline(BasePipeline):
+class CreativeVideoPipeline(MultiScenePipeline):
     """Creative long-form video generation pipeline with audio/subtitle support.
 
     Generates multi-scene videos from a user idea, with optional TTS narration
@@ -914,20 +912,6 @@ class CreativeVideoPipeline(BasePipeline):
     # ==================================================================
     # Step 4: Video Generation
     # ==================================================================
-
-    def _make_curl(self, video_id: str) -> str:
-        """Build a curl command string for manual video-task retrieval.
-
-        Args:
-            video_id: The remote video task identifier.
-
-        Returns:
-            Shell command string.
-        """
-        return (
-            f'curl -s -H "Authorization: Bearer $AGNES_API_KEY" '
-            f'"https://apihub.agnes-ai.com/agnesapi?video_id={video_id}"'
-        )
 
     def _save_scene_task(self, scene_dir: str, video_id: str) -> None:
         """Persist a scene's video-task ID to ``task.json`` and ``curl.sh``.
@@ -1859,125 +1843,97 @@ class CreativeVideoPipeline(BasePipeline):
         return final_video_path
 
     # ==================================================================
-    # Main Run
+    # v4.0 模板钩子（继承 MultiScenePipeline，复用模板 run() + 步骤编排）
     # ==================================================================
 
-    async def run(self, state: CreativeVideoTask) -> str:
-        """Execute the full creative video generation pipeline.
+    async def _execute_step(
+        self, step_name, action, progress_start, progress_end,
+        running_msg, completed_msg,
+    ):
+        """覆写：禁粗粒度 skip，依赖各 ``_step_*`` 读盘自 skip（保持细粒度 resume）。"""
+        self.task_manager.update_step(step_name, StepStatus.RUNNING)
+        await self._emit(step_name, "running", running_msg, progress_start)
+        result = await action()
+        self.task_manager.update_step(step_name, StepStatus.COMPLETED)
+        await self._emit(step_name, "completed", completed_msg, progress_end)
+        return result
 
-        Steps (in order):
-            0. Image analysis
-            1. Story generation
-            2. Character reference
-            3. Script writing
-            3.5. End-frame prompts (keyframes mode)
-            3.6. End-frame pre-generation (keyframes mode)
-            4. Video generation
-            5. Audio & subtitle generation (v2.0)
-            6. Concatenation
+    def _get_init_message(self) -> str:
+        return "开始视频生成流程..."
 
-        Each step is checkpointed for resume.  A ``PipelineShutdown`` exception
-        is raised at every checkpoint when a shutdown is requested.
+    def _get_watermark_language_text(self) -> str:
+        return self._state.idea
 
-        Args:
-            state: The creative video task state to execute.
+    # ------------------------------------------------------------------
+    # 数据来源：分镜（编剧 → story → script → narrations）
+    # ------------------------------------------------------------------
 
-        Returns:
-            Path to the final video file.
+    async def _build_scenes(self) -> None:
+        """LLM 编剧：场景配置 → 图片分析 → 故事 → 角色参考 → 脚本 → 旁白。"""
+        await self._step_resolve_scene_config()
+        image_context = await self._step_image_analysis(
+            self._state.reference_image, self._state.end_frame_images
+        )
+        self._check_shutdown()
+        self._story = await self._step_story(image_context)
+        self._check_shutdown()
+        self._character_ref_path = await self._step_character_reference(self._story)
+        self._check_shutdown()
+        self._scenes = await self._step_script(self._story)
+        self._check_shutdown()
+        await self._step_generate_narrations(self._story, self._scenes)
+        self._check_shutdown()
 
-        Raises:
-            PipelineShutdown: If a graceful shutdown was requested.
-            Exception: On unrecoverable errors (state is marked FAILED).
-        """
-        self._state = state
-        self._state.status = StepStatus.RUNNING
-        self.task_manager.create(self._state)
+    # ------------------------------------------------------------------
+    # 数据来源：参考图（尾帧 prompt + 预生成，仅 keyframes 模式）
+    # ------------------------------------------------------------------
 
-        await self._emit("init", "running", "开始视频生成流程...", 0.0)
+    async def _build_reference_images(self) -> None:
+        """参考图生成：尾帧 prompt → 预生成（keyframes 模式）。"""
+        self._end_frame_prompts = await self._step_end_frame_prompts(
+            self._story, self._scenes
+        )
+        self._check_shutdown()
+        self._pregenerated_end_frames = await self._step_pregenerate_end_frames(
+            self._scenes, self._end_frame_prompts, self._character_ref_path
+        )
+        self._check_shutdown()
 
-        try:
-            # ── v3.x: Scene info — extract or validate ──
-            await self._step_resolve_scene_config()
+    # ------------------------------------------------------------------
+    # 视频生成（链式 keyframes / ti2vid / independent — 保留原逻辑）
+    # ------------------------------------------------------------------
 
-            image_context = await self._step_image_analysis(
-                self._state.reference_image, self._state.end_frame_images
-            )
-            if self._is_shutdown():
-                raise PipelineShutdown("interrupted after image analysis")
+    async def _generate_videos(self) -> None:
+        """链式视频生成（覆写通用实现，保留 keyframes/ti2vid/independent 逻辑）。"""
+        self._all_video_paths = await self._step_generate_videos(
+            self._scenes, self._character_ref_path,
+            self._end_frame_prompts, self._pregenerated_end_frames,
+        )
+        self._check_shutdown()
 
-            story = await self._step_story(image_context)
-            if self._is_shutdown():
-                raise PipelineShutdown("interrupted after story")
+    # ------------------------------------------------------------------
+    # 音频生成（保留原逻辑）
+    # ------------------------------------------------------------------
 
-            character_ref_path = await self._step_character_reference(story)
-            if self._is_shutdown():
-                raise PipelineShutdown("interrupted after character reference")
+    async def _generate_audio(self) -> object:
+        """TTS 配音生成。"""
+        sub_maker = await self._step_audio()
+        self._check_shutdown()
+        return sub_maker
 
-            scenes = await self._step_script(story)
-            if self._is_shutdown():
-                raise PipelineShutdown("interrupted after script")
+    # ------------------------------------------------------------------
+    # 字幕生成（保留原逻辑）
+    # ------------------------------------------------------------------
 
-            # Generate narrations using LLM (replaces direct story content usage)
-            await self._step_generate_narrations(story, scenes)
-            if self._is_shutdown():
-                raise PipelineShutdown("interrupted after narrations")
+    async def _generate_subtitles(self, sub_maker=None) -> None:
+        """字幕生成。"""
+        await self._step_subtitle(sub_maker)
+        self._check_shutdown()
 
-            end_frame_prompts = await self._step_end_frame_prompts(story, scenes)
-            if self._is_shutdown():
-                raise PipelineShutdown("interrupted after end frame prompts")
+    # ------------------------------------------------------------------
+    # 合成（保留原逻辑）
+    # ------------------------------------------------------------------
 
-            pregenerated_end_frames = await self._step_pregenerate_end_frames(
-                scenes, end_frame_prompts, character_ref_path
-            )
-            if self._is_shutdown():
-                raise PipelineShutdown("interrupted after end frame generation")
-
-            all_video_paths = await self._step_generate_videos(
-                scenes, character_ref_path, end_frame_prompts, pregenerated_end_frames
-            )
-            if self._is_shutdown():
-                raise PipelineShutdown("interrupted after video generation")
-
-            # v3.0: audio generation
-            sub_maker = await self._step_audio()
-            if self._is_shutdown():
-                raise PipelineShutdown("interrupted after audio")
-
-            # v3.0: subtitle generation (separate from audio)
-            await self._step_subtitle(sub_maker)
-            if self._is_shutdown():
-                raise PipelineShutdown("interrupted after subtitle")
-
-            final_video_path = await self._step_concatenate(all_video_paths)
-
-            # 水印后处理
-            wm_config = get_watermark_config()
-            if wm_config.get("enabled") and os.path.exists(final_video_path):
-                lang = wm_config.get("language", "auto")
-                if lang == "auto":
-                    lang = detect_language(self._state.idea)
-                wm_output = final_video_path + ".wm_tmp.mp4"
-                if add_watermark(
-                    final_video_path, wm_output,
-                    language=lang,
-                ):
-                    os.replace(wm_output, final_video_path)
-
-            self._state.status = StepStatus.COMPLETED
-            self.task_manager.update_state(status=StepStatus.COMPLETED)
-            await self._emit(
-                "done", "completed", "视频生成完成!", 1.0,
-                {"final_video": final_video_path},
-            )
-
-            return final_video_path
-
-        except PipelineShutdown as e:
-            logger.info(f"[Pipeline] Shutdown: {e}")
-            await self._emit("error", "failed", "任务已被中断，可从任务列表续传", 0.0)
-            raise
-        except Exception as e:
-            self._state.status = StepStatus.FAILED
-            self.task_manager.update_state(status=StepStatus.FAILED)
-            await self._emit("error", "failed", str(e), 0.0)
-            raise
+    async def _composite_final(self) -> str:
+        """视频拼接合成。"""
+        return await self._step_concatenate(self._all_video_paths)

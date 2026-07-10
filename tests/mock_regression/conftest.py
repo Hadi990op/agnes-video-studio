@@ -37,6 +37,7 @@ def mock_video_api(monkeypatch):
         "core.pipelines.creative_video.AgnesVideoAPI",
         "core.pipelines.manuscript_video.AgnesVideoAPI",
         "core.pipelines.anchor_video.AgnesVideoAPI",
+        "core.pipelines.poetry_video.AgnesVideoAPI",
     ]
     for p in paths:
         monkeypatch.setattr(p, MockAgnesVideoAPI)
@@ -76,6 +77,7 @@ def mock_edge_tts(monkeypatch):
         "core.pipelines.manuscript_video.EdgeTTSEngine",
         "core.pipelines.creative_video.EdgeTTSEngine",
         "core.pipelines.anchor_video.EdgeTTSEngine",
+        "core.pipelines.poetry_video.EdgeTTSEngine",
     ]
     for p in paths:
         monkeypatch.setattr(p, MockEdgeTTSEngine)
