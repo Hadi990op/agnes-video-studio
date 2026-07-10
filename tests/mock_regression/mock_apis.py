@@ -198,7 +198,7 @@ _CHAT_FIXTURES = [
     ("视频旁白员和剧本作家", "", "narration"),
     ("subtitle_styles", "", "subtitle_styles"),
     ("subtitle_style_designer", "", "subtitle_styles"),
-    ("诗意的视觉艺术家", "<poem_stanza>", "poetry_scene_prompt"),
+    ("诗词分镜导演", "<poem>", "poetry_scenes"),
 ]
 
 

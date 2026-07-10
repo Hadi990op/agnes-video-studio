@@ -350,20 +350,32 @@ class AnchorVideoTask(BaseTaskState):
 class PoetryVideoTask(BaseTaskState):
     """诗词视频任务（类型 6 / v4.0 Phase 5）
 
-    用户提供诗词文本，系统按段落（空行）拆分为场景，
-    LLM 为每段生成诗意化的视频 prompt，逐段生成视频，
-    配合 TTS 朗诵和字幕，拼接为最终诗词视频。
+    用户提供古诗原文，LLM 依据诗歌意境与用户指定的总时长、分镜数
+    拆分为若干场景（每段含朗诵文案 + 视频 prompt）。用户可可选提供
+    逐段分镜 prompt（覆盖 LLM 生成）。逐段生成视频后拼接，叠加 TTS
+    朗诵配音与通用诗歌字幕。
     """
 
     task_type: Literal[TaskType.POETRY] = TaskType.POETRY
 
     # 用户输入
     poem_text: str = ""
+    # 可选：用户手动输入的分镜 prompt，按场景顺序每项一个；
+    # 留空或某场景缺省时由 LLM 根据古诗生成。
+    user_scene_prompts: List[str] = Field(default_factory=list)
+    # 视觉风格（与创意视频保持一致，传入 LLM 分镜拆分）
+    style: str = "电影质感写实风格"
 
-    # 配置
+    # 配置（分辨率等参数与创意视频保持一致）
+    video_width: int = 768
+    video_height: int = 1152
+    # 目标总时长（秒）。LLM 在此基础上决定分镜数与每段时长分配。
+    video_duration: int = 30
+    # 期望分镜数；0 表示由 LLM 依据诗歌自行决定。
+    scene_count: int = 0
+
     audio_config: AudioConfig = Field(default_factory=AudioConfig)
     subtitle_config: SubtitleConfig = Field(default_factory=SubtitleConfig)
-    video_duration: int = 5
 
     # v4.0 重构：MultiScenePipeline 规范步骤字段
     scenes: List[SceneTask] = Field(default_factory=list)

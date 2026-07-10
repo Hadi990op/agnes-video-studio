@@ -5,6 +5,7 @@ Agnes Video Generator v2.0 — FastAPI 服务层
 - POST /api/tasks/simple      — 简单视频生成
 - POST /api/tasks/creative    — 创意长视频生成
 - POST /api/tasks/manuscript  — 稿件长视频生成
+- POST /api/tasks/poetry     — 诗词视频生成
 - POST /api/tasks             — 向后兼容（映射到 creative）
 
 所有类型共享任务进度轮询、任务列表、任务详情、视频下载等端点。
@@ -39,7 +40,9 @@ from core.pipelines import (
     SimpleVideoPipeline,
     CreativeVideoPipeline,
     ManuscriptVideoPipeline,
+    PoetryVideoPipeline,
 )
+from core.pipelines.poetry_video import POETRY_SUBTITLE_STYLE
 from core.api.agnes_image import AgnesImageAPI
 from core.api.error_collector import set_workspace_root
 from core.artifacts import list_artifacts, resolve_artifact, get_cascade_plan, apply_cascade_plan
@@ -50,6 +53,7 @@ from models.task import (
     BaseTaskState,
     CreativeVideoTask,
     ManuscriptVideoTask,
+    PoetryVideoTask,
     SimpleImageTask,
     SimpleVideoTask,
     StepStatus,
@@ -73,6 +77,7 @@ TASK_TYPE_WEIGHTS = {
     TaskType.CREATIVE: 3,     # Chat + N*Image + N*Video + 轮询
     TaskType.MANUSCRIPT: 4,   # 段落*Chat + 段落*Image + 轮询
     TaskType.ANCHOR: 2,       # 1 i2v submit + 轻量轮询
+    TaskType.POETRY: 3,       # 1 Chat(拆分) + N*Video + N*合成
     TaskType.IMAGE: 1,        # 1 image submit
 }
 MAX_CONCURRENT_WEIGHT = _AGNES_RATE_LIMIT // 2  # 默认 10
@@ -835,6 +840,13 @@ def _create_pipeline_for_type(
             dir_name=dir_name,
             shutdown_event=shutdown_event,
         )
+    elif task_type == TaskType.POETRY:
+        return PoetryVideoPipeline(
+            api_key=api_key,
+            task_id=task_id,
+            dir_name=dir_name,
+            shutdown_event=shutdown_event,
+        )
     else:
         # CREATIVE（默认）
         return CreativeVideoPipeline(
@@ -1247,6 +1259,85 @@ async def create_manuscript_task(
     tm.create(state)
     _launch_background_task(_run_pipeline_with_concurrency(pipeline, state, tm))
     logger.info(f"[Manuscript] Task created: {task_id}, text_len={len(manuscript_text)} (queued)")
+    return {"ok": True, "task_id": task_id, "dir_name": dir_name}
+
+
+@app.post("/api/tasks/poetry")
+async def create_poetry_task(
+    poem_text: str = Form(...),
+    creative_name: str = Form(""),
+    user_scene_prompts_json: str = Form("[]"),
+    style: str = Form("电影质感写实风格"),
+    video_width: int = Form(768),
+    video_height: int = Form(1152),
+    video_duration: int = Form(30),
+    scene_count: int = Form(0),
+    # 音频配置（默认开启朗诵配音）
+    audio_enabled: bool = Form(True),
+    audio_voice: str = Form("zh-CN-XiaoxiaoNeural"),
+    audio_rate: str = Form("+0%"),
+    # 字幕配置（默认开启，固定诗歌样式，用户仅开关）
+    subtitle_enabled: bool = Form(True),
+):
+    """创建诗词视频任务（类型 6）。"""
+    api_key = get_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="请先配置 API Key")
+
+    if not poem_text.strip():
+        raise HTTPException(status_code=400, detail="古诗原文不能为空")
+    if len(poem_text) > 2000:
+        raise HTTPException(status_code=422, detail="古诗原文最多 2000 字符")
+    if scene_count < 0 or scene_count > 30:
+        raise HTTPException(status_code=422, detail="scene_count 范围 0-30（0=由 LLM 决定）")
+    if video_duration < 5 or video_duration > 300:
+        raise HTTPException(status_code=422, detail="video_duration 范围 5-300 秒")
+
+    # 解析可选分镜 prompt 列表（JSON 数组）
+    try:
+        user_scene_prompts = json.loads(user_scene_prompts_json)
+        if not isinstance(user_scene_prompts, list):
+            raise ValueError("not a list")
+        user_scene_prompts = [str(p) for p in user_scene_prompts]
+    except Exception:
+        raise HTTPException(status_code=422, detail="user_scene_prompts_json 必须为 JSON 数组")
+
+    task_id = uuid.uuid4().hex[:12]
+    name = creative_name.strip() if creative_name else f"poetry_{task_id}"
+    dir_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{task_id}"
+
+    audio_config = AudioConfig(
+        enabled=audio_enabled,
+        voice=audio_voice,
+        rate=audio_rate,
+    )
+    # 字幕使用固定诗歌样式，用户仅控制开关
+    subtitle_config = SubtitleConfig(
+        enabled=subtitle_enabled,
+        style=POETRY_SUBTITLE_STYLE,
+    )
+
+    state = PoetryVideoTask(
+        task_id=task_id,
+        creative_name=name,
+        poem_text=poem_text.strip(),
+        user_scene_prompts=user_scene_prompts,
+        style=style.strip() or "电影质感写实风格",
+        video_width=video_width,
+        video_height=video_height,
+        video_duration=video_duration,
+        scene_count=scene_count,
+        audio_config=audio_config,
+        subtitle_config=subtitle_config,
+    )
+
+    pipeline = _create_pipeline_for_type(TaskType.POETRY, api_key, task_id, dir_name)
+    active_pipelines[task_id] = pipeline
+
+    tm = TaskManager(task_id, dir_name=dir_name)
+    tm.create(state)
+    _launch_background_task(_run_pipeline_with_concurrency(pipeline, state, tm))
+    logger.info(f"[Poetry] Task created: {task_id}, poem={poem_text[:20]!r} (queued)")
     return {"ok": True, "task_id": task_id, "dir_name": dir_name}
 
 

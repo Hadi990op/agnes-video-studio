@@ -1638,74 +1638,74 @@ Styling rules:
             for s in subs
         ]
 
-    def generate_poetry_scene_prompt(
+    def generate_poetry_scenes(
         self,
-        stanza: str,
-        style: str = "诗意写实风格",
-        poem_context: str = "",
-    ) -> str:
-        """为诗词段落生成视频场景 prompt（语言跟随输入）。
+        poem_text: str,
+        total_duration: int = 30,
+        scene_count: int = 0,
+        style: str = "",
+    ) -> List[dict]:
+        """LLM 拆分整首诗词为若干场景（朗诵文案 + 视频 prompt）。
 
-        将诗词意境转化为适合视频生成的视觉描述。
+        依据诗歌意境与用户指定的总时长、分镜数、视觉风格决定拆分方式。
+        scene_count==0 时由 LLM 依据诗歌自行决定分镜数（通常 2-6 个）。
 
         Args:
-            stanza: 诗词段落文本。
-            style: 视觉风格偏好。
-            poem_context: 整首诗上下文（可选）。
+            poem_text: 整首诗词原文。
+            total_duration: 目标总时长（秒），用于 pacing 参考。
+            scene_count: 期望分镜数；0 表示自动。
+            style: 视觉风格（与创意视频一致），注入到每个场景的画面 prompt。
 
         Returns:
-            视频 prompt 字符串。
+            场景列表，每个元素为 {"narration": str, "scene_prompt": str}。
+            朗诵文案严格保留原诗文字，不改写不翻译。
         """
+        count_hint = (
+            f"{scene_count} 个" if scene_count and scene_count > 0
+            else "由你依据诗意自行决定（通常 2-6 个）"
+        )
+        style_hint = style.strip() if style and style.strip() else "未指定，请采用通用电影质感写实风格"
         system_prompt = self._prompt(
             zh_text="""\
-你是一位诗意的视觉艺术家，专精将诗词转化为视觉画面描述。\
-为 AI 视频生成创建一个简短的视觉描述 prompt。
+你是一位诗意的视觉艺术家兼诗词分镜导演，专精将中国古典诗词转化为视频分镜。\
+请将整首诗拆分为若干场景，每个场景包含该段的朗诵文案与对应的视频画面 prompt。
 
 关键规则：
-- 将诗词的意境、色彩、情绪转化为视觉元素。
-- 描述画面中应该出现的场景、动作和氛围。
-- 15-30 词，语言与诗词输入保持一致。
-- 不包含故事叙述或说教性语言。
-- 只描述视觉画面，不描述声音或文字。
-
-只输出视觉描述 prompt 文本，不要 JSON，不要解释。
+- 严格保留原诗文字作为 narration（朗诵文案），不要改写、翻译或意译。
+- 按诗意的自然段落或意象切分场景，使每段画面连贯且独立。
+- 为每个场景写一段 15-30 词的视频画面 prompt（只描述视觉，不描述声音或文字）。
+- 输出严格 JSON，结构：{"scenes": [{"narration": "原诗片段", "scene_prompt": "视觉描述"}, ...]}
+- 只输出 JSON，不要解释。
 """,
             en_text="""\
-You are a poetic visual artist specializing in transforming poetry into \
-visual descriptions. Create a SHORT visual prompt for AI video generation.
+You are a poetic visual artist and poetry storyboard director specializing in \
+transforming classical poetry into video scenes. Split the whole poem into scenes, \
+each containing the recitation text and the corresponding video visual prompt.
 
 CRITICAL RULES:
-- Transform the poem's imagery, mood, and emotion into visual elements.
-- Describe the scene, motion, and atmosphere that should appear in the video.
-- 15-30 words, in the same language as the poem stanza.
-- Do NOT include storytelling or didactic language.
-- Describe ONLY visuals — no audio, no text overlays.
-
-Output ONLY the visual description prompt text, no JSON, no explanation.
+- Keep the ORIGINAL poem text verbatim as "narration" — do NOT rewrite, translate, or paraphrase.
+- Split by the poem's natural stanzas or imagery so each scene is coherent and self-contained.
+- Write a 15-30 word visual prompt per scene (describe ONLY visuals — no audio, no text).
+- Output STRICT JSON: {"scenes": [{"narration": "original lines", "scene_prompt": "visual desc"}, ...]}
+- Output ONLY the JSON, no explanation.
 """,
         )
-
         user_prompt = f"""\
-<poem_stanza>
-{stanza}
-</poem_stanza>
+<poem>
+{poem_text}
+</poem>
+
+<requirements>
+- 目标总时长：{total_duration} 秒（用于把握节奏，不要求每句等长）
+- 场景数量：{count_hint}
+- 视觉风格：{style_hint}（请将该风格融入每个场景的画面 prompt）
+</requirements>
 """
-
-        if poem_context:
-            user_prompt += f"""
-<poem_context>
-{poem_context}
-</poem_context>
-"""
-
-        user_prompt += "\n" + self._prompt(
-            zh_text=f"请将此诗词段落转化为 {style} 的视觉描述。",
-            en_text=f"Transform this poem stanza into a visual description in {style} style.",
-        )
-
         logger.info(
-            f"[Screenwriter] Generating poetry scene prompt ({len(stanza)} chars)..."
+            f"[Screenwriter] Splitting poem into scenes (duration={total_duration}s, "
+            f"count={scene_count or 'auto'})..."
         )
-        prompt = strip_code_fence(self._chat(system_prompt, user_prompt))
-        logger.info(f"[Screenwriter] Poetry scene prompt: {prompt[:100]}...")
-        return prompt
+        result = self._chat_json(system_prompt, user_prompt)
+        scenes = result.get("scenes", []) if isinstance(result, dict) else []
+        logger.info(f"[Screenwriter] Poetry scenes: {len(scenes)}")
+        return scenes

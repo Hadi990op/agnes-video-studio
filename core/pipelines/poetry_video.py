@@ -1,20 +1,21 @@
-"""core.pipelines.poetry_video -- 诗词视频流水线（类型 6 / v4.0 Phase 5）
+"""core.pipelines.poetry_video -- 诗词视频流水线（类型 6 / v4.0）
 
-用户提供诗词文本 → 按段落（空行）拆分为场景 → LLM 生成诗意化视频 prompt →
-逐段生成视频 → TTS 朗诵配音 + 字幕叠加 → 拼接为最终诗词视频。
+用户输入古诗 → LLM 拆分为若干场景（narration=原诗句, scene_prompt=视频描述）
+→ 逐场景 t2v 生成 → 逐场景 TTS 朗诵配音 + 该句字幕（定时对齐）→ 逐场景合成后拼接。
 
-v4.0 重构：继承 MultiScenePipeline，复用模板方法 run() 与步骤编排。
-_logic 接近 Manuscript，差异仅在文本拆分与 prompt 生成策略。
+与创意视频的区别：创意从 idea 经 story/script 生成 narration+prompt；
+诗歌直接由 LLM 从原诗拆分出 narration(原诗句) + scene_prompt(视频描述)。
+字幕/配音定制：逐场景生成，每句间隔由场景视频时长补足（拉长间隔，诗句↔画面一一对应）。
 """
 
 import asyncio
-import json
 import logging
 import os
-import re
-from typing import Callable, Optional
+import shutil
+from typing import List, Optional
 
 from core.api.agnes_video import AgnesVideoAPI
+from core.audio.subtitle import SubtitleGenerator
 from core.audio.tts import EdgeTTSEngine, SilentTTSEngine
 from core.compositor.concatenator import VideoConcatenator
 from core.pipelines import MultiScenePipeline
@@ -23,20 +24,30 @@ from models.task import (
     PoetryVideoTask,
     SceneTask,
     StepStatus,
-    AudioConfig,
-    SubtitleConfig,
+    SubtitleStyle,
 )
 
 logger = logging.getLogger(__name__)
 
-_STANZA_RE = re.compile(r"\n\s*\n")
+# 诗歌固定字幕样式：居中偏下、白字黑描边、半透明底（用户只开关，不选样式）
+POETRY_SUBTITLE_STYLE = SubtitleStyle(
+    font="STHeitiMedium.ttc",
+    color="white",
+    position=("center", "bottom-80"),
+    fontsize=48,
+    stroke_color="black",
+    stroke_width=2,
+    bg_color=(0, 0, 0, 140),
+)
+
 _CHARS_PER_SEC = 4.0
 
 
 class PoetryVideoPipeline(MultiScenePipeline):
     """诗词视频生成流水线。
 
-    诗词文本 → 拆分诗节 → LLM 场景 prompt → 视频生成 → 朗诵配音+字幕 → 合成。
+    古诗原文 → LLM 拆分场景(narration+scene_prompt) → 逐场景视频生成 →
+    逐场景朗诵配音 + 该句字幕 → 逐场景合成后拼接。
     """
 
     def __init__(
@@ -46,7 +57,7 @@ class PoetryVideoPipeline(MultiScenePipeline):
         dir_name: Optional[str] = None,
         chat_model: str = "agnes-2.0-flash",
         video_model: str = "agnes-video-v2.0",
-        progress_callback: Optional[Callable] = None,
+        progress_callback: Optional[callable] = None,
         shutdown_event: Optional = None,
     ):
         super().__init__(api_key, task_id, dir_name, progress_callback, shutdown_event)
@@ -65,69 +76,66 @@ class PoetryVideoPipeline(MultiScenePipeline):
         return self._state.poem_text
 
     # ------------------------------------------------------------------
-    # 数据来源：分镜（拆分诗节 → LLM 场景 prompt）
+    # Phase 1: 分镜（LLM 拆分原诗 → scenes）
     # ------------------------------------------------------------------
 
     async def _build_scenes(self) -> None:
-        """拆诗节 + 生成每个场景的 LLM prompt。"""
+        """LLM 拆分整首诗词为若干场景，保留原诗句作为 narration。"""
         poem = self._state.poem_text.strip()
         if not poem:
             self._state.scenes = []
             return
 
-        # 按空行拆诗节
-        raw_stanzas = [s.strip() for s in _STANZA_RE.split(poem) if s.strip()]
-        if not raw_stanzas:
-            raw_stanzas = [poem]
+        raw_scenes = await asyncio.to_thread(
+            self.screenwriter.generate_poetry_scenes,
+            poem,
+            self._state.video_duration,
+            self._state.scene_count,
+            self._state.style,
+        )
+        if not raw_scenes:
+            raise RuntimeError("[Poetry] LLM 未返回有效场景，请重试")
 
-        duration = max(int(self._state.video_duration), 3)
-        scenes: list[SceneTask] = []
+        # 用户可选分镜 prompt：按索引覆盖 scene_prompt（优雅降级）
+        user_prompts = self._state.user_scene_prompts or []
 
-        for idx, stanza in enumerate(raw_stanzas):
-            await self._emit(
-                "build_scenes", "running",
-                f"生成第 {idx + 1}/{len(raw_stanzas)} 段诗词视觉描述...",
-                0.05 + 0.10 * idx / max(len(raw_stanzas), 1),
-            )
+        # 时长均分（诗歌较短，每景给足时长以拉长句间间隔）
+        total = max(int(self._state.video_duration), len(raw_scenes) * 3)
+        per = max(int(total / len(raw_scenes)), 3)
 
-            prompt = await self._get_prompt_for_stanza(stanza, poem, idx)
-            scene = SceneTask(
+        scenes: List[SceneTask] = []
+        for idx, sc in enumerate(raw_scenes):
+            narration = (sc.get("narration") or "").strip()
+            prompt = (sc.get("scene_prompt") or "").strip()
+            # 用户提供了该索引的分镜 prompt → 覆盖 LLM 生成
+            if idx < len(user_prompts) and user_prompts[idx].strip():
+                prompt = user_prompts[idx].strip()
+            scenes.append(SceneTask(
                 index=idx,
                 scene_prompt=prompt,
-                duration=duration,
-                narration_text=stanza,
-            )
-            scenes.append(scene)
+                narration_text=narration,
+                duration=per,
+            ))
 
         self._state.scenes = scenes
-        self.task_manager.update_state(
-            scenes=[s.model_dump() for s in scenes],
-        )
-
-    async def _get_prompt_for_stanza(
-        self, stanza: str, full_poem: str, idx: int
-    ) -> str:
-        """为单个诗节生成视频场景 prompt（LLM）。"""
-        return await asyncio.to_thread(
-            self.screenwriter.generate_poetry_scene_prompt,
-            stanza,
-            poem_context=full_poem,
-        )
-
-    # ------------------------------------------------------------------
-    # 参考图：无（诗词视频不需参考图）
-    # ------------------------------------------------------------------
+        self.task_manager.update_state(scenes=[s.model_dump() for s in scenes])
+        # 记录 LLM 生成的 prompt 供 verify_prompts 校验
+        self.save_prompts({
+            "poem_text": poem,
+            "scene_prompts": [s.scene_prompt for s in scenes],
+            "narrations": [s.narration_text for s in scenes],
+        })
 
     async def _build_reference_images(self) -> None:
-        """诗词视频不需参考图，跳过此阶段。"""
+        """诗词视频不需参考图，跳过。"""
         pass
 
     # ------------------------------------------------------------------
-    # 视频生成（逐段，覆写通用实现以保留目录结构 resume）
+    # Phase 3: 视频生成（逐场景 t2v）
     # ------------------------------------------------------------------
 
     async def _generate_videos(self) -> None:
-        """逐段生成视频，每段存 scene_{idx}/video.mp4。"""
+        """逐场景生成视频，每段存 scene_{idx}/video.mp4。"""
         scenes = self._state.scenes
         vw = self._state.video_width
         vh = self._state.video_height
@@ -139,7 +147,7 @@ class PoetryVideoPipeline(MultiScenePipeline):
 
             if os.path.exists(video_path):
                 scene.video_file = video_path
-                logger.info(f"[Poetry] scene {idx}: video already exists, skipping")
+                logger.info(f"[Poetry] scene {idx}: video exists, skip")
                 continue
 
             video_id = self._load_task_json(scene_dir)
@@ -174,133 +182,175 @@ class PoetryVideoPipeline(MultiScenePipeline):
         )
 
     # ------------------------------------------------------------------
-    # 音频生成（整段朗诵，覆写通用实现）
+    # Phase 4: 配音（逐场景 TTS narration_text）
     # ------------------------------------------------------------------
 
     async def _generate_audio(self) -> Optional[object]:
-        """生成整段朗诵音频（TTS）。"""
+        """逐场景生成朗诵配音，每段存 scene_{idx}/narration.mp3。
 
-        full_text = self._state.poem_text.strip()
-        if not full_text:
-            return None
-
-        audio_path = os.path.join(self.working_dir, "full_narration.mp3")
-        if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
-            self._state.combined_audio = audio_path
-            return None
-
+        返回 None（字幕由各场景独立生成，不使用全局 sub_maker）。
+        """
+        scenes = self._state.scenes
         audio_config = self._state.audio_config
-        edge_tts = EdgeTTSEngine()
-        silent_tts = SilentTTSEngine()
+        has_audio = audio_config.enabled
 
-        await self._emit("audio", "running", f"生成朗诵配音 ({len(full_text)} 字)...", 0.75)
+        for idx, scene in enumerate(scenes):
+            scene_dir = os.path.join(self.working_dir, f"scene_{idx}")
+            os.makedirs(scene_dir, exist_ok=True)
+            audio_path = os.path.join(scene_dir, "narration.mp3")
 
-        sub_maker = None
-        if audio_config.enabled:
-            try:
-                _, sub_maker = await edge_tts.generate(
-                    text=full_text,
-                    output_path=audio_path,
-                    voice=audio_config.voice,
-                    rate=audio_config.rate,
+            if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+                scene.narration_audio = audio_path
+                continue
+
+            text = (scene.narration_text or "").strip()
+            if not text:
+                # 无朗诵文本：生成静音占位（时长=场景时长），保证合成链路统一
+                silent = SilentTTSEngine()
+                await silent.generate(
+                    text=" ", output_path=audio_path,
+                    duration_sec=max(int(scene.duration), 2),
                 )
-            except RuntimeError as e:
-                logger.warning(f"[Poetry] EdgeTTS failed: {e}, using silent")
-                duration = len(full_text) / _CHARS_PER_SEC
-                await silent_tts.generate(
-                    text=full_text, output_path=audio_path,
-                    duration_sec=duration,
-                )
-        else:
-            duration = len(full_text) / _CHARS_PER_SEC
-            await silent_tts.generate(
-                text=full_text, output_path=audio_path,
-                duration_sec=duration,
+                scene.narration_audio = audio_path
+                continue
+
+            await self._emit(
+                "audio", "running",
+                f"生成朗诵配音 {idx+1}/{len(scenes)}...", 0.75,
             )
+            edge_tts = EdgeTTSEngine()
+            silent = SilentTTSEngine()
+            try:
+                if has_audio:
+                    await edge_tts.generate(
+                        text=text, output_path=audio_path,
+                        voice=audio_config.voice, rate=audio_config.rate,
+                    )
+                else:
+                    # 关闭配音：仍生成静音占位，保证合成链路统一
+                    await silent.generate(
+                        text=text, output_path=audio_path,
+                        duration_sec=max(int(scene.duration), 2),
+                    )
+            except RuntimeError as e:
+                logger.warning(f"[Poetry] scene {idx} TTS failed: {e}, silent")
+                await silent.generate(
+                    text=text, output_path=audio_path,
+                    duration_sec=max(int(scene.duration), 2),
+                )
+            scene.narration_audio = audio_path
 
-        self._state.combined_audio = audio_path
-        self.task_manager.update_state(combined_audio=audio_path)
-        return sub_maker
+        self.task_manager.update_state(
+            scenes=[s.model_dump() for s in scenes],
+        )
+        return None
 
     # ------------------------------------------------------------------
-    # 字幕生成（整段朗诵字幕，覆写通用实现）
+    # Phase 5: 字幕（逐场景 SRT，定时对齐朗诵）
     # ------------------------------------------------------------------
 
     async def _generate_subtitles(self, sub_maker: Optional[object] = None) -> None:
-        """生成整段朗诵字幕。"""
-        full_text = self._state.poem_text.strip()
-        if not full_text:
+        """逐场景生成字幕，每段存 scene_{idx}/subtitle.srt。
+
+        字幕只在朗诵时段显示，其余为静默画面（句间间隔拉长）。
+        """
+        scenes = self._state.scenes
+        sub_config = self._state.subtitle_config
+        if not sub_config.enabled:
             return
 
-        subtitle_config = self._state.subtitle_config
-        if not subtitle_config.enabled:
-            return
+        for idx, scene in enumerate(scenes):
+            scene_dir = os.path.join(self.working_dir, f"scene_{idx}")
+            os.makedirs(scene_dir, exist_ok=True)
+            srt_path = os.path.join(scene_dir, "subtitle.srt")
 
-        # 整段文本，单一 SRT
-        segment_texts = [full_text]
-        segment_durations = [max(len(full_text) / _CHARS_PER_SEC, 3.0)]
+            if os.path.exists(srt_path) and os.path.getsize(srt_path) > 0:
+                scene.subtitle_srt = srt_path
+                continue
 
-        await self._emit("subtitle", "running", f"生成朗诵字幕 ({len(full_text)} 字)...", 0.80)
+            text = (scene.narration_text or "").strip()
+            if not text:
+                continue
 
-        srt_path, styles_path = await self.generate_subtitles_common(
-            segment_texts=segment_texts,
-            segment_durations=segment_durations,
-            subtitle_config=subtitle_config,
-            sub_maker=sub_maker,
-            audio_path=self._state.combined_audio or "",
-            screenwriter=self.screenwriter,
-            video_width=self._state.video_width,
-            video_height=self._state.video_height,
-            role="poetry recitation",
+            # 字幕时长 = 朗诵音频时长（首段显示，余下静默）
+            audio_dur = self.get_audio_duration(scene.narration_audio or "")
+            dur = max(audio_dur, 1.0)
+            await self._emit(
+                "subtitle", "running",
+                f"生成字幕 {idx+1}/{len(scenes)}...", 0.87,
+            )
+            SubtitleGenerator.text_to_srt(
+                text, srt_path, duration_sec=dur, chars_per_sec=_CHARS_PER_SEC,
+            )
+            scene.subtitle_srt = srt_path
+
+        self.task_manager.update_state(
+            scenes=[s.model_dump() for s in scenes],
         )
 
-        if styles_path:
-            self._state.subtitle_styles_path = styles_path
-            self.task_manager.update_state(subtitle_styles_path=styles_path)
-
-        self._state.combined_subtitle = srt_path
-        self.task_manager.update_state(combined_subtitle=srt_path)
-
     # ------------------------------------------------------------------
-    # 合成（拼接 + 音频叠加）
+    # Phase 6: 合成（逐场景 composite 后拼接）
     # ------------------------------------------------------------------
 
     async def _composite_final(self) -> str:
-        """拼接所有场景视频 + 叠加朗诵音频和字幕。"""
+        """逐场景合成 video+audio+subtitle → final_clip，再拼接为成片。
 
-        output_path = os.path.join(self.working_dir, "final_video.mp4")
-        if os.path.exists(output_path):
-            logger.info("[Poetry] composite: final video already exists, skipping")
-            return output_path
-
-        all_paths = [s.video_file for s in self._state.scenes if s.video_file]
-        if not all_paths:
-            raise RuntimeError("[Poetry] No videos to composite")
-
-        combined_audio = self._state.combined_audio or ""
-        combined_srt = self._state.combined_subtitle or ""
-        has_audio = self._state.audio_config.enabled
+        合成器自动将每场景音频补静音至视频时长，即"每句间隔拉长"的实现。
+        """
+        scenes = self._state.scenes
         has_subtitle = self._state.subtitle_config.enabled
-        styles_path = self._state.subtitle_styles_path or ""
 
-        await self._emit("concatenate", "running", "拼接诗词视频...", 0.90)
+        final_clips = []
+        for idx, scene in enumerate(scenes):
+            scene_dir = os.path.join(self.working_dir, f"scene_{idx}")
+            video_path = scene.video_file
+            if not video_path or not os.path.exists(video_path):
+                raise RuntimeError(f"[Poetry] scene {idx} video missing")
 
-        audio_exists = os.path.exists(combined_audio) and os.path.getsize(combined_audio) > 0
-        srt_exists = os.path.exists(combined_srt) and os.path.getsize(combined_srt) > 0
+            audio_path = scene.narration_audio or ""
+            srt_path = scene.subtitle_srt or ""
+            clip_out = os.path.join(scene_dir, "final_clip.mp4")
 
-        if audio_exists and has_audio:
+            if os.path.exists(clip_out) and os.path.getsize(clip_out) > 0:
+                final_clips.append(clip_out)
+                continue
+
+            # 兜底：音频缺失则生成静音占位，保证合成不中断
+            audio_exists = os.path.exists(audio_path) and os.path.getsize(audio_path) > 0
+            if not audio_exists:
+                audio_path = os.path.join(scene_dir, "narration.mp3")
+                await SilentTTSEngine().generate(
+                    text=" ", output_path=audio_path,
+                    duration_sec=max(int(scene.duration), 2),
+                )
+                scene.narration_audio = audio_path
+                audio_exists = True
+
+            srt_exists = os.path.exists(srt_path) and os.path.getsize(srt_path) > 0
+
+            await self._emit(
+                "concatenate", "running",
+                f"合成场景 {idx+1}/{len(scenes)}...", 0.90,
+            )
             await asyncio.to_thread(
                 VideoConcatenator.concat_videos_with_audio_overlay,
-                video_paths=all_paths,
-                audio_path=combined_audio,
-                srt_path=combined_srt if (has_subtitle and srt_exists) else None,
-                output_path=output_path,
-                subtitle_style=self._state.subtitle_config.style if has_subtitle else None,
-                subtitle_styles_path=styles_path if styles_path else None,
+                [video_path],
+                audio_path,
+                srt_path if (has_subtitle and srt_exists) else None,
+                clip_out,
+                POETRY_SUBTITLE_STYLE,
+                None,
             )
+            final_clips.append(clip_out)
+
+        output_path = os.path.join(self.working_dir, "final_video.mp4")
+        if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+            return output_path
+
+        if len(final_clips) == 1:
+            shutil.copy2(final_clips[0], output_path)
         else:
             await asyncio.to_thread(
-                VideoConcatenator.concat_videos, all_paths, output_path
+                VideoConcatenator.concat_videos, final_clips, output_path,
             )
-
         return output_path

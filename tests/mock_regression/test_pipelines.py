@@ -328,6 +328,7 @@ class TestPoetryVideoPipeline(BasePipelineTest):
             task_type="poetry",
             creative_name="mock_poetry",
             poem_text=kwargs.get("poem_text", self._POEM_TEXT),
+            user_scene_prompts=kwargs.get("user_scene_prompts", []),
             video_width=kwargs.get("video_width", 768),
             video_height=kwargs.get("video_height", 1152),
             audio_config=kwargs.get("audio_config", AudioConfig(enabled=True)),
@@ -351,6 +352,23 @@ class TestPoetryVideoPipeline(BasePipelineTest):
             subtitle_config=SubtitleConfig(enabled=False),
         )
         await self._run_and_verify(PoetryVideoPipeline, state, temp_workdir)
+
+    @pytest.mark.asyncio
+    async def test_poetry_user_prompts(self, temp_workdir):
+        """诗词视频 — 用户提供分镜 prompt 时按索引覆盖 LLM 生成。"""
+        from core.pipelines.poetry_video import PoetryVideoPipeline
+        user_prompts = [
+            "黎明时分的竹林，薄雾缭绕，光线柔和",
+            "暴雨过后的庭院，落花铺满青石地面",
+        ]
+        state = await self._make_state(user_scene_prompts=user_prompts)
+        await self._run_and_verify(PoetryVideoPipeline, state, temp_workdir,
+                                    verify_prompts=True)
+        # 用户提供的分镜 prompt 应覆盖对应场景的 scene_prompt
+        for idx, p in enumerate(user_prompts):
+            assert state.scenes[idx].scene_prompt == p, \
+                f"scene {idx} prompt not overridden: {state.scenes[idx].scene_prompt!r} != {p!r}"
+        logger.info(f"  ✓ user_scene_prompts override verified for {len(user_prompts)} scenes")
 
 
 # ══════════════════════════════════════════════════════════════════════
