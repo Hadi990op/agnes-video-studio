@@ -331,9 +331,27 @@ class TestPoetryVideoPipeline(BasePipelineTest):
             user_scene_prompts=kwargs.get("user_scene_prompts", []),
             video_width=kwargs.get("video_width", 768),
             video_height=kwargs.get("video_height", 1152),
+            video_duration=kwargs.get("video_duration", 30),
+            duration_source=kwargs.get("duration_source", "manual"),
+            scene_count=kwargs.get("scene_count", 3),
+            uniform_duration=kwargs.get("uniform_duration", True),
+            scene_durations=kwargs.get("scene_durations", [5, 5, 5]),
             audio_config=kwargs.get("audio_config", AudioConfig(enabled=True)),
             subtitle_config=kwargs.get("subtitle_config", SubtitleConfig(enabled=True)),
         )
+
+    async def _run_build_scenes(self, state, mock_count, temp_workdir):
+        """直接调用 _build_scenes（mock LLM），不走视频合成，避免重资源。"""
+        from core.pipelines.poetry_video import PoetryVideoPipeline
+        from unittest.mock import patch
+        pipe = PoetryVideoPipeline(api_key="k", task_id="t", dir_name=temp_workdir)
+        pipe._state = state
+        fake = [{"narration": f"句{i}", "scene_prompt": f"景{i}"}
+                for i in range(mock_count)]
+        with patch.object(pipe.screenwriter, "generate_poetry_scenes",
+                          return_value=fake):
+            await pipe._build_scenes()
+        return pipe._state
 
     @pytest.mark.asyncio
     async def test_poetry_basic(self, temp_workdir):
@@ -369,6 +387,32 @@ class TestPoetryVideoPipeline(BasePipelineTest):
             assert state.scenes[idx].scene_prompt == p, \
                 f"scene {idx} prompt not overridden: {state.scenes[idx].scene_prompt!r} != {p!r}"
         logger.info(f"  ✓ user_scene_prompts override verified for {len(user_prompts)} scenes")
+
+    @pytest.mark.asyncio
+    async def test_poetry_resolve_manual_uniform(self, temp_workdir):
+        """场景配置 — 手动/统一：每场景时长取自统一值。"""
+        state = await self._make_state(
+            duration_source="manual", scene_count=2, scene_durations=[8, 8])
+        st = await self._run_build_scenes(state, 2, temp_workdir)
+        assert len(st.scenes) == 2, st.scenes
+        assert all(s.duration == 8 for s in st.scenes), [s.duration for s in st.scenes]
+
+    @pytest.mark.asyncio
+    async def test_poetry_resolve_manual_independent(self, temp_workdir):
+        """场景配置 — 手动/独立：每场景时长逐场景指定。"""
+        state = await self._make_state(
+            duration_source="manual", scene_count=2, scene_durations=[4, 7])
+        st = await self._run_build_scenes(state, 2, temp_workdir)
+        assert [s.duration for s in st.scenes] == [4, 7], [s.duration for s in st.scenes]
+
+    @pytest.mark.asyncio
+    async def test_poetry_resolve_extract(self, temp_workdir):
+        """场景配置 — 提取模式：LLM 定场景数，时长由 video_duration 均分。"""
+        state = await self._make_state(duration_source="prompt", scene_count=0)
+        st = await self._run_build_scenes(state, 3, temp_workdir)
+        assert len(st.scenes) == 3, st.scenes
+        # video_duration=30 均分 3 段 → 每段 10s
+        assert all(s.duration == 10 for s in st.scenes), [s.duration for s in st.scenes]
 
 
 # ══════════════════════════════════════════════════════════════════════

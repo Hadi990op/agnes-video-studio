@@ -1271,7 +1271,11 @@ async def create_poetry_task(
     video_width: int = Form(768),
     video_height: int = Form(1152),
     video_duration: int = Form(30),
+    # ── 场景配置（与创意视频完全一致）──
+    duration_source: str = Form("manual"),
     scene_count: int = Form(3),
+    uniform_duration: bool = Form(True),
+    scene_durations_json: str = Form("[5,5,5]"),
     # 音频配置（默认开启朗诵配音）
     audio_enabled: bool = Form(True),
     audio_voice: str = Form("zh-CN-XiaoxiaoNeural"),
@@ -1288,10 +1292,25 @@ async def create_poetry_task(
         raise HTTPException(status_code=400, detail="古诗原文不能为空")
     if len(poem_text) > 2000:
         raise HTTPException(status_code=422, detail="古诗原文最多 2000 字符")
-    if scene_count < 1 or scene_count > 30:
-        raise HTTPException(status_code=422, detail="scene_count 范围 1-30")
     if video_duration < 5 or video_duration > 300:
         raise HTTPException(status_code=422, detail="video_duration 范围 5-300 秒")
+    if duration_source not in ("manual", "prompt"):
+        raise HTTPException(status_code=422, detail="duration_source 必须为 manual 或 prompt")
+    if duration_source == "manual":
+        if scene_count < 1 or scene_count > 30:
+            raise HTTPException(status_code=422, detail="scene_count 范围 1-30")
+        # 解析场景时长 JSON
+        try:
+            scene_durations = json.loads(scene_durations_json)
+            if not isinstance(scene_durations, list):
+                raise ValueError("not a list")
+        except Exception:
+            raise HTTPException(status_code=422, detail="scene_durations_json 必须为 JSON 数组")
+        for i, d in enumerate(scene_durations):
+            if not isinstance(d, (int, float)) or d < 2 or d > 30:
+                raise HTTPException(status_code=422, detail=f"场景 {i+1} 时长范围 2-30 秒")
+    else:
+        scene_durations = []
 
     # 解析可选分镜 prompt 列表（JSON 数组）
     try:
@@ -1326,7 +1345,10 @@ async def create_poetry_task(
         video_width=video_width,
         video_height=video_height,
         video_duration=video_duration,
+        duration_source=duration_source,
         scene_count=scene_count,
+        uniform_duration=uniform_duration,
+        scene_durations=scene_durations,
         audio_config=audio_config,
         subtitle_config=subtitle_config,
     )

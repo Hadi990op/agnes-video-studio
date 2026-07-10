@@ -80,28 +80,65 @@ class PoetryVideoPipeline(MultiScenePipeline):
     # ------------------------------------------------------------------
 
     async def _build_scenes(self) -> None:
-        """LLM 拆分整首诗词为若干场景，保留原诗句作为 narration。"""
+        """LLM 拆分整首诗词为若干场景，保留原诗句作为 narration。
+
+        场景配置解析与创意视频完全一致：
+        - ``duration_source == "prompt"``：LLM 依据古诗+分镜描述自动定场景数，
+          时长由 video_duration 均分（诗歌较短，每景给足时长以拉长句间间隔）。
+        - ``duration_source == "manual"``：使用用户指定的 scene_count 与
+          scene_durations（统一/独立）。
+        """
         poem = self._state.poem_text.strip()
         if not poem:
             self._state.scenes = []
             return
 
+        duration_source = self._state.duration_source
+        scene_count = self._state.scene_count
+        scene_durations = list(self._state.scene_durations) if self._state.scene_durations else []
+
+        if duration_source == "prompt":
+            # 提取模式：场景数交给 LLM，时长后续均分
+            resolved_count = 0
+            scene_durations = []
+        else:
+            # 手动模式：校验/规整 scene_durations 至 scene_count（与创意一致）
+            resolved_count = scene_count
+            if not scene_durations:
+                scene_durations = [5] * resolved_count
+            elif len(scene_durations) < resolved_count:
+                while len(scene_durations) < resolved_count:
+                    scene_durations.append(scene_durations[-1])
+            elif len(scene_durations) > resolved_count:
+                scene_durations = scene_durations[:resolved_count]
+
         raw_scenes = await asyncio.to_thread(
             self.screenwriter.generate_poetry_scenes,
             poem,
             self._state.video_duration,
-            self._state.scene_count,
+            resolved_count,
             self._state.style,
         )
         if not raw_scenes:
             raise RuntimeError("[Poetry] LLM 未返回有效场景，请重试")
 
+        n = len(raw_scenes)
+        # 将时长列表对齐到实际场景数（pad=末值，trim=截断）
+        if duration_source == "prompt":
+            total = max(int(self._state.video_duration), n * 3)
+            per = max(int(total / n), 3)
+            scene_durations = [per] * n
+        else:
+            if not scene_durations:
+                scene_durations = [5] * n
+            elif len(scene_durations) < n:
+                while len(scene_durations) < n:
+                    scene_durations.append(scene_durations[-1])
+            elif len(scene_durations) > n:
+                scene_durations = scene_durations[:n]
+
         # 用户可选分镜 prompt：按索引覆盖 scene_prompt（优雅降级）
         user_prompts = self._state.user_scene_prompts or []
-
-        # 时长均分（诗歌较短，每景给足时长以拉长句间间隔）
-        total = max(int(self._state.video_duration), len(raw_scenes) * 3)
-        per = max(int(total / len(raw_scenes)), 3)
 
         scenes: List[SceneTask] = []
         for idx, sc in enumerate(raw_scenes):
@@ -114,16 +151,23 @@ class PoetryVideoPipeline(MultiScenePipeline):
                 index=idx,
                 scene_prompt=prompt,
                 narration_text=narration,
-                duration=per,
+                duration=scene_durations[idx] if idx < len(scene_durations) else 5,
             ))
 
         self._state.scenes = scenes
-        self.task_manager.update_state(scenes=[s.model_dump() for s in scenes])
+        self._state.scene_count = n
+        self._state.scene_durations = scene_durations
+        self.task_manager.update_state(
+            scenes=[s.model_dump() for s in scenes],
+            scene_count=n,
+            scene_durations=scene_durations,
+        )
         # 记录 LLM 生成的 prompt 供 verify_prompts 校验
         self.save_prompts({
             "poem_text": poem,
             "scene_prompts": [s.scene_prompt for s in scenes],
             "narrations": [s.narration_text for s in scenes],
+            "durations": scene_durations,
         })
 
     async def _build_reference_images(self) -> None:

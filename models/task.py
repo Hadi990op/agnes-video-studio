@@ -369,10 +369,17 @@ class PoetryVideoTask(BaseTaskState):
     # 配置（分辨率等参数与创意视频保持一致）
     video_width: int = 768
     video_height: int = 1152
-    # 目标总时长（秒）。LLM 在此基础上决定分镜数与每段时长分配。
+    # 默认总时长（秒），仅作 LLM 拆分节奏参考与「提取」模式均分兜底。
     video_duration: int = 30
-    # 期望分镜数（与创意视频一致：默认 3，范围 1-30）
+
+    # ── v3.x 场景配置（与创意视频完全一致）──
+    # 场景数与时长来源："manual"=用户指定 / "prompt"=从古诗+分镜描述提取
+    duration_source: str = "manual"
+    # 期望分镜数（与创意视频一致：默认 3，范围 1-30；提取模式忽略此值）
     scene_count: int = 3
+    # 各场景时长是否统一（统一=每场景 uniform_duration 秒；独立=scene_durations 逐场景）
+    uniform_duration: bool = True
+    scene_durations: List[int] = Field(default_factory=lambda: [5, 5, 5])
 
     audio_config: AudioConfig = Field(default_factory=AudioConfig)
     subtitle_config: SubtitleConfig = Field(default_factory=SubtitleConfig)
