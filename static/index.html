@@ -1032,8 +1032,20 @@
         <div class="mb-4">
           <label class="block text-sm text-gray-400 mb-1.5" data-i18n="scenePromptsOptional">分镜描述（可选）</label>
           <textarea id="p_scene_prompts" rows="3" data-i18n-placeholder="scenePromptsPlaceholder" placeholder="格式：原诗句 | 画面描述（每行一个场景）" oninput="updatePoetryExtractAvailability()" class="w-full glass-input rounded-lg px-4 py-2.5 text-sm resize-y text-gray-100 placeholder-gray-600"></textarea>
-          <p class="text-xs text-gray-500 mt-1.5" data-i18n="scenePromptsHint">可选。每行一个场景；用「诗句 | 画面描述」可精确指定该场景对应的诗句。只写画面描述也可，AI 自动对应。</p>
+          <p class="text-xs text-gray-500 mt-1.5" data-i18n="scenePromptsHint">可选。每行一个场景，格式固定为「原诗句 | 画面描述」。两种用法结果完全一致：①留空，由系统自动生成；②把下方提示词交给任意 AI 生成后，把结果贴回此处。</p>
           <p class="text-xs text-gray-400 mt-1.5 font-mono bg-gray-800/40 rounded px-2 py-1" data-i18n="scenePromptsExample">例：春眠不觉晓，处处闻啼鸟。 | 春日清晨薄雾，枝头鸟鸣</p>
+          <div class="mt-3 p-3 rounded-lg bg-gray-800/40 border border-gray-700/50">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-gray-300 font-medium" data-i18n="scenePromptTool">自己用其它 AI 生成分镜</span>
+              <button type="button" onclick="togglePoetryPrompt()" class="text-xs text-blue-300 hover:text-blue-200" data-i18n="showPrompt">查看提示词</button>
+            </div>
+            <div id="p_prompt_panel" class="hidden mt-2">
+              <p class="text-xs text-gray-500 mb-1.5" data-i18n="scenePromptToolHint">把下面提示词复制到任意 AI，填入你的诗句，让它生成分镜，再把返回结果（每行「原诗句 | 画面描述」）贴回上方文本框即可。与系统自动生成格式完全一致。</p>
+              <pre id="p_prompt_system" class="text-[11px] text-gray-300 whitespace-pre-wrap bg-gray-900/60 rounded p-2 max-h-40 overflow-auto"></pre>
+              <pre id="p_prompt_user" class="text-[11px] text-gray-400 whitespace-pre-wrap bg-gray-900/60 rounded p-2 mt-1 max-h-40 overflow-auto"></pre>
+              <button type="button" onclick="copyPoetryPromptWithPoem()" class="mt-2 w-full text-xs text-blue-200 bg-blue-500/20 hover:bg-blue-500/30 rounded px-3 py-1.5 transition" data-i18n="copyPromptWithPoem">填入诗句并复制提示词</button>
+            </div>
+          </div>
         </div>
 
         <!-- Scene config（与创意视频「场景配置」完全一致） -->
@@ -1313,8 +1325,11 @@ const T = {
     poemLabel: '古诗原文', poemPlaceholder: '输入完整古诗原文，例如：春眠不觉晓，处处闻啼鸟...',
     poemHint: '可多段；诗句间用换行或标点自然分隔。AI 会按诗意拆分为若干场景。',
     scenePromptsOptional: '分镜描述（可选）', scenePromptsPlaceholder: '格式：原诗句 | 画面描述（每行一个场景）',
-    scenePromptsHint: '可选。每行一个场景；用「诗句 | 画面描述」可精确指定该场景对应的诗句。只写画面描述也可，AI 自动对应。',
+    scenePromptsHint: '可选。每行一个场景，格式固定为「原诗句 | 画面描述」。两种用法结果完全一致：①留空，由系统自动生成；②把下方提示词交给任意 AI 生成后，把结果贴回此处。',
     scenePromptsExample: '例：春眠不觉晓，处处闻啼鸟。 | 春日清晨薄雾，枝头鸟鸣',
+    scenePromptTool: '自己用其它 AI 生成分镜', showPrompt: '查看提示词',
+    scenePromptToolHint: '把下面提示词复制到任意 AI，填入你的诗句，让它生成分镜，再把返回结果（每行「原诗句 | 画面描述」）贴回上方文本框即可。与系统自动生成格式完全一致。',
+    copyPromptWithPoem: '填入诗句并复制提示词',
     totalDuration: '总时长', sceneCountAuto: '0=自动',
     poetrySubtitleFixed: '诗词字幕采用固定通用样式（居中偏下、白字黑描边），仅可开关，不可自定义。',
     pStepBuildScenes: '分镜拆分', pStepVideoGen: '视频生成', pStepAudio: '朗诵配音', pStepSubtitle: '字幕生成', pStepConcat: '视频拼接',
@@ -1440,7 +1455,10 @@ const T = {
     ttAnchor: 'Digital Human',
     ttPoetry: 'Poetry Video', poetrySettings: 'Poetry Settings',
     poemLabel: 'Poem Text', poemPlaceholder: 'Enter the full poem, e.g. 春眠不觉晓，处处闻啼鸟...', poemHint: 'Multiple stanzas allowed; separated by line breaks or punctuation. AI splits into scenes by meaning.',
-    scenePromptsOptional: 'Scene Prompts (Optional)', scenePromptsPlaceholder: 'Format: verse | visual description (one scene per line)', scenePromptsHint: 'Optional. One scene per line. Use "verse | description" to bind a scene to specific poem lines; description-only lines are auto-matched by AI.', scenePromptsExample: 'e.g. Spring sleeps, unaware of dawn... | Misty spring morning, birds singing',
+    scenePromptsOptional: 'Scene Prompts (Optional)', scenePromptsPlaceholder: 'Format: verse | visual description (one scene per line)', scenePromptsHint: 'Optional. One scene per line, fixed format "verse | visual description". Two ways give identical results: ① leave empty and let the system generate; ② copy the prompt below to any AI, then paste the result back.', scenePromptsExample: 'e.g. Spring sleeps, unaware of dawn... | Misty spring morning, birds singing',
+    scenePromptTool: 'Generate scenes with another AI', showPrompt: 'View prompt',
+    scenePromptToolHint: 'Copy the prompt below to any AI, fill in your poem, let it generate scenes, then paste the result (one "verse | description" per line) back into the box above. Identical format to the system-generated one.',
+    copyPromptWithPoem: 'Fill poem and copy prompt',
     totalDuration: 'Total Duration', sceneCountAuto: '0=auto',
     poetrySubtitleFixed: 'Poetry subtitles use a fixed universal style (bottom-center, white text, black outline) — toggle only, not customizable.',
     pStepBuildScenes: 'Scene Split', pStepVideoGen: 'Video Gen', pStepAudio: 'Narration', pStepSubtitle: 'Subtitle', pStepConcat: 'Concatenate',
@@ -3298,6 +3316,51 @@ function updatePoetryExtractAvailability() {
     document.querySelector('input[name="p_duration_source"][value="manual"]').checked = true;
     togglePoetrySceneSource();
   }
+}
+
+async function togglePoetryPrompt() {
+  const panel = document.getElementById('p_prompt_panel');
+  const willShow = panel.classList.contains('hidden');
+  panel.classList.toggle('hidden');
+  if (willShow && !panel.dataset.loaded) {
+    try {
+      const resp = await fetch('/api/poetry-scene-prompt');
+      const data = await resp.json();
+      document.getElementById('p_prompt_system').textContent = data.system_prompt || '';
+      document.getElementById('p_prompt_user').textContent = data.user_template || '';
+      panel.dataset.loaded = '1';
+    } catch (e) {
+      console.error('load poetry scene prompt failed', e);
+    }
+  }
+}
+
+function copyPoetryPromptWithPoem() {
+  const sys = document.getElementById('p_prompt_system').textContent || '';
+  const usrTpl = document.getElementById('p_prompt_user').textContent || '';
+  const poem = (document.getElementById('p_poem').value || '').trim() || '{poem}';
+  const usr = usrTpl.split('{poem}').join(poem);
+  const full = sys + '\n\n' + usr;
+  const btn = document.querySelector('#p_prompt_panel button[data-i18n="copyPromptWithPoem"]')
+    || event && event.target;
+  const done = () => { if (btn) { const old = btn.textContent; btn.textContent = '已复制 ✓'; setTimeout(() => btn.textContent = old, 1500); } };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(full).then(done).catch(() => fallbackCopy(full, done));
+  } else {
+    fallbackCopy(full, done);
+  }
+}
+
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(ta);
+  if (done) done();
 }
 
 // ═══════════════════════════════════════════════════

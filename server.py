@@ -1495,6 +1495,17 @@ async def create_task_legacy(
 # ═══════════════════════════════════════════════════
 
 
+@app.get("/api/poetry-scene-prompt")
+async def poetry_scene_prompt():
+    """返回诗歌分镜生成提示词模板（中文），供前端展示与复制。
+
+    用户可将其与自己的诗句组合，交给任意 LLM 生成分镜，再把返回的
+    「原诗句 | 画面描述」行格式贴回系统。与内部 LLM 使用同一份提示词。
+    """
+    from core.screenwriter import build_poetry_scene_prompt_template
+    return build_poetry_scene_prompt_template()
+
+
 @app.post("/api/tasks/{task_id}/resume")
 async def resume_task(task_id: str):
     api_key = get_api_key()

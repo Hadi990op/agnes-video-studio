@@ -412,6 +412,58 @@ class TestPoetryVideoPipeline(BasePipelineTest):
         logger.info("  ✓ formatted user prompts built scenes directly (verse->narration, desc->prompt)")
 
     @pytest.mark.asyncio
+    async def test_poetry_user_prompts_with_labels(self, temp_workdir):
+        """诗词视频 — 用户分镜含「场景 N」标签行时仍直接构建，LLM 不被调用。
+
+        复现此前报错场景：标签行不含「|」，曾导致掉入 LLM 路径并解析失败。
+        """
+        from unittest.mock import patch
+        from core.pipelines.poetry_video import PoetryVideoPipeline
+        user_prompts = [
+            "场景 1（00:00 - 00:10）",
+            "春眠不觉晓，处处闻啼鸟。 | 春日清晨薄雾，枝头鸟鸣",
+            "场景 2（00:10 - 00:20）",
+            "夜来风雨声，花落知多少。 | 夜雨敲窗，落花满地",
+        ]
+        state = await self._make_state(user_scene_prompts=user_prompts)
+        pipe = PoetryVideoPipeline(api_key="k", task_id="t", dir_name=temp_workdir)
+        pipe._state = state
+        with patch.object(pipe.screenwriter, "generate_poetry_scenes") as mock_llm:
+            await pipe._build_scenes()
+        mock_llm.assert_not_called()
+        assert len(state.scenes) == 2, state.scenes
+        assert state.scenes[0].narration_text == "春眠不觉晓，处处闻啼鸟。"
+        assert state.scenes[1].narration_text == "夜来风雨声，花落知多少。"
+        logger.info("  ✓ label lines filtered; scenes built directly from formatted lines")
+
+    @pytest.mark.asyncio
+    async def test_poetry_scene_line_parser(self, temp_workdir):
+        """Screenwriter._parse_poetry_scene_lines：行格式解析一致性校验。
+
+        验证内部 LLM（Method A）与外部 LLM（Method B）解析同一行格式：
+        原诗句 | 画面描述；标签行/代码围栏/纯描述行均被正确处理。
+        """
+        from core.screenwriter import Screenwriter
+        sw = Screenwriter(api_key="k", language="zh")
+        raw = """```json
+春眠不觉晓，处处闻啼鸟。 | 春日清晨薄雾，枝头鸟鸣
+场景 1（00:00 - 00:10） | 这一行标签应被跳过
+夜来风雨声，花落知多少。 | 夜雨敲窗，落花满地
+纯画面描述、不含诗句
+```"""
+        scenes = sw._parse_poetry_scene_lines(raw)
+        # 标签行整体跳过 → 3 个场景（2 个「|」行 + 1 个纯描述行）
+        assert len(scenes) == 3, scenes
+        assert scenes[0]["narration"] == "春眠不觉晓，处处闻啼鸟。"
+        assert scenes[0]["scene_prompt"] == "春日清晨薄雾，枝头鸟鸣"
+        assert scenes[1]["narration"] == "夜来风雨声，花落知多少。"
+        assert scenes[1]["scene_prompt"] == "夜雨敲窗，落花满地"
+        # 纯画面描述行：诗句留空，prompt 为整行
+        assert scenes[2]["narration"] == ""
+        assert scenes[2]["scene_prompt"] == "纯画面描述、不含诗句"
+        logger.info("  ✓ line parser consistent for LLM / external LLM output")
+
+    @pytest.mark.asyncio
     async def test_poetry_resolve_manual_uniform(self, temp_workdir):
         """场景配置 — 手动/统一：每场景时长取自统一值。"""
         state = await self._make_state(
