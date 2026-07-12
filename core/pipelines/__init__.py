@@ -11,6 +11,8 @@ import subprocess
 from abc import ABC, abstractmethod
 from typing import Callable, List, Optional
 
+from core.compositor.watermark import add_watermark, detect_language
+from core.config import get_watermark_config
 from core.task_manager import TaskManager
 from models.task import BaseTaskState, SubtitleConfig, SubtitleStyle
 
@@ -298,17 +300,95 @@ class BasePipeline(ABC):
         return srt_path, styles_path
 
 
+    # ==================================================================
+    # 共享工具：上提自各 pipeline 子类（v4.0 重构消重）
+    # ==================================================================
+
+    def _check_shutdown(self) -> None:
+        """检查是否需要停止流水线，收到停止信号则抛出 PipelineShutdown。"""
+        if self._is_shutdown():
+            raise PipelineShutdown("Pipeline shutdown requested")
+
+    @staticmethod
+    def _make_curl(video_id: str) -> str:
+        """生成用于查询视频状态的 curl 命令（供调试/续传）。"""
+        return (
+            f'curl -s -H "Authorization: Bearer $AGNES_API_KEY" '
+            f'"https://apihub.agnes-ai.com/agnesapi?video_id={video_id}"'
+        )
+
+    def _save_task_json(self, sub_dir: str, data: dict) -> None:
+        """持久化任务元数据（video_id 等）到 sub_dir/task.json + curl.sh。"""
+        os.makedirs(sub_dir, exist_ok=True)
+        task_file = os.path.join(sub_dir, "task.json")
+        with open(task_file, "w") as f:
+            json.dump(data, f, indent=2)
+        curl_file = os.path.join(sub_dir, "curl.sh")
+        with open(curl_file, "w") as f:
+            f.write(self._make_curl(data.get("video_id", "")) + "\n")
+
+    def _load_task_json(self, sub_dir: str) -> Optional[str]:
+        """从 sub_dir/task.json 读取已保存的 video_id（断点续传用）。"""
+        task_file = os.path.join(sub_dir, "task.json")
+        if os.path.exists(task_file):
+            try:
+                with open(task_file, "r") as f:
+                    data = json.load(f)
+                return data.get("video_id") or data.get("task_id")
+            except Exception as e:
+                logger.debug(f"[Pipeline] Failed to load cached task.json: {e}")
+        return None
+
+    def _get_watermark_language_text(self) -> str:
+        """水印语言检测用文本。子类可覆盖以返回合适的来源文本。"""
+        return ""
+
+    def _apply_watermark(self, video_path: str) -> str:
+        """通用水印后处理：根据配置叠加水印（不修改原文件则原样返回）。"""
+        wm_config = get_watermark_config()
+        if wm_config.get("enabled") and os.path.exists(video_path):
+            lang = wm_config.get("language", "auto")
+            if lang == "auto":
+                lang = detect_language(self._get_watermark_language_text())
+            wm_output = video_path + ".wm_tmp.mp4"
+            if add_watermark(video_path, wm_output, language=lang):
+                os.replace(wm_output, video_path)
+        return video_path
+
+    @staticmethod
+    async def run_ffmpeg_async(cmd: List[str], timeout: float = 30.0) -> None:
+        """异步执行 ffmpeg 命令（不阻塞事件循环）。等价于 subprocess.run(check=True)。"""
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            raise
+        if proc.returncode != 0:
+            err = stderr.decode(errors="replace")[:500] if stderr else ""
+            raise RuntimeError(f"ffmpeg exited with code {proc.returncode}: {err}")
+
+
 # 导出
+from core.pipelines.multi_scene import MultiScenePipeline
 from core.pipelines.simple_video import SimpleVideoPipeline
 from core.pipelines.creative_video import CreativeVideoPipeline
 from core.pipelines.manuscript_video import ManuscriptVideoPipeline
 from core.pipelines.anchor_video import AnchorPipeline
+from core.pipelines.poetry_video import PoetryVideoPipeline
 
 __all__ = [
     "BasePipeline",
     "PipelineShutdown",
+    "MultiScenePipeline",
     "SimpleVideoPipeline",
     "CreativeVideoPipeline",
     "ManuscriptVideoPipeline",
     "AnchorPipeline",
+    "PoetryVideoPipeline",
 ]

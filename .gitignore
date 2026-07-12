@@ -24,3 +24,11 @@ static/generated/
 
 # 模型接口报错收集
 error_logs/
+
+# Mock 回归测试生成的报告与临时数据（预制素材 assets/ fixture_data/ 需保留）
+tests/mock_regression/reports/
+tests/mock_regression/**/.working_dir/
+
+# moviepy 临时产物（运行期泄漏到仓库根目录）
+final_video*TEMP*.mp4
+*TEMP*_wvf_snd.mp4

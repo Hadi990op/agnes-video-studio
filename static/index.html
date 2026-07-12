@@ -228,6 +228,9 @@
       <button onclick="switchTaskType('anchor')" id="ttype-anchor" class="ttype-btn flex-1 px-4 py-3 rounded-xl text-sm font-medium tab-inactive transition text-center">
         <span class="text-lg">🎙️</span><br><span data-i18n="ttAnchor">数字人口播</span>
       </button>
+      <button onclick="switchTaskType('poetry')" id="ttype-poetry" class="ttype-btn flex-1 px-4 py-3 rounded-xl text-sm font-medium tab-inactive transition text-center">
+        <span class="text-lg">📜</span><br><span data-i18n="ttPoetry">诗词视频</span>
+      </button>
     </div>
 
     <!-- ═══════ Tab 1: Simple Image & Video ═══════ -->
@@ -1010,6 +1013,168 @@
       </button>
     </div>
 
+    <!-- ═══════ Tab 5: Poetry Video ═══════ -->
+    <div id="form-poetry" class="hidden">
+      <div class="glass-card rounded-2xl p-6 mb-4">
+        <h2 class="text-lg font-semibold text-blue-300 mb-4" data-i18n="poetrySettings">诗词设置</h2>
+
+        <div class="mb-4">
+          <label class="block text-sm text-gray-400 mb-1.5" data-i18n="taskName">任务名称</label>
+          <input id="p_name" data-i18n-placeholder="taskNamePlaceholder" placeholder="可选，留空自动生成" class="w-full glass-input rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-600">
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm text-gray-400 mb-1.5"><span data-i18n="poemLabel">古诗原文</span> <span class="text-red-400">*</span></label>
+          <textarea id="p_poem" rows="5" data-i18n-placeholder="poemPlaceholder" placeholder="输入完整古诗原文，例如：春眠不觉晓，处处闻啼鸟..." class="w-full glass-input rounded-lg px-4 py-2.5 text-sm resize-y text-gray-100 placeholder-gray-600"></textarea>
+          <p class="text-xs text-gray-500 mt-1.5" data-i18n="poemHint">可多段；诗句间用换行或标点自然分隔。AI 会按诗意拆分为若干场景。</p>
+        </div>
+
+        <!-- Scene config（与创意视频「场景配置」完全一致） -->
+        <div class="mb-4 p-4 rounded-xl bg-gray-800/30 border border-gray-700/50">
+          <h3 class="text-sm font-medium text-blue-300 mb-3" data-i18n="sceneConfig">场景配置</h3>
+
+          <p class="text-xs text-gray-500 mb-3" data-i18n="sourceManualHint">手动指定场景数量和每场景时长</p>
+
+          <!-- 手动配置 -->
+          <div id="p_manual_scene_config">
+            <div class="mb-3">
+              <label class="block text-xs text-gray-400 mb-1" data-i18n="sceneCount">场景数量</label>
+              <input id="p_scene_count" type="number" min="1" max="30" value="3" class="w-24 glass-input rounded-lg px-3 py-2 text-sm text-gray-100">
+            </div>
+
+            <div class="mb-3">
+              <label class="block text-xs text-gray-400 mb-1.5" data-i18n="durationMode">各场景时长</label>
+              <div class="flex gap-2 mb-2">
+                <label class="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+                  <input type="radio" name="p_uniform" value="1" checked onchange="togglePoetryDurationMode()" class="text-blue-500">
+                  <span data-i18n="uniformDuration">统一</span>
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+                  <input type="radio" name="p_uniform" value="0" onchange="togglePoetryDurationMode()" class="text-blue-500">
+                  <span data-i18n="independentDuration">独立</span>
+                </label>
+              </div>
+              <div id="p_uniform_duration_wrap">
+                <input id="p_uniform_duration" type="number" min="2" max="30" value="5" class="w-24 glass-input rounded-lg px-3 py-2 text-sm text-gray-100">
+                <span class="text-xs text-gray-500 ml-1" data-i18n="seconds">秒</span>
+              </div>
+              <div id="p_independent_durations_wrap" class="hidden space-y-2">
+                <div id="p_duration_inputs">
+                  <!-- 动态逐场景时长输入 -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm text-gray-400 mb-1.5" data-i18n="scenePromptsOptional">分镜描述（可选）</label>
+          <textarea id="p_scene_prompts" rows="3" data-i18n-placeholder="scenePromptsPlaceholder" placeholder="格式：原诗句 | 画面描述（每行一个场景）" class="w-full glass-input rounded-lg px-4 py-2.5 text-sm resize-y text-gray-100 placeholder-gray-600"></textarea>
+          <p class="text-xs text-gray-500 mt-1.5" data-i18n="scenePromptsHint">可选。每行一个场景，格式固定为「原诗句 | 画面描述」。两种用法结果完全一致：①留空，由系统自动生成（提示词已含上方场景数与每场景时长）；②把下方提示词交给任意 AI 生成后，把结果贴回此处。</p>
+          <p class="text-xs text-gray-400 mt-1.5 font-mono bg-gray-800/40 rounded px-2 py-1" data-i18n="scenePromptsExample">例：春眠不觉晓，处处闻啼鸟。 | 春日清晨薄雾，枝头鸟鸣</p>
+          <div class="mt-3 p-3 rounded-lg bg-gray-800/40 border border-gray-700/50">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-gray-300 font-medium" data-i18n="scenePromptTool">自己用其它 AI 生成分镜</span>
+              <button type="button" onclick="togglePoetryPrompt()" class="text-xs text-blue-300 hover:text-blue-200" data-i18n="showPrompt">查看提示词</button>
+            </div>
+            <div id="p_prompt_panel" class="hidden mt-2">
+              <p class="text-xs text-gray-500 mb-1.5" data-i18n="scenePromptToolHint">提示词已包含上方设置的场景数与每场景时长，与系统自动生成完全一致。复制到任意 AI，填入你的诗句，让它生成分镜，再把返回结果（每行「原诗句 | 画面描述」）贴回上方文本框即可。</p>
+              <pre id="p_prompt_system" class="text-[11px] text-gray-300 whitespace-pre-wrap bg-gray-900/60 rounded p-2 max-h-40 overflow-auto"></pre>
+              <pre id="p_prompt_user" class="text-[11px] text-gray-400 whitespace-pre-wrap bg-gray-900/60 rounded p-2 mt-1 max-h-40 overflow-auto"></pre>
+              <button type="button" onclick="copyPoetryPromptWithPoem(this)" class="mt-2 w-full text-xs text-blue-200 bg-blue-500/20 hover:bg-blue-500/30 rounded px-3 py-1.5 transition" data-i18n="copyPromptWithPoem">填入诗句并复制提示词</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm text-gray-400 mb-1.5" data-i18n="visualStyle">视觉风格</label>
+          <input id="p_style" value="电影质感写实风格" class="w-full glass-input rounded-lg px-4 py-2.5 text-sm text-gray-100 placeholder-gray-600">
+        </div>
+      </div>
+
+      <!-- Advanced Config -->
+      <div class="glass-card rounded-2xl p-6 mb-4">
+        <h2 class="text-lg font-semibold text-blue-300 mb-4" data-i18n="advancedSettings">高级设置</h2>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+          <div>
+            <label class="block text-sm text-gray-400 mb-1.5" data-i18n="resolution">分辨率</label>
+            <select id="p_resolution" class="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-gray-100">
+              <option value="768x1152" data-i18n="resPortrait">竖屏 9:16</option>
+              <option value="1152x768" data-i18n="resLandscape">横屏 16:9</option>
+              <option value="1024x1024" data-i18n="resSquare">方形 1:1</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Audio Config (Poetry) -->
+      <div class="glass-card rounded-2xl p-6 mb-4">
+        <div class="collapse-header flex items-center justify-between" onclick="toggleCollapse('p_audio_body')">
+          <h2 class="text-lg font-semibold text-blue-300" data-i18n="audioConfig">音频配置</h2>
+          <span id="p_audio_body-arrow" class="text-gray-500 text-xs">▶</span>
+        </div>
+        <div id="p_audio_body" class="collapse-body hidden mt-4">
+          <div class="flex items-center gap-3 mb-4">
+            <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+              <input type="checkbox" id="p_audio_enabled" checked class="rounded bg-gray-800 border-gray-600">
+              <span data-i18n="enableNarration">启用旁白配音</span>
+            </label>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="block text-sm text-gray-400 mb-1.5" data-i18n="voiceRole">语音角色</label>
+              <select id="p_voice" class="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-gray-100">
+                <option value="zh-CN-XiaoxiaoNeural">Xiaoxiao (温柔女声)</option>
+                <option value="zh-CN-YunyangNeural">Yunyang (沉稳男声)</option>
+                <option value="zh-CN-XiaoyiNeural">Xiaoyi (活泼女声)</option>
+                <option value="zh-CN-YunxiNeural">Yunxi (年轻男声)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-400 mb-1.5" data-i18n="speechRate">语速</label>
+              <select id="p_rate" class="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-gray-100">
+                <option value="-30%">-30% (慢)</option>
+                <option value="-15%" selected>-15% (诗词朗诵偏慢)</option>
+                <option value="+0%" data-i18n="rateNormal">正常</option>
+                <option value="+15%">+15%</option>
+                <option value="+30%">+30% (快)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subtitle Config (Poetry) — 仅开关，固定诗歌样式 -->
+      <div class="glass-card rounded-2xl p-6 mb-4">
+        <div class="collapse-header flex items-center justify-between" onclick="toggleCollapse('p_subtitle_body')">
+          <h2 class="text-lg font-semibold text-blue-300" data-i18n="subtitleConfig">字幕配置</h2>
+          <span id="p_subtitle_body-arrow" class="text-gray-500 text-xs">▶</span>
+        </div>
+        <div id="p_subtitle_body" class="collapse-body hidden mt-4">
+          <div class="flex items-center gap-3 mb-4">
+            <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+              <input type="checkbox" id="p_subtitle_enabled" checked class="rounded bg-gray-800 border-gray-600">
+              <span data-i18n="enableSubtitle">启用字幕</span>
+            </label>
+          </div>
+          <p class="text-xs text-gray-500" data-i18n="poetrySubtitleFixed">诗词字幕采用固定通用样式（居中偏下、白字黑描边），仅可开关，不可自定义。</p>
+        </div>
+      </div>
+
+      <!-- Watermark toggle -->
+      <div class="flex items-center justify-between px-1 py-2 mb-4">
+        <p class="text-xs text-gray-500 leading-relaxed mr-3 watermark-promo"></p>
+        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0" title="Video Watermark">
+          <input type="checkbox" class="watermark-toggle sr-only peer" onchange="toggleWatermark(this)">
+          <div class="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+        </label>
+      </div>
+
+      <button id="btn-poetry" onclick="submitPoetry()" class="w-full py-3.5 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 hover:from-blue-500 hover:via-blue-400 hover:to-blue-500 rounded-xl text-base font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed glow-btn" data-i18n="startGenerate">
+        开始生成视频
+      </button>
+    </div>
+
   </div>
 
   <!-- ═══════════ List Panel ═══════════ -->
@@ -1140,6 +1305,19 @@ const T = {
     connLostMsg: '与服务端的实时连接已断开。服务可能仍在后台运行。可到任务列表查看状态并续传。',
     gotoList: '前往任务列表',     reconnecting: '实时连接断开，正在重试...',
     ttAnchor: '数字人口播',
+    ttPoetry: '诗词视频', poetrySettings: '诗词设置',
+    poemLabel: '古诗原文', poemPlaceholder: '输入完整古诗原文，例如：春眠不觉晓，处处闻啼鸟...',
+    poemHint: '可多段；诗句间用换行或标点自然分隔。AI 会按诗意拆分为若干场景。',
+    scenePromptsOptional: '分镜描述（可选）', scenePromptsPlaceholder: '格式：原诗句 | 画面描述（每行一个场景）',
+    scenePromptsHint: '可选。每行一个场景，格式固定为「原诗句 | 画面描述」。两种用法结果完全一致：①留空，由系统按上方场景数与每场景时长自动生成；②把下方提示词交给任意 AI 生成后，把结果贴回此处。',
+    scenePromptsExample: '例：春眠不觉晓，处处闻啼鸟。 | 春日清晨薄雾，枝头鸟鸣',
+    scenePromptTool: '自己用其它 AI 生成分镜', showPrompt: '查看提示词',
+    scenePromptToolHint: '提示词已包含上方设置的场景数与每场景时长，与系统自动生成完全一致。复制到任意 AI，填入你的诗句，让它生成分镜，再把返回结果（每行「原诗句 | 画面描述」）贴回上方文本框即可。',
+    copyPromptWithPoem: '填入诗句并复制提示词',
+    totalDuration: '总时长', sceneCountAuto: '0=自动',
+    poetrySubtitleFixed: '诗词字幕采用固定通用样式（居中偏下、白字黑描边），仅可开关，不可自定义。',
+    pStepBuildScenes: '分镜拆分', pStepVideoGen: '视频生成', pStepAudio: '朗诵配音', pStepSubtitle: '字幕生成', pStepConcat: '视频拼接',
+    enterPoem: '请输入古诗原文',
     ttImage: '简单图片', imageSettings: '图片设置',
     imagePrompt: '图片描述', imagePromptPlaceholder: '描述你想要的图片画面...',
     imageSize: '图片尺寸', refImageHint: '可选。上传后以该图为基底生成变体；不上传则纯 AI 生成',
@@ -1257,6 +1435,16 @@ const T = {
     connLostMsg: 'Connection lost. Server may still be running. Check task list for status.',
     gotoList: 'Go to task list', reconnecting: 'Connection lost, retrying...',
     ttAnchor: 'Digital Human',
+    ttPoetry: 'Poetry Video', poetrySettings: 'Poetry Settings',
+    poemLabel: 'Poem Text', poemPlaceholder: 'Enter the full poem, e.g. 春眠不觉晓，处处闻啼鸟...', poemHint: 'Multiple stanzas allowed; separated by line breaks or punctuation. AI splits into scenes by meaning.',
+    scenePromptsOptional: 'Scene Prompts (Optional)', scenePromptsPlaceholder: 'Format: verse | visual description (one scene per line)', scenePromptsHint: 'Optional. One scene per line, fixed format "verse | visual description". Two ways give identical results: ① leave empty and let the system generate; ② copy the prompt below to any AI, then paste the result back.', scenePromptsExample: 'e.g. Spring sleeps, unaware of dawn... | Misty spring morning, birds singing',
+    scenePromptTool: 'Generate scenes with another AI', showPrompt: 'View prompt',
+    scenePromptToolHint: 'The prompt already includes the scene count and per-scene durations set above, identical to the system-generated one. Copy it to any AI, fill in your poem, let it generate scenes, then paste the result (one "verse | description" per line) back into the box above.',
+    copyPromptWithPoem: 'Fill poem and copy prompt',
+    totalDuration: 'Total Duration', sceneCountAuto: '0=auto',
+    poetrySubtitleFixed: 'Poetry subtitles use a fixed universal style (bottom-center, white text, black outline) — toggle only, not customizable.',
+    pStepBuildScenes: 'Scene Split', pStepVideoGen: 'Video Gen', pStepAudio: 'Narration', pStepSubtitle: 'Subtitle', pStepConcat: 'Concatenate',
+    enterPoem: 'Please enter the poem text',
     ttImage: 'Simple Image', imageSettings: 'Image Settings',
     imagePrompt: 'Image Description', imagePromptPlaceholder: 'Describe the image you want...',
     imageSize: 'Image Size', refImageHint: 'Optional. Upload to generate variations; leave blank for pure AI generation.',
@@ -2552,6 +2740,13 @@ const STEPS = {
     { key: 'subtitle', labelKey: 'aStepSubtitle' },
     { key: 'concatenate', labelKey: 'aStepConcat' },
   ],
+  poetry: [
+    { key: 'build_scenes', labelKey: 'pStepBuildScenes' },
+    { key: 'video_generation', labelKey: 'pStepVideoGen' },
+    { key: 'audio', labelKey: 'pStepAudio' },
+    { key: 'subtitle', labelKey: 'pStepSubtitle' },
+    { key: 'concatenation', labelKey: 'pStepConcat' },
+  ],
 };
 
 // ═══════════════════════════════════════════════════
@@ -2635,7 +2830,7 @@ function switchTaskType(type) {
   });
   document.getElementById('ttype-' + type).className = document.getElementById('ttype-' + type).className.replace(/tab-inactive/, 'tab-active');
 
-  ['simple', 'creative', 'manuscript', 'anchor'].forEach(t => {
+  ['simple', 'creative', 'manuscript', 'anchor', 'poetry'].forEach(t => {
     document.getElementById('form-' + t).classList.toggle('hidden', t !== type);
   });
 }
@@ -2988,6 +3183,179 @@ async function submitAnchor() {
   }
 }
 
+async function submitPoetry() {
+  const poem = document.getElementById('p_poem').value.trim();
+  if (!poem) return alert(t('enterPoem'));
+
+  const btn = document.getElementById('btn-poetry');
+  btn.disabled = true; btn.textContent = t('submitting');
+
+  // 可选分镜描述：按行解析为 JSON 数组
+  const sceneLines = document.getElementById('p_scene_prompts').value
+    .split('\n').map(s => s.trim()).filter(Boolean);
+
+  const form = new FormData();
+  form.append('poem_text', poem);
+  form.append('creative_name', document.getElementById('p_name').value.trim());
+  form.append('user_scene_prompts_json', JSON.stringify(sceneLines));
+  form.append('style', document.getElementById('p_style').value);
+  const res = parseResolution(document.getElementById('p_resolution').value);
+  form.append('video_width', res.width);
+  form.append('video_height', res.height);
+  form.append('video_duration', 30);
+
+  // ── 场景配置（固定手动设置）──
+  form.append('duration_source', 'manual');
+  const sceneCount = parseInt(document.getElementById('p_scene_count').value) || 3;
+  form.append('scene_count', sceneCount);
+  const isUniform = document.querySelector('input[name="p_uniform"]:checked').value === '1';
+  form.append('uniform_duration', isUniform);
+  if (isUniform) {
+    const dur = parseInt(document.getElementById('p_uniform_duration').value) || 5;
+    form.append('scene_durations_json', JSON.stringify(Array(sceneCount).fill(dur)));
+  } else {
+    const vals = Array.from(document.querySelectorAll('#p_duration_inputs .scene-dur-val'))
+      .map(el => parseInt(el.value) || 5);
+    form.append('scene_durations_json', JSON.stringify(vals.slice(0, sceneCount)));
+  }
+  // Audio config
+  form.append('audio_enabled', document.getElementById('p_audio_enabled').checked);
+  form.append('audio_voice', document.getElementById('p_voice').value);
+  form.append('audio_rate', document.getElementById('p_rate').value);
+  // Subtitle config（固定诗歌样式，仅开关）
+  form.append('subtitle_enabled', document.getElementById('p_subtitle_enabled').checked);
+
+  try {
+    const r = await fetch('/api/tasks/poetry', { method: 'POST', body: form });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.detail || t('failCreate'));
+    currentTaskType = 'poetry';
+    setRunning(d.task_id);
+    currentDirName = d.dir_name;
+    await showProgress(d.task_id, d.dir_name);
+    await startPolling(d.task_id);
+    showToast(t('submitted'), 5000);
+  } catch(e) {
+    alert(t('failCreate') + ': ' + e.message);
+    btn.disabled = false; btn.textContent = t('startGenerate');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// Poetry scene config toggles（与创意一致，p_ 前缀隔离）
+// ═══════════════════════════════════════════════════
+function togglePoetryDurationMode() {
+  const isUniform = document.querySelector('input[name="p_uniform"]:checked').value === '1';
+  document.getElementById('p_uniform_duration_wrap').style.display = isUniform ? 'block' : 'none';
+  document.getElementById('p_independent_durations_wrap').style.display = isUniform ? 'none' : 'block';
+  if (!isUniform) buildPoetryDurationInputs();
+  refreshPoetryPromptIfOpen();
+}
+function buildPoetryDurationInputs() {
+  const count = parseInt(document.getElementById('p_scene_count').value) || 3;
+  const container = document.getElementById('p_duration_inputs');
+  const currentCount = container.querySelectorAll('.dur-input').length;
+  if (currentCount === count) return;
+  let html = '';
+  for (let i = 0; i < count; i++) {
+    html += '<div class="flex items-center gap-2 mb-1.5 dur-input">'
+      + '<span class="text-xs text-gray-500 w-12">' + t('scene_') + (i+1) + '</span>'
+      + '<input type="number" min="2" max="30" value="5" class="w-20 glass-input rounded-lg px-3 py-1.5 text-sm text-gray-100 scene-dur-val">'
+      + '<span class="text-xs text-gray-500">' + t('seconds') + '</span></div>';
+  }
+  container.innerHTML = html;
+}
+document.getElementById('p_scene_count').addEventListener('change', function() {
+  if (document.querySelector('input[name="p_uniform"]:checked').value === '0') {
+    buildPoetryDurationInputs();
+  }
+  refreshPoetryPromptIfOpen();
+});
+const _pUniformDur = document.getElementById('p_uniform_duration');
+if (_pUniformDur) _pUniformDur.addEventListener('change', refreshPoetryPromptIfOpen);
+const _pStyle = document.getElementById('p_style');
+if (_pStyle) _pStyle.addEventListener('change', refreshPoetryPromptIfOpen);
+// 收集当前表单的场景参数，用于生成与程序内 LLM 完全一致的提示词
+function collectPoetrySceneArgs() {
+  const poem = (document.getElementById('p_poem').value || '').trim();
+  const style = (document.getElementById('p_style').value || '').trim();
+  const count = parseInt(document.getElementById('p_scene_count').value) || 3;
+  const isUniform = document.querySelector('input[name="p_uniform"]:checked').value === '1';
+  let durations = [];
+  if (isUniform) {
+    const dur = parseInt(document.getElementById('p_uniform_duration').value) || 5;
+    durations = Array(count).fill(dur);
+  } else {
+    const inputs = document.querySelectorAll('#p_duration_inputs input[type="number"]');
+    durations = Array.from(inputs).map(i => parseInt(i.value) || 5);
+    while (durations.length < count) durations.push(5);
+    durations = durations.slice(0, count);
+  }
+  const total = durations.reduce((a, b) => a + b, 0) || 30;
+  return { poem, scene_count: count, scene_durations: durations, total_duration: total, style };
+}
+
+async function loadPoetryPrompt() {
+  try {
+    const a = collectPoetrySceneArgs();
+    const qs = new URLSearchParams({
+      poem: a.poem,
+      scene_count: String(a.scene_count),
+      scene_durations: JSON.stringify(a.scene_durations),
+      total_duration: String(a.total_duration),
+      style: a.style,
+    });
+    const resp = await fetch('/api/poetry-scene-prompt?' + qs.toString());
+    const data = await resp.json();
+    document.getElementById('p_prompt_system').textContent = data.system_prompt || '';
+    document.getElementById('p_prompt_user').textContent = data.user_prompt || '';
+  } catch (e) {
+    console.error('load poetry scene prompt failed', e);
+  }
+}
+
+async function togglePoetryPrompt() {
+  const panel = document.getElementById('p_prompt_panel');
+  const willShow = panel.classList.contains('hidden');
+  panel.classList.toggle('hidden');
+  if (willShow) {
+    await loadPoetryPrompt();
+  }
+}
+
+function refreshPoetryPromptIfOpen() {
+  const panel = document.getElementById('p_prompt_panel');
+  if (panel && !panel.classList.contains('hidden')) {
+    loadPoetryPrompt();
+  }
+}
+
+async function copyPoetryPromptWithPoem(btn) {
+  // 复制前重新拉取，确保提示词含最新的场景数与每场景时长
+  await loadPoetryPrompt();
+  const sys = document.getElementById('p_prompt_system').textContent || '';
+  const usr = document.getElementById('p_prompt_user').textContent || '';
+  const full = sys + '\n\n' + usr;
+  const done = () => { if (btn) { const old = btn.textContent; btn.textContent = '已复制 ✓'; setTimeout(() => btn.textContent = old, 1500); } };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(full).then(done).catch(() => fallbackCopy(full, done));
+  } else {
+    fallbackCopy(full, done);
+  }
+}
+
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(ta);
+  if (done) done();
+}
+
 // ═══════════════════════════════════════════════════
 // Simple Image
 // ═══════════════════════════════════════════════════
@@ -3066,7 +3434,7 @@ async function showProgress(taskId, dirName) {
   // 如果有 state，也标记当前 running 步骤
   if (state) {
     markCompletedStepsFromState(state);
-    const step = state.current_step || '';
+    const step = (state.current_step || '').replace(/^step_/, '');
     const status = state.current_status || '';
     if (step && status === 'running') {
       const stepEl = document.querySelector(`.step-item[data-step="${step}"]`);
@@ -3124,7 +3492,7 @@ async function pollTaskProgress(taskId) {
     markCompletedStepsFromState(state);
 
     // 更新当前步骤的图标（running/completed/failed）
-    const step = state.current_step || '';
+    const step = (state.current_step || '').replace(/^step_/, '');
     const status = state.current_status || '';
     if (step) {
       const stepEl = document.querySelector(`.step-item[data-step="${step}"]`);
@@ -3189,6 +3557,10 @@ function isStepDoneInState(state, stepKey, taskType) {
       clip_prompts: 'step_clip_prompts', clip_gen: 'step_clip_generation',
       audio: 'step_audio', subtitle: 'step_subtitle', concatenate: 'step_concatenation',
     },
+    poetry: {
+      build_scenes: 'step_build_scenes', video_generation: 'step_video_generation',
+      audio: 'step_audio', subtitle: 'step_subtitle', concatenation: 'step_concatenation',
+    },
   };
   const map = stepMap[taskType] || stepMap.creative;
   const field = map[stepKey];
@@ -3216,6 +3588,10 @@ function markCompletedStepsFromState(state) {
       generate_anchor: 'step_generate_anchor', split_text: 'step_split',
       clip_prompts: 'step_clip_prompts', clip_gen: 'step_clip_generation',
       audio: 'step_audio', subtitle: 'step_subtitle', concatenate: 'step_concatenation',
+    },
+    poetry: {
+      build_scenes: 'step_build_scenes', video_generation: 'step_video_generation',
+      audio: 'step_audio', subtitle: 'step_subtitle', concatenation: 'step_concatenation',
     },
   };
   const map = stepMap[taskType] || stepMap.creative;
@@ -3309,8 +3685,8 @@ async function loadTaskList() {
     container.innerHTML = tasks.map(task => {
       const statusColors = { completed: 'text-green-400', running: 'text-yellow-400', failed: 'text-red-400', pending: 'text-gray-400', queued: 'text-cyan-400' };
       const statusLabels = { completed: t('statusCompleted'), running: t('statusRunning'), failed: t('statusFailed'), pending: t('statusPending'), queued: t('statusQueued') };
-      const typeLabels = { simple: t('typeSimple'), creative: t('typeCreative'), manuscript: t('typeManuscript'), anchor: t('typeAnchor'), image: t('typeImage') };
-      const typeColors = { simple: 'bg-blue-900 text-blue-300', creative: 'bg-blue-900 text-blue-300', manuscript: 'bg-orange-900 text-orange-300', anchor: 'bg-amber-900 text-amber-300' };
+      const typeLabels = { simple: t('typeSimple'), creative: t('typeCreative'), manuscript: t('typeManuscript'), anchor: t('typeAnchor'), poetry: t('typePoetry'), image: t('typeImage') };
+      const typeColors = { simple: 'bg-blue-900 text-blue-300', creative: 'bg-blue-900 text-blue-300', manuscript: 'bg-orange-900 text-orange-300', anchor: 'bg-amber-900 text-amber-300', poetry: 'bg-purple-900 text-purple-300' };
       const isCompleted = task.status === 'completed';
       const isRunning = task.status === 'running' || task.status === 'queued';
       const btnLabel = isCompleted ? t('btnView') : (isRunning ? t('btnViewProgress') : t('btnResume'));
@@ -3443,12 +3819,17 @@ function showTaskDetail(taskId, state) {
     generate_anchor: 'step_generate_anchor', generate_clip: 'step_generate_clip',
     audio: 'step_audio', subtitle: 'step_subtitle', composite: 'step_composite',
   };
+  const poetryStepMap = {
+    build_scenes: 'step_build_scenes', video_generation: 'step_video_generation',
+    audio: 'step_audio', subtitle: 'step_subtitle', concatenate: 'step_concatenation',
+  };
 
   const stepsHtml = steps.map(s => {
     let stateField = null;
     if (taskType === 'creative') stateField = creativeStepMap[s.key];
     else if (taskType === 'manuscript') stateField = manuscriptStepMap[s.key];
     else if (taskType === 'anchor') stateField = anchorStepMap[s.key];
+    else if (taskType === 'poetry') stateField = poetryStepMap[s.key];
     const isDone = stateField ? state[stateField] === 'completed' : (s.key === 'init' || s.key === 'submit');
     const icon = isDone ? '✓' : '○';
     const iconClass = isDone ? 'bg-green-900 text-green-300' : 'bg-gray-800 text-xs';
@@ -3463,7 +3844,7 @@ function showTaskDetail(taskId, state) {
   document.getElementById('progress-bar').style.width = '100%';
   document.getElementById('progress-pct').textContent = '100%';
 
-  const typeLabel = { simple: t('typeSimple'), creative: t('typeCreative'), manuscript: t('typeManuscript'), anchor: t('typeAnchor'), image: t('typeImage') };
+  const typeLabel = { simple: t('typeSimple'), creative: t('typeCreative'), manuscript: t('typeManuscript'), anchor: t('typeAnchor'), poetry: t('typePoetry'), image: t('typeImage') };
   let extraInfo = '';
   if (taskType === 'creative') {
     extraInfo = `<p class="text-gray-500">${t('idea_')}: ${escapeHtml((state.idea || '').substring(0, 100))}</p>

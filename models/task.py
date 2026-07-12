@@ -36,6 +36,7 @@ class TaskType(str, Enum):
     MANUSCRIPT = "manuscript"
     ANCHOR = "anchor"
     IMAGE = "image"
+    POETRY = "poetry"
 
 
 class VideoMode(str, Enum):
@@ -120,6 +121,8 @@ class SceneTask(BaseModel):
 
     index: int
     status: StepStatus = StepStatus.PENDING
+    # v4.0 重构：场景视频 prompt（链式/循环模式下用作 i2v/t2v 主提示词）
+    scene_prompt: str = ""
     end_frame_prompt: str = ""
     end_frame_file: str = ""
     video_id: str = ""
@@ -229,6 +232,9 @@ class CreativeVideoTask(BaseTaskState):
 
     scenes: List[SceneTask] = Field(default_factory=list)
 
+    # v4.0 重构：MultiScenePipeline 规范步骤字段
+    step_build_scenes: StepStatus = StepStatus.PENDING
+    step_reference_images: StepStatus = StepStatus.PENDING
     step_video_generation: StepStatus = StepStatus.PENDING
 
     # ── v2.0 新增：音频 + 字幕 ──
@@ -269,6 +275,8 @@ class ManuscriptVideoTask(BaseTaskState):
 
     manuscript_text: str = ""
     paragraphs: List[ManuscriptParagraph] = Field(default_factory=list)
+    # v4.0 重构：通用场景列表（由 _build_scenes 填充，供模板与下游步骤引用）
+    scenes: List[SceneTask] = Field(default_factory=list)
     audio_config: AudioConfig = Field(default_factory=AudioConfig)
     subtitle_config: SubtitleConfig = Field(default_factory=SubtitleConfig)
     video_duration: int = 10
@@ -279,6 +287,9 @@ class ManuscriptVideoTask(BaseTaskState):
 
     step_split: StepStatus = StepStatus.PENDING
     step_scene_prompts: StepStatus = StepStatus.PENDING
+    # v4.0 重构：MultiScenePipeline 规范步骤字段
+    step_build_scenes: StepStatus = StepStatus.PENDING
+    step_reference_images: StepStatus = StepStatus.PENDING
     step_video_generation: StepStatus = StepStatus.PENDING
     step_audio_subtitle: StepStatus = StepStatus.PENDING
     step_audio: StepStatus = StepStatus.PENDING
@@ -316,6 +327,10 @@ class AnchorVideoTask(BaseTaskState):
     step_split: StepStatus = StepStatus.PENDING
     step_clip_prompts: StepStatus = StepStatus.PENDING
     step_clip_generation: StepStatus = StepStatus.PENDING
+    # v4.0 重构：MultiScenePipeline 规范步骤字段
+    step_build_scenes: StepStatus = StepStatus.PENDING
+    step_reference_images: StepStatus = StepStatus.PENDING
+    step_video_generation: StepStatus = StepStatus.PENDING
     step_audio: StepStatus = StepStatus.PENDING
     step_subtitle: StepStatus = StepStatus.PENDING
     step_concatenation: StepStatus = StepStatus.PENDING
@@ -324,10 +339,64 @@ class AnchorVideoTask(BaseTaskState):
     anchor_image_url: str = ""
     anchor_image_path: str = ""
     paragraphs: List[ManuscriptParagraph] = Field(default_factory=list)
+    # v4.0 重构：通用场景列表（单段 clip，由 _build_scenes 填充，供模板与下游步骤引用）
+    scenes: List[SceneTask] = Field(default_factory=list)
     combined_audio: str = ""
     combined_subtitle: str = ""
     subtitle_styles_path: str = ""
     final_video_path: str = ""
+
+
+class PoetryVideoTask(BaseTaskState):
+    """诗词视频任务（类型 6 / v4.0 Phase 5）
+
+    用户提供古诗原文，LLM 依据诗歌意境与用户指定的总时长、分镜数
+    拆分为若干场景（每段含朗诵文案 + 视频 prompt）。用户可可选提供
+    逐段分镜 prompt（覆盖 LLM 生成）。逐段生成视频后拼接，叠加 TTS
+    朗诵配音与通用诗歌字幕。
+    """
+
+    task_type: Literal[TaskType.POETRY] = TaskType.POETRY
+
+    # 用户输入
+    poem_text: str = ""
+    # 可选：用户手动输入的分镜 prompt，按场景顺序每项一个；
+    # 留空或某场景缺省时由 LLM 根据古诗生成。
+    user_scene_prompts: List[str] = Field(default_factory=list)
+    # 视觉风格（与创意视频保持一致，传入 LLM 分镜拆分）
+    style: str = "电影质感写实风格"
+
+    # 配置（分辨率等参数与创意视频保持一致）
+    video_width: int = 768
+    video_height: int = 1152
+    # 默认总时长（秒），仅作 LLM 拆分节奏参考与「提取」模式均分兜底。
+    video_duration: int = 30
+
+    # ── v3.x 场景配置（与创意视频完全一致）──
+    # 场景数与时长来源："manual"=用户指定 / "prompt"=从古诗+分镜描述提取
+    duration_source: str = "manual"
+    # 期望分镜数（与创意视频一致：默认 3，范围 1-30；提取模式忽略此值）
+    scene_count: int = 3
+    # 各场景时长是否统一（统一=每场景 uniform_duration 秒；独立=scene_durations 逐场景）
+    uniform_duration: bool = True
+    scene_durations: List[int] = Field(default_factory=lambda: [5, 5, 5])
+
+    audio_config: AudioConfig = Field(default_factory=AudioConfig)
+    subtitle_config: SubtitleConfig = Field(default_factory=SubtitleConfig)
+
+    # v4.0 重构：MultiScenePipeline 规范步骤字段
+    scenes: List[SceneTask] = Field(default_factory=list)
+    step_build_scenes: StepStatus = StepStatus.PENDING
+    step_reference_images: StepStatus = StepStatus.PENDING
+    step_video_generation: StepStatus = StepStatus.PENDING
+    step_audio: StepStatus = StepStatus.PENDING
+    step_subtitle: StepStatus = StepStatus.PENDING
+    step_concatenation: StepStatus = StepStatus.PENDING
+
+    # 产物
+    combined_audio: str = ""
+    combined_subtitle: str = ""
+    subtitle_styles_path: str = ""
 
 
 class SimpleImageTask(BaseTaskState):
@@ -349,7 +418,7 @@ class SimpleImageTask(BaseTaskState):
 # 联合类型 + 反序列化工厂
 # ═══════════════════════════════════════════════════
 
-AnyTaskState = Union[SimpleVideoTask, CreativeVideoTask, ManuscriptVideoTask, AnchorVideoTask, SimpleImageTask]
+AnyTaskState = Union[SimpleVideoTask, CreativeVideoTask, ManuscriptVideoTask, AnchorVideoTask, PoetryVideoTask, SimpleImageTask]
 
 # 用于 TaskManager.load()：根据 task_type 字段选择正确的模型类
 _TASK_TYPE_MAP: dict[str, type[BaseTaskState]] = {
@@ -357,6 +426,7 @@ _TASK_TYPE_MAP: dict[str, type[BaseTaskState]] = {
     TaskType.CREATIVE: CreativeVideoTask,
     TaskType.MANUSCRIPT: ManuscriptVideoTask,
     TaskType.ANCHOR: AnchorVideoTask,
+    TaskType.POETRY: PoetryVideoTask,
     TaskType.IMAGE: SimpleImageTask,
 }
 

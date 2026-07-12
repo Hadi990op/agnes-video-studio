@@ -7,7 +7,7 @@ import os
 import re
 import time as _time
 import requests
-from typing import List
+from typing import List, Optional
 
 from core.api.agnes_chat import AgnesChatAPI, strip_code_fence
 
@@ -1637,3 +1637,157 @@ Styling rules:
             }
             for s in subs
         ]
+
+    def generate_poetry_scenes(
+        self,
+        poem_text: str,
+        scene_count: int = 0,
+        scene_durations: Optional[List[int]] = None,
+        total_duration: int = 30,
+        style: str = "",
+    ) -> List[dict]:
+        """LLM 拆分整首诗词为若干场景（朗诵文案 + 视频 prompt），以行格式返回。
+
+        与「用户直接粘贴的分镜描述」保持同一格式：``原诗句 | 画面描述``。
+        每行一个场景，「|」左为对应原诗片段（narration），右为视频画面描述。
+        这样内部 LLM 生成与外部 LLM（用户拿同样提示词生成后贴回）输出完全一致。
+
+        Args:
+            poem_text: 整首诗词原文。
+            scene_count: 期望分镜数；0 表示自动（prompt 来源模式）。
+            scene_durations: 各场景时长（秒）列表；非空时提示词写出每场景时长+合计，
+                与可复制提示词、实际视频生成时长完全一致。
+            total_duration: 目标总时长（秒），用于 prompt/auto 模式把握节奏。
+            style: 视觉风格（与创意视频一致），注入每个场景画面描述。
+
+        Returns:
+            场景列表，每个元素为 {"narration": str, "scene_prompt": str}。
+            朗诵文案严格保留原诗文字，不改写不翻译。
+        """
+        system_prompt, user_prompt = self._poetry_scene_prompts(
+            poem_text, scene_count, scene_durations or [], total_duration, style)
+        logger.info(
+            f"[Screenwriter] Splitting poem into scenes (count={scene_count or 'auto'}, "
+            f"durations={scene_durations or 'auto'})..."
+        )
+        raw = self._chat(system_prompt, user_prompt)
+        scenes = self._parse_poetry_scene_lines(raw)
+        logger.info(f"[Screenwriter] Poetry scenes: {len(scenes)}")
+        return scenes
+
+    def _poetry_scene_prompts(
+        self,
+        poem_text: str,
+        scene_count: int,
+        scene_durations: List[int],
+        total_duration: int,
+        style: str,
+    ) -> tuple:
+        """返回（system_prompt, user_prompt）。
+
+        内部 LLM 与外部 LLM（用户拿同样提示词生成后贴回）共用此提示词，
+        UI 端点 ``build_poetry_scene_prompt`` 也复用同一份，保证格式一致。
+        时长表达：有每场景时长时写出「各场景时长：d1,d2…秒（合计T秒）」，
+        否则（auto/prompt 模式）写「目标总时长：T秒」。
+        """
+        count_hint = (
+            f"{scene_count} 个" if scene_count and scene_count > 0
+            else "由你依据诗意自行决定（通常 2-6 个）"
+        )
+        if scene_durations:
+            dur_list = "、".join(f"{d}秒" for d in scene_durations)
+            total = sum(scene_durations)
+            dur_hint = f"各场景时长：{dur_list}（合计 {total} 秒）"
+        else:
+            dur_hint = f"目标总时长：{total_duration} 秒（用于把握节奏，不要求每句等长）"
+        style_hint = style.strip() if style and style.strip() else "未指定，请采用通用电影质感写实风格"
+        system_prompt = self._prompt(
+            zh_text="""你是一位诗意的视觉艺术家兼诗词分镜导演，专精将中国古典诗词转化为视频分镜。
+请将整首诗拆分为若干场景，每个场景一行，严格使用如下格式：
+
+原诗句 | 画面描述
+
+规则：
+- 「|」左侧为该场景对应的原诗片段（朗诵文案），严格保留原诗文字，不要改写、翻译或意译；
+- 「|」右侧为该场景的视频画面描述（只描述视觉，15-30 字，不描述声音或文字）；
+- 按诗意的自然段落或意象切分场景，使每段画面连贯且独立；
+- 每行一个场景，不要编号、不要解释、不要输出 JSON、不要使用代码块围栏。
+示例：
+春眠不觉晓，处处闻啼鸟。 | 春日清晨薄雾，枝头鸟鸣
+夜来风雨声，花落知多少。 | 夜雨敲窗，落花满地青石""",
+            en_text="""You are a poetic visual artist and poetry storyboard director specializing in transforming classical poetry into video scenes.
+Split the whole poem into scenes, ONE scene per line, strict format:
+
+original verse | visual description
+
+Rules:
+- Left of "|" is the original poem line(s) verbatim (narration); do NOT rewrite/translate/paraphrase.
+- Right of "|" is the visual description (15-30 words, visuals only, no audio/text).
+- Split by stanzas or imagery; coherent, self-contained scenes.
+- One scene per line; no numbering, no explanation, no JSON, no code fences.
+Example:
+Spring sleeps, unaware of dawn... | Misty spring morning, birds singing
+Night rain, wind sounds... | Rain on window, petals on stone""",
+        )
+        user_prompt = f"""<poem>
+{poem_text}
+</poem>
+
+<requirements>
+- 场景数量：{count_hint}
+- {dur_hint}
+- 视觉风格：{style_hint}（请将该风格融入每个场景的画面描述）
+</requirements>
+"""
+        return system_prompt, user_prompt
+
+    def _parse_poetry_scene_lines(self, raw: str) -> List[dict]:
+        """把 LLM 返回的行格式文本解析为场景列表。
+
+        每行 ``原诗句 | 画面描述``；无 ``|`` 的行视为纯画面描述（诗句留空）。
+        自动去除编号/标签前缀（如「1. 」「场景1：」），对外部 LLM 的输出更鲁棒。
+        """
+        if not raw:
+            return []
+        raw = strip_code_fence(raw)
+        scenes: List[dict] = []
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            # 跳过纯场景标签行（如「场景 1（00:00 - 00:10）」），避免被误判为分镜
+            if re.match(r"^(场景|Scene)\s*\d+", line, re.IGNORECASE):
+                continue
+            # 去掉可能的编号/标签前缀
+            line = re.sub(r"^[\d]+\s*[\.、)]\s*", "", line)
+            line = re.sub(r"^(场景|Scene)\s*\d*\s*[:：]\s*", "", line, flags=re.IGNORECASE)
+            if "|" in line:
+                verse, _, prompt = line.partition("|")
+                verse = verse.strip()
+                prompt = prompt.strip()
+            else:
+                # 纯画面描述（无诗句）：诗句留空，由调用方处理
+                verse, prompt = "", line
+            if not prompt:
+                continue
+            scenes.append({"narration": verse, "scene_prompt": prompt})
+        return scenes
+
+
+def build_poetry_scene_prompt(
+    poem: str,
+    scene_count: int = 0,
+    scene_durations: Optional[List[int]] = None,
+    total_duration: int = 30,
+    style: str = "",
+) -> dict:
+    """返回已填充的诗歌分镜提示词（中文），供前端展示与复制。
+
+    直接复用内部 LLM 所用的 ``_poetry_scene_prompts``，并用同一份参数
+    （poem / scene_count / scene_durations / total_duration / style）填充，
+    保证「用户拿去外部 LLM 生成后贴回」与「系统内 LLM 生成」提示词逐字一致。
+    """
+    sw = Screenwriter(api_key="", language="zh")
+    system_prompt, user_prompt = sw._poetry_scene_prompts(
+        poem, scene_count, scene_durations or [], total_duration, style)
+    return {"system_prompt": system_prompt, "user_prompt": user_prompt}
