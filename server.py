@@ -569,6 +569,11 @@ async def list_tasks():
             elif isinstance(state, SimpleImageTask):
                 t["prompt"] = state.prompt[:100] if state.prompt else ""
                 t["size"] = state.size
+            # Live progress fields for running tasks
+            t["current_progress"] = state.current_progress
+            t["current_step"] = state.current_step
+            t["current_message"] = (state.current_message or "")[:120]
+            t["creative_name"] = state.creative_name or ""
     return {"tasks": tasks}
 
 

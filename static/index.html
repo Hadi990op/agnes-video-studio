@@ -2831,6 +2831,12 @@ let isTaskRunning = false;
 let taskListTimer = null;
 let currentTaskType = 'creative'; // active task type tab
 
+// Background task tracking — keep polling alive across tab switches
+let _allRunningTasks = new Set();       // task IDs that are running/queued
+let _bgPollTimers = {};                 // taskId -> intervalId for background polls
+let _taskLastStatus = {};              // taskId -> last known status (for change detection)
+let _notifyPermissionAsked = false;
+
 // Step definitions per task type
 const STEPS = {
   simple: [
@@ -2938,6 +2944,37 @@ const STEPS = {
     document.getElementById('m_char_count').textContent = this.value.length;
   });
 
+  // Ask for notification permission (non-blocking, silent)
+  if ('Notification' in window && Notification.permission === 'default') {
+    // Ask lazily — only when first task is submitted, not on page load
+  }
+
+  // Visibility-aware polling: pause when tab hidden, resume when visible
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      // Pause the active poll timer (save bandwidth), but keep background tracking light
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      Object.values(_bgPollTimers).forEach(t => clearInterval(t));
+      _bgPollTimers = {};
+      // Start a slow background check (every 15s) to detect completion for notifications
+      _bgVisibilityTimer = setInterval(_checkBackgroundTasks, 15000);
+    } else {
+      // Resume active polling
+      if (_bgVisibilityTimer) { clearInterval(_bgVisibilityTimer); _bgVisibilityTimer = null; }
+      if (currentTaskId && isTaskRunning) {
+        startPolling(currentTaskId);
+      }
+      // Resume background tracking for other tasks
+      _allRunningTasks.forEach(tid => {
+        if (tid !== currentTaskId) _startBgPolling(tid);
+      });
+      // Refresh task list if on that tab
+      if (!document.getElementById('panel-list').classList.contains('hidden')) {
+        loadTaskList();
+      }
+    }
+  });
+
   autoReconnectRunningTask();
 })();
 
@@ -2974,6 +3011,9 @@ function switchMainTab(tab) {
   document.getElementById('mtab-' + tab).className = document.getElementById('mtab-' + tab).className.replace(/tab-inactive/, 'tab-active');
   document.getElementById('panel-create').classList.toggle('hidden', tab !== 'create');
   document.getElementById('panel-list').classList.toggle('hidden', tab !== 'list');
+  // NOTE: Polling for the active task continues regardless of which tab is visible.
+  // The progress panel is in panel-create but polling updates DOM elements by ID,
+  // so updates happen silently even when the panel is hidden — no data lost.
   if (tab === 'list') {
     loadTaskList();
     if (!taskListTimer) taskListTimer = setInterval(loadTaskList, 5000);
@@ -3073,6 +3113,9 @@ function addCEndFrameInput() {
 function setRunning(taskId) {
   isTaskRunning = true;
   currentTaskId = taskId;
+  _allRunningTasks.add(taskId);
+  _taskLastStatus[taskId] = 'running';
+  _askNotifyPermission();
   // 不再禁用提交按钮，支持并发提交多个任务（服务端自动排队）
 }
 
@@ -3081,7 +3124,7 @@ function clearRunning() {
   currentTaskId = null;
   stopPolling();
   // 恢复提交按钮
-  ['btn-simple', 'btn-creative', 'btn-manuscript', 'btn-anchor'].forEach(id => {
+  ['btn-simple', 'btn-creative', 'btn-manuscript', 'btn-anchor', 'btn-blueprint'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) { btn.disabled = false; btn.textContent = t('startGenerate'); }
   });
@@ -3776,16 +3819,27 @@ async function pollTaskProgress(taskId) {
     // Live preview — refresh scene videos/images as they're generated
     updateLivePreview(taskId, state);
 
+    // Track status changes
+    const prevStatus = _taskLastStatus[taskId];
+    _taskLastStatus[taskId] = state.status;
+
     // 任务完成
     if (state.status === 'completed') {
       document.getElementById('live-preview-area').classList.add('hidden');
       showResult(state.final_video_file);
+      // Notify if tab was hidden when it completed
+      if (document.hidden || prevStatus === 'running') {
+        _notifyTaskDone(taskId, state, true);
+      }
       clearRunning();
       scheduleArtifactRefresh();
     }
 
     // 任务失败
     if (state.status === 'failed' || (step === 'error' && status === 'failed')) {
+      if (document.hidden || prevStatus === 'running') {
+        _notifyTaskDone(taskId, state, false);
+      }
       clearRunning();
       document.getElementById('progress-message').innerHTML = `
         <div class="p-4 bg-red-950 border border-red-800 rounded-lg space-y-2">
@@ -3936,23 +3990,135 @@ function showResult(videoPath) {
 }
 
 // ═══════════════════════════════════════════════════
-// Auto-reconnect
+// Auto-reconnect & Background Task Tracking
 // ═══════════════════════════════════════════════════
+
+let _bgVisibilityTimer = null;
 
 async function autoReconnectRunningTask() {
   try {
     const r = await fetch(api('/api/tasks'));
     const d = await r.json();
-    const running = (d.tasks || []).find(t => t.status === 'running' || t.status === 'queued');
-    if (running) {
-      currentTaskType = running.task_type || 'creative';
-      setRunning(running.task_id);
-      currentDirName = running.dir_name || running.task_id;
-      await showProgress(running.task_id, currentDirName);
-      await startPolling(running.task_id);
-      restoreProgressFromTask(running.task_id);
-    }
+    const tasks = d.tasks || [];
+    const runningTasks = tasks.filter(t => t.status === 'running' || t.status === 'queued');
+
+    if (runningTasks.length === 0) return;
+
+    // Track ALL running tasks in background
+    runningTasks.forEach(t => {
+      _allRunningTasks.add(t.task_id);
+      _taskLastStatus[t.task_id] = t.status;
+    });
+
+    // Show the FIRST running task in the progress panel (most recent)
+    const first = runningTasks[0];
+    currentTaskType = first.task_type || 'creative';
+    setRunning(first.task_id);
+    currentDirName = first.dir_name || first.task_id;
+    await showProgress(first.task_id, currentDirName);
+    await startPolling(first.task_id);
+    restoreProgressFromTask(first.task_id);
+
+    // Background-poll any OTHER running tasks (for notifications + task list updates)
+    runningTasks.forEach(t => {
+      if (t.task_id !== first.task_id) _startBgPolling(t.task_id);
+    });
   } catch(e) {}
+}
+
+// Background polling for tasks that aren't the active progress panel
+function _startBgPolling(taskId) {
+  if (_bgPollTimers[taskId]) return; // already polling
+  _allRunningTasks.add(taskId);
+  const poll = async () => {
+    try {
+      const r = await fetch(api('/api/tasks/' + taskId));
+      const state = await r.json();
+      const prev = _taskLastStatus[taskId];
+      _taskLastStatus[taskId] = state.status;
+
+      // If task just completed or failed, notify
+      if (prev === 'running' || prev === 'queued') {
+        if (state.status === 'completed') {
+          _notifyTaskDone(taskId, state, true);
+          _stopBgPolling(taskId);
+        } else if (state.status === 'failed') {
+          _notifyTaskDone(taskId, state, false);
+          _stopBgPolling(taskId);
+        }
+      }
+
+      // Refresh task list if it's visible
+      if (!document.getElementById('panel-list').classList.contains('hidden')) {
+        loadTaskList();
+      }
+    } catch(e) {}
+  };
+  poll(); // immediate first poll
+  _bgPollTimers[taskId] = setInterval(poll, 5000);
+}
+
+function _stopBgPolling(taskId) {
+  if (_bgPollTimers[taskId]) {
+    clearInterval(_bgPollTimers[taskId]);
+    delete _bgPollTimers[taskId];
+  }
+  _allRunningTasks.delete(taskId);
+}
+
+// Slow background check when tab is hidden (for notifications only)
+async function _checkBackgroundTasks() {
+  const taskIds = [..._allRunningTasks];
+  if (!taskIds.length) return;
+  for (const tid of taskIds) {
+    try {
+      const r = await fetch(api('/api/tasks/' + tid));
+      const state = await r.json();
+      const prev = _taskLastStatus[tid];
+      _taskLastStatus[tid] = state.status;
+      if ((prev === 'running' || prev === 'queued') && state.status === 'completed') {
+        _notifyTaskDone(tid, state, true);
+        _allRunningTasks.delete(tid);
+      } else if ((prev === 'running' || prev === 'queued') && state.status === 'failed') {
+        _notifyTaskDone(tid, state, false);
+        _allRunningTasks.delete(tid);
+      }
+    } catch(e) {}
+  }
+}
+
+// Browser notification when a task finishes
+function _notifyTaskDone(taskId, state, success) {
+  const name = state.creative_name || taskId;
+  // Browser notification
+  if ('Notification' in window && Notification.permission === 'granted') {
+    const title = success ? '✅ Video Ready' : '❌ Video Failed';
+    const body = success
+      ? `"${name}" completed successfully. Click to view.`
+      : `"${name}" failed: ${state.current_message || 'Unknown error'}`;
+    const n = new Notification(title, { body, tag: taskId });
+    n.onclick = () => {
+      window.focus();
+      if (success) viewTask(taskId);
+      else viewRunningTask(taskId);
+      n.close();
+    };
+  }
+  // Also show a toast (visible when user returns)
+  if (success) {
+    showToast(`✅ "${name}" — ${t('statusCompleted')}`, 8000);
+  } else {
+    showToast(`❌ "${name}" — ${t('statusFailed')}`, 8000);
+  }
+}
+
+// Ask for notification permission (call when first task is submitted)
+function _askNotifyPermission() {
+  if (_notifyPermissionAsked) return;
+  _notifyPermissionAsked = true;
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
 }
 
 async function restoreProgressFromTask(taskId) {
@@ -4010,8 +4176,8 @@ async function loadTaskList() {
     container.innerHTML = tasks.map(task => {
       const statusColors = { completed: 'text-green-400', running: 'text-yellow-400', failed: 'text-red-400', pending: 'text-gray-400', queued: 'text-cyan-400' };
       const statusLabels = { completed: t('statusCompleted'), running: t('statusRunning'), failed: t('statusFailed'), pending: t('statusPending'), queued: t('statusQueued') };
-      const typeLabels = { simple: t('typeSimple'), creative: t('typeCreative'), manuscript: t('typeManuscript'), anchor: t('typeAnchor'), poetry: t('typePoetry'), image: t('typeImage') };
-      const typeColors = { simple: 'bg-blue-900 text-blue-300', creative: 'bg-blue-900 text-blue-300', manuscript: 'bg-orange-900 text-orange-300', anchor: 'bg-amber-900 text-amber-300', poetry: 'bg-purple-900 text-purple-300' };
+      const typeLabels = { simple: t('typeSimple'), creative: t('typeCreative'), manuscript: t('typeManuscript'), anchor: t('typeAnchor'), poetry: t('typePoetry'), blueprint: t('ttBlueprint'), image: t('typeImage') };
+      const typeColors = { simple: 'bg-blue-900 text-blue-300', creative: 'bg-blue-900 text-blue-300', manuscript: 'bg-orange-900 text-orange-300', anchor: 'bg-amber-900 text-amber-300', poetry: 'bg-purple-900 text-purple-300', blueprint: 'bg-emerald-900 text-emerald-300' };
       const isCompleted = task.status === 'completed';
       const isRunning = task.status === 'running' || task.status === 'queued';
       const btnLabel = isCompleted ? t('btnView') : (isRunning ? t('btnViewProgress') : t('btnResume'));
@@ -4023,17 +4189,29 @@ async function loadTaskList() {
       const typeBadge = `<span class="text-xs px-2 py-0.5 rounded-full ${typeColors[task.task_type] || 'bg-gray-800 text-gray-400'}">${escapeHtml(typeLabels[task.task_type] || task.task_type)}</span>`;
       const desc = task.idea || task.prompt || (task.manuscript_text || '').substring(0, 80) || (task.script_text || '').substring(0, 80);
       const extra = task.scene_count ? ` · ${task.scene_count}${t('sceneUnit')}` : (task.paragraph_count ? ` · ${task.paragraph_count}${t('paraUnit')}` : '');
-      return `<div class="glass-card rounded-xl p-4 flex items-center justify-between">
+      // Live progress bar for running tasks
+      const pct = Math.round((task.current_progress || 0) * 100);
+      const progressBar = isRunning ? `
+        <div class="mt-2 w-full max-w-sm">
+          <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+            <div class="h-full bg-yellow-500 rounded-full transition-all duration-1000" style="width:${pct}%"></div>
+          </div>
+          <p class="text-xs text-gray-600 mt-1 truncate">${escapeHtml(task.current_message || task.current_step || '')} · ${pct}%</p>
+        </div>` : '';
+      return `<div class="glass-card rounded-xl p-4">
+        <div class="flex items-center justify-between">
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 mb-1">${typeBadge}<p class="text-sm font-medium truncate">${escapeHtml(task.creative_name || task.task_id)}</p></div>
           <p class="text-xs text-gray-500 mt-0.5">${escapeHtml(task.task_id)}${extra}</p>
           ${desc ? `<p class="text-xs text-gray-600 mt-1 truncate max-w-xs">${escapeHtml(desc)}</p>` : ''}
+          ${progressBar}
         </div>
         <div class="flex items-center gap-3 ml-3">
           <span class="text-xs ${statusColors[task.status] || 'text-gray-400'}">${statusLabels[task.status] || task.status}</span>
           ${viewBtn}
           <button onclick="${btnAction}" class="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg transition">${btnLabel}</button>
           ${stopBtn}
+        </div>
         </div>
       </div>`;
     }).join('');
