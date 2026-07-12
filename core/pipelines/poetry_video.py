@@ -345,6 +345,21 @@ class PoetryVideoPipeline(MultiScenePipeline):
             pass
         return None
 
+    @staticmethod
+    def _has_audio_stream(filepath: str) -> bool:
+        """ffprobe 检测视频文件是否包含音频流（防止复用不完整合成产物）。"""
+        try:
+            import subprocess as _sp
+            proc = _sp.run(
+                ["ffprobe", "-v", "error", "-select_streams", "a",
+                 "-show_entries", "stream=codec_type", "-of", "csv=p=0",
+                 filepath],
+                capture_output=True, text=True, timeout=10,
+            )
+            return "audio" in proc.stdout
+        except Exception:
+            return False
+
     # ------------------------------------------------------------------
     # Phase 5: 字幕（逐场景 SRT，定时对齐朗诵）
     # ------------------------------------------------------------------
@@ -412,8 +427,10 @@ class PoetryVideoPipeline(MultiScenePipeline):
             clip_out = os.path.join(scene_dir, "final_clip.mp4")
 
             if os.path.exists(clip_out) and os.path.getsize(clip_out) > 0:
-                final_clips.append(clip_out)
-                continue
+                if self._has_audio_stream(clip_out):
+                    final_clips.append(clip_out)
+                    continue
+                logger.warning(f"[Poetry] scene {idx} clip has no audio, redoing compositing")
 
             # 兜底：音频缺失则生成静音占位，保证合成不中断
             audio_exists = os.path.exists(audio_path) and os.path.getsize(audio_path) > 0
