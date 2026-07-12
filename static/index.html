@@ -567,10 +567,6 @@
             <div>
               <label class="block text-sm text-gray-400 mb-1.5" data-i18n="voiceRole">语音角色</label>
               <select id="c_voice" class="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-gray-100">
-                <option value="zh-CN-XiaoxiaoNeural">Xiaoxiao (温柔女声)</option>
-                <option value="zh-CN-YunyangNeural">Yunyang (沉稳男声)</option>
-                <option value="zh-CN-XiaoyiNeural">Xiaoyi (活泼女声)</option>
-                <option value="zh-CN-YunxiNeural">Yunxi (年轻男声)</option>
               </select>
             </div>
             <div>
@@ -716,10 +712,6 @@
             <div>
               <label class="block text-sm text-gray-400 mb-1.5" data-i18n="voiceRole">语音角色</label>
               <select id="m_voice" class="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-gray-100">
-                <option value="zh-CN-XiaoxiaoNeural">Xiaoxiao (温柔女声)</option>
-                <option value="zh-CN-YunyangNeural">Yunyang (沉稳男声)</option>
-                <option value="zh-CN-XiaoyiNeural">Xiaoyi (活泼女声)</option>
-                <option value="zh-CN-YunxiNeural">Yunxi (年轻男声)</option>
               </select>
             </div>
             <div>
@@ -898,10 +890,6 @@
               <div>
                 <label class="block text-sm text-gray-400 mb-1.5" data-i18n="voiceRole">语音角色</label>
                 <select id="a_voice" class="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-gray-100">
-                  <option value="zh-CN-XiaoxiaoNeural">Xiaoxiao (温柔女声)</option>
-                  <option value="zh-CN-YunyangNeural">Yunyang (沉稳男声)</option>
-                  <option value="zh-CN-XiaoyiNeural">Xiaoyi (活泼女声)</option>
-                  <option value="zh-CN-YunxiNeural">Yunxi (年轻男声)</option>
                 </select>
               </div>
               <div>
@@ -1127,10 +1115,6 @@
             <div>
               <label class="block text-sm text-gray-400 mb-1.5" data-i18n="voiceRole">语音角色</label>
               <select id="p_voice" class="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-gray-100">
-                <option value="zh-CN-XiaoxiaoNeural">Xiaoxiao (温柔女声)</option>
-                <option value="zh-CN-YunyangNeural">Yunyang (沉稳男声)</option>
-                <option value="zh-CN-XiaoyiNeural">Xiaoyi (活泼女声)</option>
-                <option value="zh-CN-YunxiNeural">Yunxi (年轻男声)</option>
               </select>
             </div>
             <div>
@@ -2792,6 +2776,19 @@ const STEPS = {
       document.querySelectorAll('.watermark-toggle').forEach(el => el.checked = !!d.watermark.enabled);
     }
   } catch(e) { console.error('init config load error:', e); }
+
+  // Load voice options from API
+  try {
+    const vr = await fetch(api('/api/voices'));
+    const vd = await vr.json();
+    const voices = vd.voices || [];
+    const selects = ['c_voice', 'm_voice', 'a_voice', 'p_voice'];
+    selects.forEach(sid => {
+      const sel = document.getElementById(sid);
+      if (!sel) return;
+      sel.innerHTML = voices.map(v => `<option value="${v.id}">${v.label}</option>`).join('');
+    });
+  } catch(e) { console.error('load voices error:', e); }
 
   // Character count for manuscript
   document.getElementById('m_text').addEventListener('input', function() {
