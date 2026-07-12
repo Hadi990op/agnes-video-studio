@@ -1659,6 +1659,26 @@ class CreativeVideoPipeline(MultiScenePipeline):
             scenes=[s.model_dump() for s in self._state.scenes],
         )
 
+        # Mix BGM if enabled
+        bgm_cfg = getattr(self._state, "bgm_config", None)
+        if bgm_cfg and bgm_cfg.enabled and bgm_cfg.track != "none":
+            from core.audio.bgm import mix_bgm_with_narration
+            await self._emit("audio", "running", "Mixing background music...", 0.84)
+            mixed_audio = os.path.join(self.working_dir, "mixed_audio.mp3")
+            result_path = mix_bgm_with_narration(
+                narration_path=combined_audio,
+                bgm_track_id=bgm_cfg.track,
+                output_path=mixed_audio,
+                bgm_volume=bgm_cfg.volume,
+            )
+            if result_path == mixed_audio:
+                combined_audio = mixed_audio
+                for scene in self._state.scenes:
+                    scene.narration_audio = combined_audio
+                self.task_manager.update_state(
+                    scenes=[s.model_dump() for s in self._state.scenes],
+                )
+
         self._state.step_audio = StepStatus.COMPLETED
         self.task_manager.update_state(step_audio=StepStatus.COMPLETED)
         await self._emit("audio", "completed", "音频生成完成", 0.86)

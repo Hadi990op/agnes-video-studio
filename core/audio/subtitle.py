@@ -757,7 +757,7 @@ class SubtitleGenerator:
                 audio_bitrate="192k",
                 audio_fps=44100,
                 fps=30,
-                movflags="faststart",
+                ffmpeg_params=["-movflags", "faststart"],
                 logger="bar",
             )
 

@@ -234,6 +234,9 @@
       <button onclick="switchTaskType('poetry')" id="ttype-poetry" class="ttype-btn flex-1 px-4 py-3 rounded-xl text-sm font-medium tab-inactive transition text-center">
         <span class="text-lg">📜</span><br><span data-i18n="ttPoetry">诗词视频</span>
       </button>
+      <button onclick="switchTaskType('blueprint')" id="ttype-blueprint" class="ttype-btn flex-1 px-4 py-3 rounded-xl text-sm font-medium tab-inactive transition text-center">
+        <span class="text-lg">📋</span><br><span data-i18n="ttBlueprint">Storyboard</span>
+      </button>
     </div>
 
     <!-- ═══════ Tab 1: Simple Image & Video ═══════ -->
@@ -1162,6 +1165,114 @@
       </button>
     </div>
 
+    <!-- ═══════ Tab 6: Blueprint (Storyboard) ═══════ -->
+    <div id="form-blueprint" class="hidden">
+      <div class="glass-card rounded-2xl p-5 mb-4">
+        <h3 class="text-base font-semibold text-gray-100 mb-3 flex items-center gap-2">
+          <span>📋</span> <span data-i18n="blueprintTitle">Storyboard / Blueprint Mode</span>
+        </h3>
+        <p class="text-sm text-gray-400 mb-4" data-i18n="blueprintDesc">
+          Provide a complete movie storyboard (scenes, prompts, character descriptions, narration) and the system will generate the video exactly as you specify — no AI-generated story, you control everything.
+        </p>
+
+        <!-- Template buttons -->
+        <div class="flex gap-2 mb-4">
+          <button onclick="loadBlueprintTemplate()" class="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-500 rounded-lg transition" data-i18n="loadTemplate">Load Template</button>
+          <button onclick="downloadBlueprintTemplate()" class="px-3 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded-lg transition" data-i18n="downloadTemplate">Download Template</button>
+          <label class="px-3 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded-lg transition cursor-pointer" data-i18n="uploadFile">Upload JSON File
+            <input type="file" id="bp_file" accept=".json" class="hidden" onchange="uploadBlueprintFile(event)">
+          </label>
+        </div>
+
+        <!-- Blueprint JSON input -->
+        <label class="block text-sm text-gray-400 mb-1.5" data-i18n="blueprintJson">Blueprint JSON</label>
+        <textarea id="bp_json" rows="20" class="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-gray-100 font-mono" placeholder='{"title":"My Movie","style":"...","characters":[...],"scenes":[...]}'></textarea>
+        <p class="text-xs text-gray-500 mt-1" data-i18n="blueprintHint">Paste your storyboard JSON here, or load a template / upload a file to get started.</p>
+      </div>
+
+      <!-- Settings -->
+      <div class="glass-card rounded-2xl p-5 mb-4">
+        <h3 class="text-base font-semibold text-gray-100 mb-3" data-i18n="settings">Settings</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm text-gray-400 mb-1.5">Resolution</label>
+            <select id="bp_resolution" class="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-gray-100">
+              <option value="768x1152">768×1152 (Portrait)</option>
+              <option value="1152x768">1152×768 (Landscape)</option>
+              <option value="1024x1024">1024×1024 (Square)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm text-gray-400 mb-1.5" data-i18n="creativeName">Project Name</label>
+            <input id="bp_name" class="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-gray-100" placeholder="My Movie">
+          </div>
+        </div>
+
+        <!-- Audio settings -->
+        <div class="mt-4 pt-4 border-t border-gray-700">
+          <div class="flex items-center gap-2 mb-3">
+            <input type="checkbox" id="bp_audio_enabled" checked class="rounded bg-gray-800 border-gray-600">
+            <label class="text-sm text-gray-300" data-i18n="enableNarration">Enable Narration (TTS)</label>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm text-gray-400 mb-1.5" data-i18n="voiceRole">Voice</label>
+              <select id="bp_voice" class="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-gray-100"></select>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-400 mb-1.5" data-i18n="speechRate">Speech Rate</label>
+              <select id="bp_rate" class="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-gray-100">
+                <option value="-30%">-30% (Slow)</option>
+                <option value="-15%">-15%</option>
+                <option value="+0%" selected>Normal</option>
+                <option value="+15%">+15%</option>
+                <option value="+30%">+30% (Fast)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subtitle settings -->
+        <div class="mt-4 pt-4 border-t border-gray-700">
+          <div class="flex items-center gap-2 mb-3">
+            <input type="checkbox" id="bp_subtitle_enabled" checked class="rounded bg-gray-800 border-gray-600">
+            <label class="text-sm text-gray-300" data-i18n="enableSubtitle">Enable Subtitles</label>
+          </div>
+        </div>
+
+        <!-- BGM settings -->
+        <div class="mt-4 pt-4 border-t border-gray-700">
+          <div class="flex items-center gap-2 mb-3">
+            <input type="checkbox" id="bp_bgm_enabled" class="rounded bg-gray-800 border-gray-600">
+            <label class="text-sm text-gray-300" data-i18n="enableBgm">Enable Background Music</label>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm text-gray-400 mb-1.5" data-i18n="bgmTrack">Music Track</label>
+              <select id="bp_bgm_track" class="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-gray-100">
+                <option value="none">No Music</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-400 mb-1.5" data-i18n="bgmVolume">Music Volume</label>
+              <input type="range" id="bp_bgm_volume" min="0" max="0.5" step="0.05" value="0.15" class="w-full">
+              <span id="bp_bgm_volume_label" class="text-xs text-gray-400">15%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reference image (optional) -->
+        <div class="mt-4 pt-4 border-t border-gray-700">
+          <label class="block text-sm text-gray-400 mb-1.5" data-i18n="refImage">Reference Image (optional, for character consistency)</label>
+          <input type="file" id="bp_ref_image" accept="image/*" class="w-full text-sm text-gray-400">
+        </div>
+      </div>
+
+      <button id="btn-blueprint" onclick="submitBlueprint()" class="w-full py-3.5 bg-gradient-to-r from-purple-600 via-purple-500 to-purple-600 hover:from-purple-500 hover:via-purple-400 hover:to-purple-500 rounded-xl text-base font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed glow-btn" data-i18n="startGenerate">
+        Generate Video from Storyboard
+      </button>
+    </div>
+
   </div>
 
   <!-- ═══════════ List Panel ═══════════ -->
@@ -1298,7 +1409,12 @@ const T = {
     connLostMsg: '与服务端的实时连接已断开。服务可能仍在后台运行。可到任务列表查看状态并续传。',
     gotoList: '前往任务列表',     reconnecting: '实时连接断开，正在重试...',
     ttAnchor: '数字人口播',
-    ttPoetry: '诗词视频', poetrySettings: '诗词设置',
+    ttPoetry: '诗词视频', ttBlueprint: '故事板',
+    blueprintTitle: '故事板模式', blueprintDesc: '提供完整的电影分镜（场景、提示词、角色描述、旁白），系统按你的设定生成视频——你控制一切。',
+    blueprintJson: '分镜 JSON', blueprintHint: '在此粘贴分镜 JSON，或加载模板 / 上传文件开始。',
+    loadTemplate: '加载模板', downloadTemplate: '下载模板', uploadFile: '上传 JSON',
+    enableBgm: '启用背景音乐', bgmTrack: '音乐曲目', bgmVolume: '音量',
+    poetrySettings: '诗词设置',
     poemLabel: '古诗原文', poemPlaceholder: '输入完整古诗原文，例如：春眠不觉晓，处处闻啼鸟...',
     poemHint: '可多段；诗句间用换行或标点自然分隔。AI 会按诗意拆分为若干场景。',
     scenePromptsOptional: '分镜描述（可选）', scenePromptsPlaceholder: '格式：原诗句 | 画面描述（每行一个场景）',
@@ -1428,7 +1544,12 @@ const T = {
     connLostMsg: 'Connection lost. Server may still be running. Check task list for status.',
     gotoList: 'Go to task list', reconnecting: 'Connection lost, retrying...',
     ttAnchor: 'Digital Human',
-    ttPoetry: 'Poetry Video', poetrySettings: 'Poetry Settings',
+    ttPoetry: 'Poetry Video', ttBlueprint: 'Storyboard',
+    blueprintTitle: 'Storyboard / Blueprint Mode', blueprintDesc: 'Provide a complete movie storyboard (scenes, prompts, character descriptions, narration) and the system will generate the video exactly as you specify — no AI-generated story, you control everything.',
+    blueprintJson: 'Blueprint JSON', blueprintHint: 'Paste your storyboard JSON here, or load a template / upload a file to get started.',
+    loadTemplate: 'Load Template', downloadTemplate: 'Download Template', uploadFile: 'Upload JSON File',
+    enableBgm: 'Enable Background Music', bgmTrack: 'Music Track', bgmVolume: 'Music Volume',
+    poetrySettings: 'Poetry Settings',
     poemLabel: 'Poem Text', poemPlaceholder: 'Enter the full poem, e.g. 春眠不觉晓，处处闻啼鸟...', poemHint: 'Multiple stanzas allowed; separated by line breaks or punctuation. AI splits into scenes by meaning.',
     scenePromptsOptional: 'Scene Prompts (Optional)', scenePromptsPlaceholder: 'Format: verse | visual description (one scene per line)', scenePromptsHint: 'Optional. One scene per line, fixed format "verse | visual description". Two ways give identical results: ① leave empty and let the system generate; ② copy the prompt below to any AI, then paste the result back.', scenePromptsExample: 'e.g. Spring sleeps, unaware of dawn... | Misty spring morning, birds singing',
     scenePromptTool: 'Generate scenes with another AI', showPrompt: 'View prompt',
@@ -2782,13 +2903,35 @@ const STEPS = {
     const vr = await fetch(api('/api/voices'));
     const vd = await vr.json();
     const voices = vd.voices || [];
-    const selects = ['c_voice', 'm_voice', 'a_voice', 'p_voice'];
+    const selects = ['c_voice', 'm_voice', 'a_voice', 'p_voice', 'bp_voice'];
     selects.forEach(sid => {
       const sel = document.getElementById(sid);
       if (!sel) return;
       sel.innerHTML = voices.map(v => `<option value="${v.id}">${v.label}</option>`).join('');
     });
   } catch(e) { console.error('load voices error:', e); }
+
+  // Load BGM tracks from API
+  try {
+    const br = await fetch(api('/api/bgm-tracks'));
+    const bd = await br.json();
+    const tracks = bd.tracks || [];
+    const bgmSelects = ['bp_bgm_track'];
+    bgmSelects.forEach(sid => {
+      const sel = document.getElementById(sid);
+      if (!sel) return;
+      sel.innerHTML = tracks.map(tr => `<option value="${tr.id}">${tr.label}</option>`).join('');
+    });
+  } catch(e) { console.error('load bgm tracks error:', e); }
+
+  // BGM volume slider label
+  const bpVol = document.getElementById('bp_bgm_volume');
+  if (bpVol) {
+    bpVol.addEventListener('input', function() {
+      const pct = Math.round(parseFloat(this.value) * 100);
+      document.getElementById('bp_bgm_volume_label').textContent = pct + '%';
+    });
+  }
 
   // Character count for manuscript
   document.getElementById('m_text').addEventListener('input', function() {
@@ -2850,7 +2993,7 @@ function switchTaskType(type) {
   });
   document.getElementById('ttype-' + type).className = document.getElementById('ttype-' + type).className.replace(/tab-inactive/, 'tab-active');
 
-  ['simple', 'creative', 'manuscript', 'anchor', 'poetry'].forEach(t => {
+  ['simple', 'creative', 'manuscript', 'anchor', 'poetry', 'blueprint'].forEach(t => {
     document.getElementById('form-' + t).classList.toggle('hidden', t !== type);
   });
 }
@@ -3262,6 +3405,98 @@ async function submitPoetry() {
 }
 
 // ═══════════════════════════════════════════════════
+// Blueprint (Storyboard) Mode
+// ═══════════════════════════════════════════════════
+
+async function loadBlueprintTemplate() {
+  try {
+    const r = await fetch(api('/api/blueprint/template'));
+    const d = await r.json();
+    document.getElementById('bp_json').value = JSON.stringify(d.template, null, 2);
+    showToast('Template loaded');
+  } catch(e) {
+    alert('Failed to load template: ' + e.message);
+  }
+}
+
+async function downloadBlueprintTemplate() {
+  try {
+    const r = await fetch(api('/api/blueprint/template'));
+    const d = await r.json();
+    const blob = new Blob([JSON.stringify(d.template, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'blueprint_template.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('Failed: ' + e.message);
+  }
+}
+
+function uploadBlueprintFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById('bp_json').value = e.target.result;
+    showToast('File loaded: ' + file.name);
+  };
+  reader.readAsText(file);
+}
+
+async function submitBlueprint() {
+  const jsonStr = document.getElementById('bp_json').value.trim();
+  if (!jsonStr) return alert('Please provide a blueprint JSON');
+
+  // Validate JSON
+  try {
+    JSON.parse(jsonStr);
+  } catch(e) {
+    return alert('Invalid JSON: ' + e.message);
+  }
+
+  const btn = document.getElementById('btn-blueprint');
+  btn.disabled = true; btn.textContent = t('submitting');
+
+  const form = new FormData();
+  form.append('blueprint_json', jsonStr);
+  form.append('creative_name', document.getElementById('bp_name').value.trim());
+  const res = parseResolution(document.getElementById('bp_resolution').value);
+  form.append('video_width', res.width);
+  form.append('video_height', res.height);
+  // Audio
+  form.append('audio_enabled', document.getElementById('bp_audio_enabled').checked);
+  form.append('audio_voice', document.getElementById('bp_voice').value);
+  form.append('audio_rate', document.getElementById('bp_rate').value);
+  // Subtitle
+  form.append('subtitle_enabled', document.getElementById('bp_subtitle_enabled').checked);
+  // BGM
+  form.append('bgm_enabled', document.getElementById('bp_bgm_enabled').checked);
+  form.append('bgm_track', document.getElementById('bp_bgm_track').value);
+  form.append('bgm_volume', parseFloat(document.getElementById('bp_bgm_volume').value));
+  // Reference image
+  const refFile = document.getElementById('bp_ref_image').files[0];
+  if (refFile) form.append('reference_image', refFile);
+
+  try {
+    const r = await fetch(api('/api/tasks/blueprint'), { method: 'POST', body: form });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.detail || t('failCreate'));
+    currentTaskType = 'blueprint';
+    setRunning(d.task_id);
+    currentDirName = d.dir_name;
+    await showProgress(d.task_id, d.dir_name);
+    await startPolling(d.task_id);
+    showToast(t('submitted'), 5000);
+  } catch(e) {
+    alert(t('failCreate') + ': ' + e.message);
+    btn.disabled = false; btn.textContent = t('startGenerate');
+  }
+}
+
+
 // Poetry scene config toggles（与创意一致，p_ 前缀隔离）
 // ═══════════════════════════════════════════════════
 function togglePoetryDurationMode() {

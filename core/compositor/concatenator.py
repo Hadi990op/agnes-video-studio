@@ -70,7 +70,7 @@ class VideoConcatenator:
                 audio_bitrate=_AUDIO_BITRATE,
                 audio_fps=_AUDIO_FPS,
                 fps=_VIDEO_FPS,
-                movflags="faststart",
+                ffmpeg_params=["-movflags", "faststart"],
                 logger="bar",
             )
         finally:
@@ -426,7 +426,7 @@ class VideoConcatenator:
                             audio_bitrate=_AUDIO_BITRATE,
                             audio_fps=_AUDIO_FPS,
                             fps=_VIDEO_FPS,
-                            movflags="faststart",
+                            ffmpeg_params=["-movflags", "faststart"],
                             logger="bar",
                         )
                         final.close()
@@ -438,7 +438,7 @@ class VideoConcatenator:
                             audio_bitrate=_AUDIO_BITRATE,
                             audio_fps=_AUDIO_FPS,
                             fps=_VIDEO_FPS,
-                            movflags="faststart",
+                            ffmpeg_params=["-movflags", "faststart"],
                             logger="bar",
                         )
                 except Exception as e:
@@ -452,7 +452,7 @@ class VideoConcatenator:
                         audio_bitrate=_AUDIO_BITRATE,
                         audio_fps=_AUDIO_FPS,
                         fps=_VIDEO_FPS,
-                        movflags="faststart",
+                        ffmpeg_params=["-movflags", "faststart"],
                         logger="bar",
                     )
             else:
@@ -463,7 +463,7 @@ class VideoConcatenator:
                     audio_bitrate=_AUDIO_BITRATE,
                     audio_fps=_AUDIO_FPS,
                     fps=_VIDEO_FPS,
-                    movflags="faststart",
+                    ffmpeg_params=["-movflags", "faststart"],
                     logger="bar",
                 )
         finally:
@@ -617,7 +617,7 @@ class VideoConcatenator:
                         audio_bitrate=_AUDIO_BITRATE,
                         audio_fps=_AUDIO_FPS,
                         fps=_VIDEO_FPS,
-                        movflags="faststart",
+                        ffmpeg_params=["-movflags", "faststart"],
                         logger="bar",
                     )
                     final.close()
@@ -629,7 +629,7 @@ class VideoConcatenator:
                         audio_bitrate=_AUDIO_BITRATE,
                         audio_fps=_AUDIO_FPS,
                         fps=_VIDEO_FPS,
-                        movflags="faststart",
+                        ffmpeg_params=["-movflags", "faststart"],
                         logger="bar",
                     )
             else:
@@ -640,7 +640,7 @@ class VideoConcatenator:
                     audio_bitrate=_AUDIO_BITRATE,
                     audio_fps=_AUDIO_FPS,
                     fps=_VIDEO_FPS,
-                    movflags="faststart",
+                    ffmpeg_params=["-movflags", "faststart"],
                     logger="bar",
                 )
         finally:

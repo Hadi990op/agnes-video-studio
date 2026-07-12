@@ -41,6 +41,7 @@ from core.pipelines import (
     CreativeVideoPipeline,
     ManuscriptVideoPipeline,
     PoetryVideoPipeline,
+    BlueprintPipeline,
 )
 from core.pipelines.poetry_video import POETRY_SUBTITLE_STYLE
 from core.api.agnes_image import AgnesImageAPI
@@ -51,6 +52,10 @@ from models.task import (
     AnchorVideoTask,
     AudioConfig,
     BaseTaskState,
+    BlueprintVideoTask,
+    BlueprintScene,
+    BlueprintCharacter,
+    BGMConfig,
     CreativeVideoTask,
     ManuscriptVideoTask,
     PoetryVideoTask,
@@ -415,6 +420,13 @@ def _pick_directory_native() -> str:
 async def get_voices():
     """返回可选 TTS 语音角色列表。"""
     return {"voices": AVAILABLE_VOICES}
+
+
+@app.get("/api/bgm-tracks")
+async def get_bgm_tracks():
+    """Return available background music tracks."""
+    from core.audio.bgm import get_available_tracks
+    return {"tracks": get_available_tracks()}
 
 
 # ═══════════════════════════════════════════════════
@@ -847,6 +859,13 @@ def _create_pipeline_for_type(
             dir_name=dir_name,
             shutdown_event=shutdown_event,
         )
+    elif task_type == TaskType.BLUEPRINT:
+        return BlueprintPipeline(
+            api_key=api_key,
+            task_id=task_id,
+            dir_name=dir_name,
+            shutdown_event=shutdown_event,
+        )
     else:
         # CREATIVE（默认）
         return CreativeVideoPipeline(
@@ -1068,6 +1087,10 @@ async def create_creative_task(
     subtitle_stroke_color: str = Form("black"),
     subtitle_stroke_width: int = Form(2),
     subtitle_bg_color: str = Form("black@0.5"),
+    # BGM config
+    bgm_enabled: bool = Form(False),
+    bgm_track: str = Form("none"),
+    bgm_volume: float = Form(0.15),
 ):
     """创建创意长视频任务（类型 2）。"""
     api_key = get_api_key()
@@ -1140,6 +1163,7 @@ async def create_creative_task(
         generate_end_frames_from_ref=generate_end_frames_from_ref,
         audio_config=audio_config,
         subtitle_config=subtitle_config,
+        bgm_config=BGMConfig(enabled=bgm_enabled, track=bgm_track, volume=bgm_volume),
     )
 
     logger.info(
@@ -1180,7 +1204,202 @@ async def create_creative_task(
     return {"ok": True, "task_id": task_id, "dir_name": dir_name}
 
 
-@app.post("/api/tasks/manuscript")
+# ═══════════════════════════════════════════════════
+# Blueprint video task (user-provided full storyboard)
+# ═══════════════════════════════════════════════════
+
+
+@app.post("/api/tasks/blueprint")
+async def create_blueprint_task(
+    blueprint_json: str = Form(...),
+    creative_name: str = Form(""),
+    video_width: int = Form(768),
+    video_height: int = Form(1152),
+    # Audio config
+    audio_enabled: bool = Form(True),
+    audio_voice: str = Form("en-US-AvaNeural"),
+    audio_rate: str = Form("+0%"),
+    # Subtitle config
+    subtitle_enabled: bool = Form(True),
+    subtitle_font: str = Form("STHeitiMedium.ttc"),
+    subtitle_color: str = Form("white"),
+    subtitle_fontsize: int = Form(48),
+    subtitle_position: str = Form("bottom"),
+    subtitle_stroke_color: str = Form("black"),
+    subtitle_stroke_width: int = Form(2),
+    subtitle_bg_color: str = Form("black@0.5"),
+    # BGM config
+    bgm_enabled: bool = Form(False),
+    bgm_track: str = Form("none"),
+    bgm_volume: float = Form(0.15),
+    # Reference image (optional)
+    reference_image: UploadFile = File(None),
+):
+    """Create a blueprint video task from user-provided storyboard JSON.
+
+    The blueprint JSON contains:
+    {
+        "title": "My Movie",
+        "style": "3D animated movie style",
+        "characters": [
+            {"name": "Po", "description": "A chubby panda with black and white fur..."}
+        ],
+        "scenes": [
+            {
+                "index": 0,
+                "title": "Opening scene",
+                "video_prompt": "A panda practicing kung fu in a ancient temple...",
+                "narration": "In the peaceful valley of peace...",
+                "duration": 5
+            }
+        ]
+    }
+    """
+    api_key = get_api_key()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Please configure API Key first")
+
+    # Parse the blueprint JSON
+    try:
+        blueprint_data = json.loads(blueprint_json)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=422, detail=f"Invalid blueprint JSON: {e}")
+
+    if not isinstance(blueprint_data, dict):
+        raise HTTPException(status_code=422, detail="Blueprint must be a JSON object")
+
+    scenes_data = blueprint_data.get("scenes", [])
+    if not scenes_data or not isinstance(scenes_data, list):
+        raise HTTPException(status_code=422, detail="Blueprint must have at least 1 scene")
+    if len(scenes_data) > 30:
+        raise HTTPException(status_code=422, detail="Maximum 30 scenes allowed")
+
+    # Validate scenes
+    for i, s in enumerate(scenes_data):
+        if not isinstance(s, dict):
+            raise HTTPException(status_code=422, detail=f"Scene {i+1} must be an object")
+        if not s.get("video_prompt"):
+            raise HTTPException(status_code=422, detail=f"Scene {i+1} missing 'video_prompt'")
+        dur = s.get("duration", 5)
+        if not isinstance(dur, (int, float)) or dur < 2 or dur > 30:
+            raise HTTPException(status_code=422, detail=f"Scene {i+1} duration must be 2-30 seconds")
+
+    task_id = uuid.uuid4().hex[:12]
+    name = creative_name.strip() if creative_name else blueprint_data.get("title", f"blueprint_{task_id}")
+    dir_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{task_id}"
+
+    # Build blueprint scene objects
+    blueprint_scenes = []
+    for i, s in enumerate(scenes_data):
+        blueprint_scenes.append(BlueprintScene(
+            index=i,
+            title=s.get("title", f"Scene {i+1}"),
+            video_prompt=s["video_prompt"],
+            image_prompt=s.get("image_prompt", ""),
+            narration=s.get("narration", ""),
+            duration=int(s.get("duration", 5)),
+            voice=s.get("voice", ""),
+        ))
+
+    # Build character objects
+    characters_data = blueprint_data.get("characters", [])
+    characters = [
+        BlueprintCharacter(
+            name=c.get("name", ""),
+            description=c.get("description", ""),
+            reference_image=c.get("reference_image", ""),
+        )
+        for c in characters_data if isinstance(c, dict)
+    ]
+
+    # Build configs
+    audio_config = AudioConfig(enabled=audio_enabled, voice=audio_voice, rate=audio_rate)
+    subtitle_style = SubtitleStyle(
+        font=subtitle_font,
+        color=subtitle_color,
+        fontsize=subtitle_fontsize,
+        position=_build_position(subtitle_position),
+        stroke_color=subtitle_stroke_color,
+        stroke_width=subtitle_stroke_width,
+        bg_color=_parse_bg_color(subtitle_bg_color),
+    )
+    subtitle_config = SubtitleConfig(enabled=subtitle_enabled, style=subtitle_style)
+    bgm_config = BGMConfig(enabled=bgm_enabled, track=bgm_track, volume=bgm_volume)
+
+    state = BlueprintVideoTask(
+        task_id=task_id,
+        creative_name=name,
+        title=blueprint_data.get("title", ""),
+        style=blueprint_data.get("style", ""),
+        characters=characters,
+        blueprint_scenes=blueprint_scenes,
+        video_width=video_width,
+        video_height=video_height,
+        audio_config=audio_config,
+        subtitle_config=subtitle_config,
+        bgm_config=bgm_config,
+    )
+
+    # Handle reference image upload
+    if reference_image and reference_image.filename:
+        ext = os.path.splitext(reference_image.filename)[1] or ".png"
+        os.makedirs(get_upload_dir(), exist_ok=True)
+        upload_path = os.path.join(get_upload_dir(), f"{task_id}_ref{ext}")
+        with open(upload_path, "wb") as f:
+            f.write(await reference_image.read())
+        state.reference_image = upload_path
+
+    pipeline = _create_pipeline_for_type(TaskType.BLUEPRINT, api_key, task_id, dir_name)
+    active_pipelines[task_id] = pipeline
+
+    tm = TaskManager(task_id, dir_name=dir_name)
+    tm.create(state)
+    _launch_background_task(_run_pipeline_with_concurrency(pipeline, state, tm))
+    logger.info(f"[Blueprint] Task created: {task_id}, title={state.title}, scenes={len(blueprint_scenes)}")
+    return {"ok": True, "task_id": task_id, "dir_name": dir_name}
+
+
+@app.get("/api/blueprint/template")
+async def get_blueprint_template():
+    """Return a sample blueprint JSON template for the user to fill in."""
+    return {
+        "template": {
+            "title": "My Movie",
+            "style": "3D animated movie style, Pixar quality, vibrant colors",
+            "characters": [
+                {
+                    "name": "Hero",
+                    "description": "A young warrior with black hair, wearing red armor, athletic build"
+                }
+            ],
+            "scenes": [
+                {
+                    "index": 0,
+                    "title": "Opening",
+                    "video_prompt": "A young warrior standing on a mountain peak at sunrise, wind blowing through hair, cinematic wide shot",
+                    "narration": "In a land of ancient legends, a hero begins their journey.",
+                    "duration": 5
+                },
+                {
+                    "index": 1,
+                    "title": "Training",
+                    "video_prompt": "The warrior training with a sword in a bamboo forest, dynamic action shots, leaves falling",
+                    "narration": "Years of training shaped the warrior's body and spirit.",
+                    "duration": 5
+                },
+                {
+                    "index": 2,
+                    "title": "Confrontation",
+                    "video_prompt": "The warrior facing a giant enemy on a battlefield, dramatic lighting, intense atmosphere",
+                    "narration": "The final battle would determine the fate of the realm.",
+                    "duration": 5
+                }
+            ]
+        }
+    }
+
+
+
 async def create_manuscript_task(
     manuscript_text: str = Form(...),
     creative_name: str = Form(""),

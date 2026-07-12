@@ -115,7 +115,7 @@ class VideoProcessor:
             last_frame_img = clip.get_frame(max(clip.duration - 0.01, 0))
             last_frame = ImageClip(last_frame_img, duration=freeze_duration)
             final = concatenate_videoclips([clip, last_frame], method="compose")
-            final.write_videofile(output_path, logger=None, preset="fast", movflags="faststart")
+            final.write_videofile(output_path, logger=None, preset="fast", ffmpeg_params=["-movflags", "faststart"])
         finally:
             clip.close()
             if final is not None:

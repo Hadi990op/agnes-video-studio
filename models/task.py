@@ -37,6 +37,7 @@ class TaskType(str, Enum):
     ANCHOR = "anchor"
     IMAGE = "image"
     POETRY = "poetry"
+    BLUEPRINT = "blueprint"
 
 
 class VideoMode(str, Enum):
@@ -95,6 +96,49 @@ class AudioConfig(BaseModel):
     enabled: bool = True
     voice: str = "zh-CN-XiaoxiaoNeural"
     rate: str = "+0%"
+
+
+class BGMConfig(BaseModel):
+    """Background music configuration."""
+
+    enabled: bool = False
+    track: str = "none"       # BGM track ID (see BGM_TRACKS)
+    volume: float = 0.15      # BGM volume level (0.0–1.0)
+
+
+class BlueprintScene(BaseModel):
+    """A single scene in a blueprint (user-provided storyboard).
+
+    The user provides all fields — the pipeline uses them directly
+    without any LLM generation steps.
+    """
+
+    index: int = 0
+    title: str = ""                    # Scene title/label
+    video_prompt: str = ""             # Prompt for video generation
+    image_prompt: str = ""             # Prompt for reference image (optional)
+    narration: str = ""                # Narration text for TTS
+    duration: int = 5                  # Scene duration in seconds
+    voice: str = ""                    # Voice for this scene (optional, uses default if empty)
+
+
+class BlueprintCharacter(BaseModel):
+    """Character description for blueprint mode."""
+
+    name: str = ""
+    description: str = ""              # Visual appearance description
+    reference_image: str = ""          # Path/URL to reference image (optional)
+
+
+class BlueprintConfig(BaseModel):
+    """Configuration for blueprint (user-provided storyboard) mode."""
+
+    title: str = ""                    # Movie/project title
+    style: str = ""                    # Visual style description
+    characters: List[BlueprintCharacter] = Field(default_factory=list)
+    scenes: List[BlueprintScene] = Field(default_factory=list)
+    bgm_track: str = "none"            # BGM track ID
+    bgm_volume: float = 0.15           # BGM volume
 
 
 # ═══════════════════════════════════════════════════
@@ -241,6 +285,7 @@ class CreativeVideoTask(BaseTaskState):
     step_audio_subtitle: StepStatus = StepStatus.PENDING
     audio_config: AudioConfig = Field(default_factory=AudioConfig)
     subtitle_config: SubtitleConfig = Field(default_factory=SubtitleConfig)
+    bgm_config: BGMConfig = Field(default_factory=BGMConfig)
     narrations: List[str] = Field(default_factory=list)
 
     # ── v3.0 拆分：音频和字幕后向兼容字段 ──
@@ -279,6 +324,7 @@ class ManuscriptVideoTask(BaseTaskState):
     scenes: List[SceneTask] = Field(default_factory=list)
     audio_config: AudioConfig = Field(default_factory=AudioConfig)
     subtitle_config: SubtitleConfig = Field(default_factory=SubtitleConfig)
+    bgm_config: BGMConfig = Field(default_factory=BGMConfig)
     video_duration: int = 10
 
     combined_audio: str = ""
@@ -383,6 +429,7 @@ class PoetryVideoTask(BaseTaskState):
 
     audio_config: AudioConfig = Field(default_factory=AudioConfig)
     subtitle_config: SubtitleConfig = Field(default_factory=SubtitleConfig)
+    bgm_config: BGMConfig = Field(default_factory=BGMConfig)
 
     # v4.0 重构：MultiScenePipeline 规范步骤字段
     scenes: List[SceneTask] = Field(default_factory=list)
@@ -397,6 +444,56 @@ class PoetryVideoTask(BaseTaskState):
     combined_audio: str = ""
     combined_subtitle: str = ""
     subtitle_styles_path: str = ""
+
+
+class BlueprintVideoTask(BaseTaskState):
+    """Blueprint video task (user-provided full storyboard).
+
+    The user provides a complete JSON blueprint with all scenes, prompts,
+    character descriptions, narration text, and settings. The pipeline
+    skips all LLM generation steps and uses the blueprint directly —
+    generating exactly what the user specified.
+
+    This allows recreating a specific movie (e.g. "Kung Fu Panda style")
+    by providing all scene prompts and character descriptions upfront.
+    """
+
+    task_type: Literal[TaskType.BLUEPRINT] = TaskType.BLUEPRINT
+
+    # ── Blueprint data (user-provided) ──
+    title: str = ""
+    style: str = ""
+    characters: List[BlueprintCharacter] = Field(default_factory=list)
+
+    # ── Config ──
+    video_width: int = 768
+    video_height: int = 1152
+    chaining_mode: str = "independent"
+
+    audio_config: AudioConfig = Field(default_factory=AudioConfig)
+    subtitle_config: SubtitleConfig = Field(default_factory=SubtitleConfig)
+    bgm_config: BGMConfig = Field(default_factory=BGMConfig)
+
+    # ── Scenes (from blueprint) ──
+    scenes: List[SceneTask] = Field(default_factory=list)
+    blueprint_scenes: List[BlueprintScene] = Field(default_factory=list)
+
+    # ── Reference images (user-uploaded or generated) ──
+    reference_image: str = ""
+    character_ref_file: str = ""
+    step_character_ref: StepStatus = StepStatus.PENDING
+
+    # ── Pipeline steps ──
+    step_build_scenes: StepStatus = StepStatus.PENDING
+    step_reference_images: StepStatus = StepStatus.PENDING
+    step_video_generation: StepStatus = StepStatus.PENDING
+    step_audio: StepStatus = StepStatus.PENDING
+    step_subtitle: StepStatus = StepStatus.PENDING
+    step_concatenation: StepStatus = StepStatus.PENDING
+
+    # ── Products ──
+    combined_audio: str = ""
+    combined_subtitle: str = ""
 
 
 class SimpleImageTask(BaseTaskState):
@@ -418,7 +515,7 @@ class SimpleImageTask(BaseTaskState):
 # 联合类型 + 反序列化工厂
 # ═══════════════════════════════════════════════════
 
-AnyTaskState = Union[SimpleVideoTask, CreativeVideoTask, ManuscriptVideoTask, AnchorVideoTask, PoetryVideoTask, SimpleImageTask]
+AnyTaskState = Union[SimpleVideoTask, CreativeVideoTask, ManuscriptVideoTask, AnchorVideoTask, PoetryVideoTask, SimpleImageTask, BlueprintVideoTask]
 
 # 用于 TaskManager.load()：根据 task_type 字段选择正确的模型类
 _TASK_TYPE_MAP: dict[str, type[BaseTaskState]] = {
@@ -428,6 +525,7 @@ _TASK_TYPE_MAP: dict[str, type[BaseTaskState]] = {
     TaskType.ANCHOR: AnchorVideoTask,
     TaskType.POETRY: PoetryVideoTask,
     TaskType.IMAGE: SimpleImageTask,
+    TaskType.BLUEPRINT: BlueprintVideoTask,
 }
 
 
