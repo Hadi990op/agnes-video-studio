@@ -240,11 +240,17 @@ class PoetryVideoPipeline(MultiScenePipeline):
     # ------------------------------------------------------------------
 
     async def _generate_videos(self) -> None:
-        """逐场景生成视频，每段存 scene_{idx}/video.mp4。"""
+        """两阶段视频生成：批量提交 → 并行等待。
+
+        与创意视频一致——先一次性提交所有场景的视频任务，让它们并发生成，
+        再逐个等待完成。避免串行"提交→等待→下一个"的低效模式。
+        """
         scenes = self._state.scenes
         vw = self._state.video_width
         vh = self._state.video_height
 
+        # Phase 1: 批量提交
+        pending: list = []
         for idx, scene in enumerate(scenes):
             scene_dir = os.path.join(self.working_dir, f"scene_{idx}")
             os.makedirs(scene_dir, exist_ok=True)
@@ -252,7 +258,6 @@ class PoetryVideoPipeline(MultiScenePipeline):
 
             if os.path.exists(video_path):
                 scene.video_file = video_path
-                logger.info(f"[Poetry] scene {idx}: video exists, skip")
                 continue
 
             video_id = self._load_task_json(scene_dir)
@@ -265,7 +270,23 @@ class PoetryVideoPipeline(MultiScenePipeline):
                     height=vh,
                 )
                 self._save_task_json(scene_dir, {"video_id": video_id})
+            pending.append((idx, video_id, video_path))
 
+        if not pending:
+            return
+
+        self.task_manager.update_state(
+            scenes=[s.model_dump() for s in scenes],
+        )
+
+        # Phase 2: 逐个等待（各视频在服务端并发生成）
+        pending_count = len(pending)
+        for j, (scene_idx, video_id, video_path) in enumerate(pending):
+            await self._emit(
+                "video_gen", "running",
+                f"等待视频 {j + 1}/{pending_count}...",
+                0.40 + 0.35 * j / max(pending_count, 1),
+            )
             vg = AgnesVideoAPI(api_key=self.api_key, model="agnes-video-v2.0")
             for retry in range(3):
                 try:
@@ -275,16 +296,15 @@ class PoetryVideoPipeline(MultiScenePipeline):
                 except Exception as e:
                     if retry < 2:
                         logger.warning(
-                            f"[Poetry] scene {idx} retry {retry+1}: {e}"
+                            f"[Poetry] scene {scene_idx} retry {retry+1}: {e}"
                         )
                         await asyncio.sleep(15 * (retry + 1))
                     else:
                         raise
-            scene.video_file = video_path
-
-        self.task_manager.update_state(
-            scenes=[s.model_dump() for s in scenes],
-        )
+            scenes[scene_idx].video_file = video_path
+            self.task_manager.update_state(
+                scenes=[s.model_dump() for s in scenes],
+            )
 
     # ------------------------------------------------------------------
     # Phase 4: 配音（逐场景 TTS narration_text）
