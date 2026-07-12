@@ -232,16 +232,19 @@ Output a JSON object:
 }
 
 Rules:
-- scene_count: the number of scenes inferred from the description, as an integer.
+- scene_count: the number of scenes inferred from the description, as an integer.\
+If the description mentions "several scenes", "a few acts", etc., extract the explicit\
+number. If the description is a narrative story (e.g. "a boy gets lost in a forest\
+and meets a fairy..."), split it into reasonable scenes based on the plot\
+(generally 3-6 scenes). For short single-scene ideas, use scene_count=1.
 - durations: suggested duration (in seconds) for each scene. List length must equal\
 scene_count. If specific durations are mentioned, use those values; otherwise estimate\
 based on content complexity (3-15 seconds).
 - reasoning: in the same language as input, briefly explain the extraction logic.
 
 Constraints:
-- If the idea contains NO clues about scene count or durations, return an empty object\
-{}, indicating extraction failure.
-- Do not fabricate numbers that don't exist in the text.
+- You MUST ALWAYS return a valid JSON object with scene_count and durations.\
+Never return an empty object. Even for vague or short ideas, infer reasonable values.
 - Each scene duration must be between 2 and 30 seconds.
 """,
         )
@@ -257,6 +260,22 @@ Constraints:
 
         scene_count = result.get("scene_count")
         durations = result.get("durations")
+
+        # LLM may return durations as strings like "5s" — coerce to int
+        if isinstance(durations, list):
+            cleaned = []
+            for d in durations:
+                try:
+                    cleaned.append(int(re.sub(r"[^\d]", "", str(d))) or 5)
+                except (ValueError, TypeError):
+                    cleaned.append(5)
+            durations = cleaned
+
+        if isinstance(scene_count, str):
+            try:
+                scene_count = int(re.sub(r"[^\d]", "", scene_count))
+            except (ValueError, TypeError):
+                scene_count = None
 
         if not scene_count or not durations or len(durations) != scene_count:
             reasoning = result.get("reasoning", "")

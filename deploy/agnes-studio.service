@@ -1,0 +1,14 @@
+[Unit]
+Description=Agnes Video Generator - Free AI Video Studio
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/agnes-video-generator
+ExecStart=%h/agnes-video-generator/.venv/bin/python server.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

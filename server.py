@@ -244,7 +244,7 @@ if os.path.exists(static_dir):
 async def root():
     index_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
     if os.path.exists(index_path):
-        return FileResponse(index_path)
+        return FileResponse(index_path, headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
     return {"message": "Agnes Video Generator API"}
 
 
@@ -270,7 +270,7 @@ async def get_config():
         "watermark_promo_zh": WATERMARK_PROMO_TEXT_ZH,
         "watermark_promo_en": WATERMARK_PROMO_TEXT_EN,
     }
-    return data
+    return JSONResponse(content=data, headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
 
 
 @app.post("/api/config")

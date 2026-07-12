@@ -3,10 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Agnes Video Generator</title>
-<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-<link rel="icon" type="image/png" sizes="1024x1024" href="/static/icon.png">
-<link rel="apple-touch-icon" href="/static/icon.png">
+<link rel="icon" type="image/x-icon" href="static/favicon.ico">
+<link rel="icon" type="image/png" sizes="1024x1024" href="static/icon.png">
+<link rel="apple-touch-icon" href="static/icon.png">
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   /* ── Base Animations ── */
@@ -2633,6 +2636,20 @@ const T = {
 
 let currentLang = 'zh';
 
+// Derive API base path from current URL so it works behind reverse proxy path prefix.
+// e.g. https://host/studio/ → '/studio', https://host/ → ''
+const API_BASE = (function() {
+  const p = location.pathname.replace(/\/+$/, ''); // remove trailing slash
+  if (!p || !p.includes('/')) return '';
+  if (p.endsWith('.html')) return p.replace(/\/[^/]+$/, '');
+  return p;
+})();
+
+function api(path) {
+  const url = API_BASE + path;
+  return url;
+}
+
 function t(key) {
   let val = (T[currentLang] && T[currentLang][key]);
   if (val === undefined) val = (T['zh'] && T['zh'][key]) || key;
@@ -2758,7 +2775,7 @@ const STEPS = {
   try { applyLanguage(currentLang); } catch(e) { console.error('applyLanguage error:', e); }
 
   try {
-    const r = await fetch('/api/config');
+    const r = await fetch(api('/api/config'), { cache: 'no-store' });
     const d = await r.json();
     if (d.api_key) {
       setApiKeyConfiguredUI(d.source, d.can_clear);
@@ -2952,7 +2969,7 @@ async function submitSimple() {
   if (endFile) form.append('end_frame_image', endFile);
 
   try {
-    const r = await fetch('/api/tasks/simple', { method: 'POST', body: form });
+    const r = await fetch(api('/api/tasks/simple'), { method: 'POST', body: form });
     const d = await r.json();
     if (!d.ok) throw new Error(d.detail || t('failCreate'));
     currentTaskType = 'simple';
@@ -3069,7 +3086,7 @@ async function submitCreative() {
   form.append('subtitle_bg_color', document.getElementById('c_sub_bg_color').value);
 
   try {
-    const r = await fetch('/api/tasks/creative', { method: 'POST', body: form });
+    const r = await fetch(api('/api/tasks/creative'), { method: 'POST', body: form });
     const d = await r.json();
     if (!d.ok) throw new Error(d.detail || t('failCreate'));
     currentTaskType = 'creative';
@@ -3115,7 +3132,7 @@ async function submitManuscript() {
   form.append('subtitle_bg_color', document.getElementById('m_sub_bg_color').value);
 
   try {
-    const r = await fetch('/api/tasks/manuscript', { method: 'POST', body: form });
+    const r = await fetch(api('/api/tasks/manuscript'), { method: 'POST', body: form });
     const d = await r.json();
     if (!d.ok) throw new Error(d.detail || t('failCreate'));
     currentTaskType = 'manuscript';
@@ -3168,7 +3185,7 @@ async function submitAnchor() {
   form.append('subtitle_bg_color', document.getElementById('a_sub_bg_color').value);
 
   try {
-    const r = await fetch('/api/tasks/anchor', { method: 'POST', body: form });
+    const r = await fetch(api('/api/tasks/anchor'), { method: 'POST', body: form });
     const d = await r.json();
     if (!d.ok) throw new Error(d.detail || t('failCreate'));
     currentTaskType = 'anchor';
@@ -3226,7 +3243,7 @@ async function submitPoetry() {
   form.append('subtitle_enabled', document.getElementById('p_subtitle_enabled').checked);
 
   try {
-    const r = await fetch('/api/tasks/poetry', { method: 'POST', body: form });
+    const r = await fetch(api('/api/tasks/poetry'), { method: 'POST', body: form });
     const d = await r.json();
     if (!d.ok) throw new Error(d.detail || t('failCreate'));
     currentTaskType = 'poetry';
@@ -3305,7 +3322,7 @@ async function loadPoetryPrompt() {
       total_duration: String(a.total_duration),
       style: a.style,
     });
-    const resp = await fetch('/api/poetry-scene-prompt?' + qs.toString());
+    const resp = await fetch(api('/api/poetry-scene-prompt?' + qs.toString()));
     const data = await resp.json();
     document.getElementById('p_prompt_system').textContent = data.system_prompt || '';
     document.getElementById('p_prompt_user').textContent = data.user_prompt || '';
@@ -3379,7 +3396,7 @@ async function submitImage() {
   if (refFile) form.append('reference_image', refFile);
 
   try {
-    const r = await fetch('/api/image/generate', { method: 'POST', body: form });
+    const r = await fetch(api('/api/image/generate'), { method: 'POST', body: form });
     const d = await r.json();
     if (!d.ok) throw new Error(d.detail || t('failCreate'));
 
@@ -3412,7 +3429,7 @@ async function showProgress(taskId, dirName) {
   // 获取 state 以便立即标记已完成步骤
   let state = null;
   try {
-    const r = await fetch('/api/tasks/' + taskId);
+    const r = await fetch(api('/api/tasks/' + taskId));
     state = await r.json();
     if (state.task_type) currentTaskType = state.task_type;
   } catch(e) {}
@@ -3477,7 +3494,7 @@ function stopPolling() {
 async function pollTaskProgress(taskId) {
   if (!isTaskRunning || !taskId) return;
   try {
-    const r = await fetch('/api/tasks/' + taskId);
+    const r = await fetch(api('/api/tasks/' + taskId));
     const state = await r.json();
 
     // 更新进度条和消息
@@ -3616,7 +3633,7 @@ function showResult(videoPath) {
 
 async function autoReconnectRunningTask() {
   try {
-    const r = await fetch('/api/tasks');
+    const r = await fetch(api('/api/tasks'));
     const d = await r.json();
     const running = (d.tasks || []).find(t => t.status === 'running' || t.status === 'queued');
     if (running) {
@@ -3632,7 +3649,7 @@ async function autoReconnectRunningTask() {
 
 async function restoreProgressFromTask(taskId) {
   try {
-    const r = await fetch('/api/tasks/' + taskId);
+    const r = await fetch(api('/api/tasks/' + taskId));
     const state = await r.json();
     currentDirName = state.dir_name || taskId;
     currentTaskType = state.task_type || 'creative';
@@ -3675,7 +3692,7 @@ function markStepCompleted(stepKey) {
 async function loadTaskList() {
   const container = document.getElementById('task-list-container');
   try {
-    const r = await fetch('/api/tasks');
+    const r = await fetch(api('/api/tasks'));
     const d = await r.json();
     const tasks = d.tasks || [];
     if (!tasks.length) {
@@ -3719,7 +3736,7 @@ async function loadTaskList() {
 
 async function viewTask(taskId) {
   try {
-    const r = await fetch('/api/tasks/' + taskId);
+    const r = await fetch(api('/api/tasks/' + taskId));
     const state = await r.json();
     currentTaskType = state.task_type || 'creative';
     showTaskDetail(taskId, state);
@@ -3728,7 +3745,7 @@ async function viewTask(taskId) {
 
 async function viewRunningTask(taskId) {
   try {
-    const r = await fetch('/api/tasks/' + taskId);
+    const r = await fetch(api('/api/tasks/' + taskId));
     const state = await r.json();
     currentTaskType = state.task_type || 'creative';
   } catch(e) { currentTaskType = 'creative'; }
@@ -3740,12 +3757,12 @@ async function viewRunningTask(taskId) {
 
 async function resumeTask(taskId) {
   try {
-    const r = await fetch('/api/tasks/' + taskId + '/resume', { method: 'POST' });
+    const r = await fetch(api('/api/tasks/' + taskId + '/resume'), { method: 'POST' });
     const d = await r.json();
     if (!d.ok) throw new Error(d.detail || t('failResume'));
     // Determine task type from detail
     try {
-      const sr = await fetch('/api/tasks/' + taskId);
+      const sr = await fetch(api('/api/tasks/' + taskId));
       const st = await sr.json();
       currentTaskType = st.task_type || 'creative';
     } catch(e) { currentTaskType = 'creative'; }
@@ -3768,7 +3785,7 @@ async function stopTask() {
   const btn = document.getElementById('btn-stop');
   btn.disabled = true; btn.textContent = t('stopping');
   try {
-    const r = await fetch('/api/tasks/' + currentTaskId + '/stop', { method: 'POST' });
+    const r = await fetch(api('/api/tasks/' + currentTaskId + '/stop'), { method: 'POST' });
     const d = await r.json();
     if (!d.ok) throw new Error(d.detail || t('failStop'));
     showToast(t('stopped'), 4000);
@@ -3781,7 +3798,7 @@ async function stopTask() {
 async function stopTaskById(taskId) {
   if (!confirm(t('stopConfirmById'))) return;
   try {
-    const r = await fetch('/api/tasks/' + taskId + '/stop', { method: 'POST' });
+    const r = await fetch(api('/api/tasks/' + taskId + '/stop'), { method: 'POST' });
     const d = await r.json();
     if (!d.ok) throw new Error(d.detail || t('failStop'));
     showToast(t('stoppedById'), 3000);
@@ -3899,7 +3916,7 @@ async function loadArtifacts() {
   const container = document.getElementById('artifacts-container');
 
   try {
-    const resp = await fetch('/api/tasks/' + taskId + '/artifacts');
+    const resp = await fetch(api('/api/tasks/' + taskId + '/artifacts'));
     const data = await resp.json();
     if (!data.ok) throw new Error(data.detail || 'Failed to load artifacts');
 
@@ -4039,7 +4056,7 @@ async function confirmDeleteArtifact(artifactId) {
   // 获取级联预览
   let preview;
   try {
-    const resp = await fetch('/api/tasks/' + taskId + '/artifacts/' + encodeURIComponent(artifactId) + '/cascade-preview');
+    const resp = await fetch(api('/api/tasks/' + taskId + '/artifacts/' + encodeURIComponent(artifactId) + '/cascade-preview'));
     preview = await resp.json();
     if (!preview.ok) throw new Error(preview.detail);
   } catch(e) {
@@ -4062,7 +4079,7 @@ async function deleteArtifact(artifactId) {
   if (!taskId) return;
 
   try {
-    const resp = await fetch('/api/tasks/' + taskId + '/artifacts/' + encodeURIComponent(artifactId), {method: 'DELETE'});
+    const resp = await fetch(api('/api/tasks/' + taskId + '/artifacts/' + encodeURIComponent(artifactId)), {method: 'DELETE'});
     const data = await resp.json();
     if (!data.ok) throw new Error(data.detail || 'Delete failed');
 
@@ -4071,7 +4088,7 @@ async function deleteArtifact(artifactId) {
 
     // 刷新任务详情（包含步骤状态和产物列表）
     try {
-      const taskResp = await fetch('/api/tasks/' + taskId);
+      const taskResp = await fetch(api('/api/tasks/' + taskId));
       const taskData = await taskResp.json();
       if (taskData.task_type) {
         showTaskDetail(taskId, taskData);
@@ -4248,7 +4265,7 @@ document.getElementById('apikey-save').onclick = async () => {
   if (!key) return alert(t('enterApiKey'));
   const form = new FormData();
   form.append('api_key', key);
-  const r = await fetch('/api/config', { method: 'POST', body: form });
+  const r = await fetch(api('/api/config'), { method: 'POST', body: form });
   if (r.ok) {
     setApiKeyConfiguredUI('config', true);
   }
@@ -4261,7 +4278,7 @@ document.getElementById('apikey-clear').onclick = async () => {
   }
   if (!confirm(t('clearConfirm'))) return;
   try {
-    const r = await fetch('/api/config', { method: 'DELETE' });
+    const r = await fetch(api('/api/config'), { method: 'DELETE' });
     if (r.ok) {
       resetApiKeyUI();
     } else {
@@ -4282,7 +4299,7 @@ async function toggleWatermark(el) {
   const form = new FormData();
   form.append('enabled', enabled);
   try {
-    const r = await fetch('/api/config/watermark', { method: 'POST', body: form });
+    const r = await fetch(api('/api/config/watermark'), { method: 'POST', body: form });
     if (r.ok) {
       document.querySelectorAll('.watermark-toggle').forEach(t => t.checked = enabled);
       showToast(enabled ? t('watermarkEnabled') : t('watermarkDisabled'));
@@ -4389,9 +4406,9 @@ function renderWorkspaces(workspaces, activePath, source) {
 
 async function refreshWorkspaces() {
   try {
-    const r = await fetch('/api/workspaces');
+    const r = await fetch(api('/api/workspaces'));
     const d = await r.json();
-    const cfgR = await fetch('/api/config');
+    const cfgR = await fetch(api('/api/config'));
     const cfg = await cfgR.json();
     renderWorkspaces(d.workspaces || [], d.active_workspace || '', cfg.working_dir_source || 'config');
   } catch(e) {}
@@ -4400,7 +4417,7 @@ async function refreshWorkspaces() {
 async function activateWorkspace(path) {
   const form = new FormData();
   form.append('path', path);
-  const r = await fetch('/api/workspaces/active', { method: 'POST', body: form });
+  const r = await fetch(api('/api/workspaces/active'), { method: 'POST', body: form });
   if (r.ok) {
     refreshWorkspaces();
   } else {
@@ -4413,7 +4430,7 @@ async function removeWorkspaceEntry(path) {
   if (!confirm(t('workspaceRemoveConfirm'))) return;
   const form = new FormData();
   form.append('path', path);
-  const r = await fetch('/api/workspaces', { method: 'DELETE', body: form });
+  const r = await fetch(api('/api/workspaces'), { method: 'DELETE', body: form });
   if (r.ok) {
     refreshWorkspaces();
   } else {
@@ -4427,7 +4444,7 @@ document.getElementById('workspace-browse').onclick = async () => {
   browseBtn.disabled = true;
   browseBtn.textContent = '...';
   try {
-    const r = await fetch('/api/workspaces/pick-directory');
+    const r = await fetch(api('/api/workspaces/pick-directory'));
     const d = await r.json();
     if (d.ok && d.path) {
       document.getElementById('workspace-path-input').value = d.path;
@@ -4447,7 +4464,7 @@ document.getElementById('workspace-add').onclick = async () => {
   const form = new FormData();
   form.append('path', path);
   form.append('name', name);
-  const r = await fetch('/api/workspaces', { method: 'POST', body: form });
+  const r = await fetch(api('/api/workspaces'), { method: 'POST', body: form });
   if (r.ok) {
     document.getElementById('workspace-path-input').value = '';
     document.getElementById('workspace-name-input').value = '';
