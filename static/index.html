@@ -2833,6 +2833,7 @@ function switchTaskType(type) {
   ['simple', 'creative', 'manuscript', 'anchor', 'poetry'].forEach(t => {
     document.getElementById('form-' + t).classList.toggle('hidden', t !== type);
   });
+}
 
 function switchSimpleSubMode() {
   const mode = document.getElementById('simple_sub_mode').value;
