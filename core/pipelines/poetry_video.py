@@ -239,12 +239,20 @@ class PoetryVideoPipeline(MultiScenePipeline):
     # ------------------------------------------------------------------
     # Phase 4: 配音（逐场景 TTS narration_text）
     # ------------------------------------------------------------------
+    _AUDIO_MIN_CHARS_PER_SEC = 3.0  # 中文 TTS 最低语速 ~3 字/秒
+    _SCENE_TTS_DELAY = 2.0           # 场景间间隔，避免 edge_tts 流截断
 
     async def _generate_audio(self) -> Optional[object]:
         """逐场景生成朗诵配音，每段存 scene_{idx}/narration.mp3。
 
         返回 None（字幕由各场景独立生成，不使用全局 sub_maker）。
+
+        注意：逐场景 TTS 在快速连续调用时，edge_tts Communicate.stream()
+        可能提前截断（仅前半段有声音、后半段丢失且不抛异常）。
+        因此每个场景间加入延迟，并在生成后校验音频时长。
         """
+        import subprocess as _sp
+
         scenes = self._state.scenes
         audio_config = self._state.audio_config
         has_audio = audio_config.enabled
@@ -260,7 +268,6 @@ class PoetryVideoPipeline(MultiScenePipeline):
 
             text = (scene.narration_text or "").strip()
             if not text:
-                # 无朗诵文本：生成静音占位（时长=场景时长），保证合成链路统一
                 silent = SilentTTSEngine()
                 await silent.generate(
                     text=" ", output_path=audio_path,
@@ -273,31 +280,69 @@ class PoetryVideoPipeline(MultiScenePipeline):
                 "audio", "running",
                 f"生成朗诵配音 {idx+1}/{len(scenes)}...", 0.75,
             )
-            edge_tts = EdgeTTSEngine()
+
+            # 场景间延迟（除第一个）：避免 edge_tts 流截断
+            if idx > 0:
+                await asyncio.sleep(self._SCENE_TTS_DELAY)
+
             silent = SilentTTSEngine()
-            try:
-                if has_audio:
+            min_dur = max(len(text) / self._AUDIO_MIN_CHARS_PER_SEC, 2.0)
+
+            if has_audio:
+                try:
+                    edge_tts = EdgeTTSEngine()
                     await edge_tts.generate(
                         text=text, output_path=audio_path,
                         voice=audio_config.voice, rate=audio_config.rate,
                     )
-                else:
-                    # 关闭配音：仍生成静音占位，保证合成链路统一
+                    # 校验：音频文件存在且时长不低于预期的 60%
+                    actual_dur = self._probe_duration(audio_path, _sp)
+                    if actual_dur is not None and actual_dur < min_dur * 0.6:
+                        logger.warning(
+                            f"[Poetry] scene {idx} audio incomplete "
+                            f"(actual={actual_dur:.1f}s < expected={min_dur:.1f}s*0.6), "
+                            f"falling back to silent"
+                        )
+                        os.remove(audio_path)
+                        await silent.generate(
+                            text=text, output_path=audio_path,
+                            duration_sec=max(int(scene.duration), int(min_dur)),
+                        )
+                except RuntimeError as e:
+                    logger.warning(f"[Poetry] scene {idx} TTS failed: {e}, silent")
                     await silent.generate(
                         text=text, output_path=audio_path,
-                        duration_sec=max(int(scene.duration), 2),
+                        duration_sec=max(int(scene.duration), int(min_dur)),
                     )
-            except RuntimeError as e:
-                logger.warning(f"[Poetry] scene {idx} TTS failed: {e}, silent")
+            else:
                 await silent.generate(
                     text=text, output_path=audio_path,
-                    duration_sec=max(int(scene.duration), 2),
+                    duration_sec=max(int(scene.duration), int(min_dur)),
                 )
             scene.narration_audio = audio_path
 
         self.task_manager.update_state(
             scenes=[s.model_dump() for s in scenes],
         )
+        return None
+
+    @staticmethod
+    def _probe_duration(filepath: str, _sp=None) -> Optional[float]:
+        """ffprobe 获取音频时长（秒），失败返回 None。"""
+        try:
+            if _sp is None:
+                import subprocess as _sp2
+                _sp = _sp2
+            proc = _sp.run(
+                ["ffprobe", "-v", "error", "-show_entries",
+                 "format=duration", "-of", "default=noprint_wrappers=1:nokey=1",
+                 filepath],
+                capture_output=True, text=True, timeout=10,
+            )
+            if proc.returncode == 0 and proc.stdout.strip():
+                return float(proc.stdout.strip())
+        except Exception:
+            pass
         return None
 
     # ------------------------------------------------------------------
