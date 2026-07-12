@@ -32,3 +32,4 @@ tests/mock_regression/**/.working_dir/
 # moviepy 临时产物（运行期泄漏到仓库根目录）
 final_video*TEMP*.mp4
 *TEMP*_wvf_snd.mp4
+test_with_narration.mp4

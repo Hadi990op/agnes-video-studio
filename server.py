@@ -1054,7 +1054,7 @@ async def create_creative_task(
     use_custom_end_frames: bool = Form(False),
     generate_end_frames_from_ref: bool = Form(True),
     # v2.0 音频配置
-    audio_enabled: bool = Form(False),
+    audio_enabled: bool = Form(True),
     audio_voice: str = Form("zh-CN-XiaoxiaoNeural"),
     audio_rate: str = Form("+0%"),
     # v3.0 字幕独立配置

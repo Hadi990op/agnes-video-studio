@@ -559,7 +559,7 @@
         <div id="c_audio_body" class="collapse-body hidden mt-4">
           <div class="flex items-center gap-3 mb-4">
             <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
-              <input type="checkbox" id="c_audio_enabled" class="rounded bg-gray-800 border-gray-600">
+              <input type="checkbox" id="c_audio_enabled" checked class="rounded bg-gray-800 border-gray-600">
               <span data-i18n="enableNarration">启用旁白配音</span>
             </label>
           </div>
@@ -1205,6 +1205,12 @@
 
     <div id="progress-message" class="mt-4 text-sm text-gray-400"></div>
 
+    <!-- Live Preview — scene videos as they're generated -->
+    <div id="live-preview-area" class="hidden mt-4 p-4 bg-gray-900/30 rounded-lg border border-gray-700/50">
+      <h3 class="text-sm font-medium text-blue-300 mb-3" data-i18n="livePreview">📹 Live Preview</h3>
+      <div id="live-preview-container" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
+    </div>
+
     <!-- 中间产物面板 -->
     <div id="artifacts-area" class="hidden mt-4 p-4 bg-gray-900/30 rounded-lg border border-gray-700/50">
       <div class="flex items-center justify-between mb-3">
@@ -1351,7 +1357,7 @@ const T = {
     systemPrompt: '系统提示词',
     systemPromptPlaceholder: '给模型的额外提示指令（如风格、质量要求），不影响生成内容的主体描述',
     // 中间产物
-    artTitle: '中间产物', artImageAnalysis: '图片分析', artStory: '故事', artCharacterRef: '角色参考图',
+    artTitle: '中间产物', livePreview: '📹 实时预览', artImageAnalysis: '图片分析', artStory: '故事', artCharacterRef: '角色参考图',
     artScript: '剧本', artEndFramePrompts: '尾帧提示词', artEndFrame: '场景{index}尾帧图',
     artVideo: '场景{index}视频', artAudio: '旁白音频', artSubtitle: '字幕', artFinalVideo: '最终视频',
     artAnchorImage: '主播形象图', artClipPrompts: '视频描述', artClip: '视频片段',
@@ -1478,7 +1484,7 @@ const T = {
     systemPrompt: 'System Prompt',
     systemPromptPlaceholder: 'Extra instructions for the model (e.g. style, quality), does not affect the subject description',
     // Artifacts
-    artTitle: 'Artifacts', artImageAnalysis: 'Image Analysis', artStory: 'Story', artCharacterRef: 'Character Reference',
+    artTitle: 'Artifacts', livePreview: '📹 Live Preview', artImageAnalysis: 'Image Analysis', artStory: 'Story', artCharacterRef: 'Character Reference',
     artScript: 'Script', artEndFramePrompts: 'End Frame Prompts', artEndFrame: 'Scene {index} End Frame',
     artVideo: 'Scene {index} Video', artAudio: 'Narration Audio', artSubtitle: 'Subtitles', artFinalVideo: 'Final Video',
     artAnchorImage: 'Anchor Image', artClipPrompts: 'Clip Prompts', artClip: 'Video Clip',
@@ -3400,7 +3406,7 @@ async function submitImage() {
     const d = await r.json();
     if (!d.ok) throw new Error(d.detail || t('failCreate'));
 
-    document.getElementById('result-image').src = '/api/image/' + d.task_id;
+    document.getElementById('result-image').src = api('/api/image/' + d.task_id);
     document.getElementById('image-result').classList.remove('hidden');
     showToast(t('imgComplete'), 5000);
   } catch(e) {
@@ -3422,6 +3428,9 @@ async function showProgress(taskId, dirName) {
   const panel = document.getElementById('progress-panel');
   panel.classList.remove('hidden');
   document.getElementById('result-area').classList.add('hidden');
+  document.getElementById('live-preview-area').classList.add('hidden');
+  document.getElementById('live-preview-container').innerHTML = '';
+  document.getElementById('live-preview-container').dataset.lastContent = '';
   document.getElementById('btn-stop').classList.remove('hidden');
   document.getElementById('progress-bar').style.width = '0%';
   document.getElementById('progress-pct').textContent = '0%';
@@ -3477,7 +3486,7 @@ async function showProgress(taskId, dirName) {
 // 轮询模式：定期 GET /api/tasks/{id} 获取进度
 // ═══════════════════════════════════════════════════
 
-const POLL_INTERVAL = 30000; // 30 秒轮询
+const POLL_INTERVAL = 3000; // 3 秒轮询，实时进度更新
 let _lastPolledStep = '';
 
 async function startPolling(taskId) {
@@ -3532,8 +3541,12 @@ async function pollTaskProgress(taskId) {
       _lastPolledStep = step;
     }
 
+    // Live preview — refresh scene videos/images as they're generated
+    updateLivePreview(taskId, state);
+
     // 任务完成
     if (state.status === 'completed') {
+      document.getElementById('live-preview-area').classList.add('hidden');
       showResult(state.final_video_file);
       clearRunning();
       scheduleArtifactRefresh();
@@ -3551,6 +3564,69 @@ async function pollTaskProgress(taskId) {
     }
   } catch(e) {
     // 网络错误时静默，下次轮询会重试
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// Live Preview — show scene videos/images as they generate
+// ═══════════════════════════════════════════════════
+let _livePreviewShown = new Set();
+
+async function updateLivePreview(taskId, state) {
+  try {
+    const resp = await fetch(api('/api/tasks/' + taskId + '/artifacts'));
+    const data = await resp.json();
+    if (!data.ok) return;
+
+    const area = document.getElementById('live-preview-area');
+    const container = document.getElementById('live-preview-container');
+
+    // Find scene videos and images that exist
+    const previews = (data.artifacts || []).filter(a => {
+      if (!a.exists) return false;
+      // Scene videos (video_gen step) and end frame images (end_frame_gen step)
+      return (a.step_key === 'video_gen' || a.step_key === 'end_frame_gen' || a.step_key === 'end_frame_generation');
+    });
+
+    if (previews.length === 0) {
+      area.classList.add('hidden');
+      return;
+    }
+
+    area.classList.remove('hidden');
+
+    let html = '';
+    for (const art of previews) {
+      const fileUrl = api('/api/tasks/' + taskId + '/artifacts/' + encodeURIComponent(art.artifact_id) + '/file');
+      const label = art.name || art.artifact_id;
+
+      if (art.type === 'video') {
+        html += `<div class="relative group">
+          <div style="position:relative;z-index:1;pointer-events:auto;transform:translateZ(0)">
+            <video src="${escapeAttr(fileUrl)}" controls playsinline preload="metadata"
+              class="w-full rounded border border-gray-700/50 bg-black"
+              style="max-height:180px;min-height:100px;pointer-events:auto"></video>
+          </div>
+          <p class="text-xs text-gray-500 mt-1 truncate">${escapeHtml(label)}</p>
+        </div>`;
+      } else if (art.type === 'image') {
+        html += `<div class="relative group">
+          <img src="${escapeAttr(fileUrl)}" class="w-full rounded border border-gray-700/50 cursor-pointer"
+            style="max-height:180px;object-fit:cover" loading="lazy"
+            onclick="openImageModal('${escapeAttr(fileUrl)}')">
+          <p class="text-xs text-gray-500 mt-1 truncate">${escapeHtml(label)}</p>
+        </div>`;
+      }
+    }
+
+    // Only update if content changed (avoid flicker)
+    const newContent = html;
+    if (container.dataset.lastContent !== newContent) {
+      container.dataset.lastContent = newContent;
+      container.innerHTML = newContent;
+    }
+  } catch(e) {
+    // Silent — will retry next poll
   }
 }
 
@@ -3623,7 +3699,7 @@ function markCompletedStepsFromState(state) {
 function showResult(videoPath) {
   document.getElementById('result-area').classList.remove('hidden');
   if (videoPath && currentTaskId) {
-    document.getElementById('result-video').src = '/api/video/' + currentTaskId;
+    document.getElementById('result-video').src = api('/api/video/' + currentTaskId);
   }
 }
 
@@ -3885,7 +3961,7 @@ function showTaskDetail(taskId, state) {
 
   if (state.final_video_file) {
     document.getElementById('result-area').classList.remove('hidden');
-    document.getElementById('result-video').src = '/api/video/' + taskId;
+    document.getElementById('result-video').src = api('/api/video/' + taskId);
   }
 
   // 加载中间产物
@@ -3970,7 +4046,7 @@ async function loadArtifacts() {
 function renderArtifactCard(art, taskId, isRunning) {
   const icons = {text:'📄', image:'🖼️', video:'🎬', audio:'🔊', json:'📋', subtitle:'💬'};
   const icon = icons[art.category] || '📄';
-  const fileUrl = '/api/tasks/' + taskId + '/artifacts/' + encodeURIComponent(art.artifact_id) + '/file';
+  const fileUrl = api('/api/tasks/' + taskId + '/artifacts/' + encodeURIComponent(art.artifact_id) + '/file');
 
   // 产物名称
   let label = t(art.label_key) || art.label_key;
