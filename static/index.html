@@ -1033,21 +1033,7 @@
         <div class="mb-4 p-4 rounded-xl bg-gray-800/30 border border-gray-700/50">
           <h3 class="text-sm font-medium text-blue-300 mb-3" data-i18n="sceneConfig">场景配置</h3>
 
-          <!-- 场景信息获取方式 -->
-          <div class="mb-4">
-            <label class="block text-sm text-gray-400 mb-2" data-i18n="durationSource">场景信息获取方式</label>
-            <div class="flex gap-2">
-              <label class="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-gray-800/50 border border-gray-700 cursor-pointer hover:border-blue-500/30 transition">
-                <input type="radio" name="p_duration_source" value="manual" checked onchange="togglePoetrySceneSource()" class="text-blue-500">
-                <span class="text-sm text-gray-300" data-i18n="sourceManual">手动设置</span>
-              </label>
-              <label id="p_source_prompt_label" class="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-gray-800/50 border border-gray-700 cursor-pointer hover:border-blue-500/30 transition">
-                <input type="radio" name="p_duration_source" value="prompt" id="p_source_prompt_radio" onchange="togglePoetrySceneSource()" class="text-blue-500">
-                <span class="text-sm text-gray-300" data-i18n="sourceSceneDesc">从分镜描述中提取</span>
-              </label>
-            </div>
-            <p id="p_source_hint" class="text-xs text-gray-500 mt-1.5" data-i18n="sourceManualHint">手动指定场景数量和每场景时长</p>
-          </div>
+          <p class="text-xs text-gray-500 mb-3" data-i18n="sourceManualHint">手动指定场景数量和每场景时长</p>
 
           <!-- 手动配置 -->
           <div id="p_manual_scene_config">
@@ -1083,7 +1069,7 @@
 
         <div class="mb-4">
           <label class="block text-sm text-gray-400 mb-1.5" data-i18n="scenePromptsOptional">分镜描述（可选）</label>
-          <textarea id="p_scene_prompts" rows="3" data-i18n-placeholder="scenePromptsPlaceholder" placeholder="格式：原诗句 | 画面描述（每行一个场景）" oninput="updatePoetryExtractAvailability()" class="w-full glass-input rounded-lg px-4 py-2.5 text-sm resize-y text-gray-100 placeholder-gray-600"></textarea>
+          <textarea id="p_scene_prompts" rows="3" data-i18n-placeholder="scenePromptsPlaceholder" placeholder="格式：原诗句 | 画面描述（每行一个场景）" class="w-full glass-input rounded-lg px-4 py-2.5 text-sm resize-y text-gray-100 placeholder-gray-600"></textarea>
           <p class="text-xs text-gray-500 mt-1.5" data-i18n="scenePromptsHint">可选。每行一个场景，格式固定为「原诗句 | 画面描述」。两种用法结果完全一致：①留空，由系统自动生成（提示词已含上方场景数与每场景时长）；②把下方提示词交给任意 AI 生成后，把结果贴回此处。</p>
           <p class="text-xs text-gray-400 mt-1.5 font-mono bg-gray-800/40 rounded px-2 py-1" data-i18n="scenePromptsExample">例：春眠不觉晓，处处闻啼鸟。 | 春日清晨薄雾，枝头鸟鸣</p>
           <div class="mt-3 p-3 rounded-lg bg-gray-800/40 border border-gray-700/50">
@@ -1299,8 +1285,6 @@ const T = {
     sceneConfig: '场景配置', durationSource: '场景信息获取方式',
     sourceManual: '手动设置', sourcePrompt: '从创意描述中提取',
     sourceManualHint: '手动指定场景数量和每场景时长',
-    sourceSceneDesc: '从分镜描述中提取',
-    sourceSceneDescHint: 'AI 将从古诗与分镜描述中自动分析场景数和时长',
     sourcePromptHint: 'AI 将从创意描述中自动分析场景数和时长',
     durationMode: '各场景时长', uniformDuration: '统一', independentDuration: '独立', seconds: '秒',
     artifact: '产物', paragraphCount: '段落数',
@@ -1431,8 +1415,6 @@ const T = {
     sceneConfig: 'Scene Config', durationSource: 'Scene Info Source',
     sourceManual: 'Manual', sourcePrompt: 'Extract from Idea',
     sourceManualHint: 'Specify scene count and per-scene duration manually',
-    sourceSceneDesc: 'Extract from scene description',
-    sourceSceneDescHint: 'AI will auto-analyze scene count and durations from the poem and scene descriptions',
     sourcePromptHint: 'AI will analyze scene count and durations from the idea',
     durationMode: 'Scene Duration', uniformDuration: 'Uniform', independentDuration: 'Independent', seconds: 's',
     artifact: 'Output', paragraphCount: 'Paragraphs',
@@ -2852,13 +2834,6 @@ function switchTaskType(type) {
     document.getElementById('form-' + t).classList.toggle('hidden', t !== type);
   });
 
-  // 诗歌：切换时初始化场景配置（手动/提取置灰 + 显示态）
-  if (type === 'poetry') {
-    togglePoetrySceneSource();
-    updatePoetryExtractAvailability();
-  }
-}
-
 function switchSimpleSubMode() {
   const mode = document.getElementById('simple_sub_mode').value;
   document.getElementById('form-simple-video').classList.toggle('hidden', mode !== 'video');
@@ -3228,26 +3203,19 @@ async function submitPoetry() {
   form.append('video_height', res.height);
   form.append('video_duration', 30);
 
-  // ── 场景配置（与创意视频一致）──
-  const durationSource = document.querySelector('input[name="p_duration_source"]:checked').value;
-  form.append('duration_source', durationSource);
-  if (durationSource === 'manual') {
-    const sceneCount = parseInt(document.getElementById('p_scene_count').value) || 3;
-    form.append('scene_count', sceneCount);
-    const isUniform = document.querySelector('input[name="p_uniform"]:checked').value === '1';
-    form.append('uniform_duration', isUniform);
-    if (isUniform) {
-      const dur = parseInt(document.getElementById('p_uniform_duration').value) || 5;
-      form.append('scene_durations_json', JSON.stringify(Array(sceneCount).fill(dur)));
-    } else {
-      const vals = Array.from(document.querySelectorAll('#p_duration_inputs .scene-dur-val'))
-        .map(el => parseInt(el.value) || 5);
-      form.append('scene_durations_json', JSON.stringify(vals.slice(0, sceneCount)));
-    }
+  // ── 场景配置（固定手动设置）──
+  form.append('duration_source', 'manual');
+  const sceneCount = parseInt(document.getElementById('p_scene_count').value) || 3;
+  form.append('scene_count', sceneCount);
+  const isUniform = document.querySelector('input[name="p_uniform"]:checked').value === '1';
+  form.append('uniform_duration', isUniform);
+  if (isUniform) {
+    const dur = parseInt(document.getElementById('p_uniform_duration').value) || 5;
+    form.append('scene_durations_json', JSON.stringify(Array(sceneCount).fill(dur)));
   } else {
-    form.append('scene_count', 0);
-    form.append('uniform_duration', true);
-    form.append('scene_durations_json', JSON.stringify([]));
+    const vals = Array.from(document.querySelectorAll('#p_duration_inputs .scene-dur-val'))
+      .map(el => parseInt(el.value) || 5);
+    form.append('scene_durations_json', JSON.stringify(vals.slice(0, sceneCount)));
   }
   // Audio config
   form.append('audio_enabled', document.getElementById('p_audio_enabled').checked);
@@ -3275,13 +3243,6 @@ async function submitPoetry() {
 // ═══════════════════════════════════════════════════
 // Poetry scene config toggles（与创意一致，p_ 前缀隔离）
 // ═══════════════════════════════════════════════════
-function togglePoetrySceneSource() {
-  const isPrompt = document.querySelector('input[name="p_duration_source"]:checked').value === 'prompt';
-  document.getElementById('p_manual_scene_config').style.display = isPrompt ? 'none' : 'block';
-  document.getElementById('p_source_hint').textContent = isPrompt
-    ? t('sourceSceneDescHint') : t('sourceManualHint');
-  refreshPoetryPromptIfOpen();
-}
 function togglePoetryDurationMode() {
   const isUniform = document.querySelector('input[name="p_uniform"]:checked').value === '1';
   document.getElementById('p_uniform_duration_wrap').style.display = isUniform ? 'block' : 'none';
@@ -3313,27 +3274,10 @@ const _pUniformDur = document.getElementById('p_uniform_duration');
 if (_pUniformDur) _pUniformDur.addEventListener('change', refreshPoetryPromptIfOpen);
 const _pStyle = document.getElementById('p_style');
 if (_pStyle) _pStyle.addEventListener('change', refreshPoetryPromptIfOpen);
-// 分镜描述为空时禁用「从分镜描述中提取」选项
-function updatePoetryExtractAvailability() {
-  const hasDesc = document.getElementById('p_scene_prompts').value.trim().length > 0;
-  const radio = document.getElementById('p_source_prompt_radio');
-  radio.disabled = !hasDesc;
-  document.getElementById('p_source_prompt_label').style.opacity = hasDesc ? '1' : '0.4';
-  if (!hasDesc && radio.checked) {
-    document.querySelector('input[name="p_duration_source"][value="manual"]').checked = true;
-    togglePoetrySceneSource();
-  }
-}
-
 // 收集当前表单的场景参数，用于生成与程序内 LLM 完全一致的提示词
 function collectPoetrySceneArgs() {
   const poem = (document.getElementById('p_poem').value || '').trim();
   const style = (document.getElementById('p_style').value || '').trim();
-  const isPrompt = document.querySelector('input[name="p_duration_source"]:checked').value === 'prompt';
-  if (isPrompt) {
-    // 从分镜描述中提取：场景数交由 LLM，时长用 video_duration（默认 30）
-    return { poem, scene_count: 0, scene_durations: [], total_duration: 30, style };
-  }
   const count = parseInt(document.getElementById('p_scene_count').value) || 3;
   const isUniform = document.querySelector('input[name="p_uniform"]:checked').value === '1';
   let durations = [];
