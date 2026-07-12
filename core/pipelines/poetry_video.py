@@ -186,12 +186,23 @@ class PoetryVideoPipeline(MultiScenePipeline):
 
         # 否则：LLM 拆分原诗（用户未提供完整格式时仍由 AI 决定场景与诗句对应）。
         resolved_count = 0 if duration_source == "prompt" else scene_count
+        if duration_source == "prompt":
+            # prompt 来源：时长由 video_duration 均分，场景数交由 LLM 决定
+            llm_durations: List[int] = []
+            llm_total = int(self._state.video_duration)
+        else:
+            # 手动模式：把表单里的每场景时长原样交给 LLM，使提示词与可复制提示词、
+            # 实际视频生成时长三者一致（合计 = 各场景时长之和）。
+            llm_durations = self._resolve_durations_for_count(
+                resolved_count, duration_source, scene_durations)
+            llm_total = sum(llm_durations) if llm_durations else int(self._state.video_duration)
 
         raw_scenes = await asyncio.to_thread(
             self.screenwriter.generate_poetry_scenes,
             poem,
-            self._state.video_duration,
             resolved_count,
+            llm_durations,
+            llm_total,
             self._state.style,
         )
         if not raw_scenes:

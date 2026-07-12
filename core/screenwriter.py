@@ -7,7 +7,7 @@ import os
 import re
 import time as _time
 import requests
-from typing import List
+from typing import List, Optional
 
 from core.api.agnes_chat import AgnesChatAPI, strip_code_fence
 
@@ -1641,8 +1641,9 @@ Styling rules:
     def generate_poetry_scenes(
         self,
         poem_text: str,
-        total_duration: int = 30,
         scene_count: int = 0,
+        scene_durations: Optional[List[int]] = None,
+        total_duration: int = 30,
         style: str = "",
     ) -> List[dict]:
         """LLM 拆分整首诗词为若干场景（朗诵文案 + 视频 prompt），以行格式返回。
@@ -1651,15 +1652,23 @@ Styling rules:
         每行一个场景，「|」左为对应原诗片段（narration），右为视频画面描述。
         这样内部 LLM 生成与外部 LLM（用户拿同样提示词生成后贴回）输出完全一致。
 
+        Args:
+            poem_text: 整首诗词原文。
+            scene_count: 期望分镜数；0 表示自动（prompt 来源模式）。
+            scene_durations: 各场景时长（秒）列表；非空时提示词写出每场景时长+合计，
+                与可复制提示词、实际视频生成时长完全一致。
+            total_duration: 目标总时长（秒），用于 prompt/auto 模式把握节奏。
+            style: 视觉风格（与创意视频一致），注入每个场景画面描述。
+
         Returns:
             场景列表，每个元素为 {"narration": str, "scene_prompt": str}。
             朗诵文案严格保留原诗文字，不改写不翻译。
         """
         system_prompt, user_prompt = self._poetry_scene_prompts(
-            poem_text, total_duration, scene_count, style)
+            poem_text, scene_count, scene_durations or [], total_duration, style)
         logger.info(
-            f"[Screenwriter] Splitting poem into scenes (duration={total_duration}s, "
-            f"count={scene_count or 'auto'})..."
+            f"[Screenwriter] Splitting poem into scenes (count={scene_count or 'auto'}, "
+            f"durations={scene_durations or 'auto'})..."
         )
         raw = self._chat(system_prompt, user_prompt)
         scenes = self._parse_poetry_scene_lines(raw)
@@ -1667,17 +1676,30 @@ Styling rules:
         return scenes
 
     def _poetry_scene_prompts(
-        self, poem_text: str, total_duration: int, scene_count: int, style: str
+        self,
+        poem_text: str,
+        scene_count: int,
+        scene_durations: List[int],
+        total_duration: int,
+        style: str,
     ) -> tuple:
         """返回（system_prompt, user_prompt）。
 
         内部 LLM 与外部 LLM（用户拿同样提示词生成后贴回）共用此提示词，
-        UI 端点 ``build_poetry_scene_prompt_template`` 也复用同一份，保证格式一致。
+        UI 端点 ``build_poetry_scene_prompt`` 也复用同一份，保证格式一致。
+        时长表达：有每场景时长时写出「各场景时长：d1,d2…秒（合计T秒）」，
+        否则（auto/prompt 模式）写「目标总时长：T秒」。
         """
         count_hint = (
             f"{scene_count} 个" if scene_count and scene_count > 0
             else "由你依据诗意自行决定（通常 2-6 个）"
         )
+        if scene_durations:
+            dur_list = "、".join(f"{d}秒" for d in scene_durations)
+            total = sum(scene_durations)
+            dur_hint = f"各场景时长：{dur_list}（合计 {total} 秒）"
+        else:
+            dur_hint = f"目标总时长：{total_duration} 秒（用于把握节奏，不要求每句等长）"
         style_hint = style.strip() if style and style.strip() else "未指定，请采用通用电影质感写实风格"
         system_prompt = self._prompt(
             zh_text="""你是一位诗意的视觉艺术家兼诗词分镜导演，专精将中国古典诗词转化为视频分镜。
@@ -1712,8 +1734,8 @@ Night rain, wind sounds... | Rain on window, petals on stone""",
 </poem>
 
 <requirements>
-- 目标总时长：{total_duration} 秒（用于把握节奏，不要求每句等长）
 - 场景数量：{count_hint}
+- {dur_hint}
 - 视觉风格：{style_hint}（请将该风格融入每个场景的画面描述）
 </requirements>
 """
@@ -1752,13 +1774,20 @@ Night rain, wind sounds... | Rain on window, petals on stone""",
         return scenes
 
 
-def build_poetry_scene_prompt_template() -> dict:
-    """返回诗歌分镜提示词模板（中文），供前端展示与复制。
+def build_poetry_scene_prompt(
+    poem: str,
+    scene_count: int = 0,
+    scene_durations: Optional[List[int]] = None,
+    total_duration: int = 30,
+    style: str = "",
+) -> dict:
+    """返回已填充的诗歌分镜提示词（中文），供前端展示与复制。
 
-    ``user_template`` 含 ``{poem}`` 占位符，由前端替换为用户诗句后，即可交给
-    任意 LLM 生成，再把返回的行格式（``原诗句 | 画面描述``）贴回系统。
-    与内部 LLM 所使用的提示词完全一致（单一来源）。
+    直接复用内部 LLM 所用的 ``_poetry_scene_prompts``，并用同一份参数
+    （poem / scene_count / scene_durations / total_duration / style）填充，
+    保证「用户拿去外部 LLM 生成后贴回」与「系统内 LLM 生成」提示词逐字一致。
     """
     sw = Screenwriter(api_key="", language="zh")
-    system_prompt, user_template = sw._poetry_scene_prompts("{poem}", 30, 0, "")
-    return {"system_prompt": system_prompt, "user_template": user_template}
+    system_prompt, user_prompt = sw._poetry_scene_prompts(
+        poem, scene_count, scene_durations or [], total_duration, style)
+    return {"system_prompt": system_prompt, "user_prompt": user_prompt}

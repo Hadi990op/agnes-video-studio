@@ -1496,14 +1496,33 @@ async def create_task_legacy(
 
 
 @app.get("/api/poetry-scene-prompt")
-async def poetry_scene_prompt():
-    """返回诗歌分镜生成提示词模板（中文），供前端展示与复制。
+async def poetry_scene_prompt(
+    poem: str = "",
+    scene_count: int = 0,
+    scene_durations: str = "",
+    total_duration: int = 30,
+    style: str = "",
+):
+    """返回已填充的诗歌分镜提示词（中文），供前端展示与复制。
 
-    用户可将其与自己的诗句组合，交给任意 LLM 生成分镜，再把返回的
-    「原诗句 | 画面描述」行格式贴回系统。与内部 LLM 使用同一份提示词。
+    参数与内部 LLM 使用的完全一致（scene_count / scene_durations / total_duration / style），
+    因此用户拿去任意 LLM 生成、再把「原诗句 | 画面描述」行格式贴回，与系统内生成结果一致。
     """
-    from core.screenwriter import build_poetry_scene_prompt_template
-    return build_poetry_scene_prompt_template()
+    import json
+    from core.screenwriter import build_poetry_scene_prompt
+    try:
+        durations = json.loads(scene_durations) if scene_durations else []
+    except (ValueError, TypeError):
+        durations = []
+    if not isinstance(durations, list):
+        durations = []
+    return build_poetry_scene_prompt(
+        poem=poem,
+        scene_count=scene_count,
+        scene_durations=[int(d) for d in durations if str(d).isdigit()],
+        total_duration=total_duration,
+        style=style,
+    )
 
 
 @app.post("/api/tasks/{task_id}/resume")

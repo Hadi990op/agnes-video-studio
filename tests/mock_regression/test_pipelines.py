@@ -490,6 +490,45 @@ class TestPoetryVideoPipeline(BasePipelineTest):
         assert all(s.duration == 10 for s in st.scenes), [s.duration for s in st.scenes]
 
 
+class TestPoetryScenePrompt(BasePipelineTest):
+    """诗歌分镜提示词：每场景时长表达 + 与程序内 LLM 提示词一致。"""
+
+    def test_prompt_includes_per_scene_durations(self):
+        from core.screenwriter import build_poetry_scene_prompt
+        out = build_poetry_scene_prompt(
+            poem="春眠不觉晓", scene_count=3, scene_durations=[5, 5, 5],
+            total_duration=15, style="")
+        up = out["user_prompt"]
+        assert "场景数量：3 个" in up, up
+        assert "各场景时长：5秒、5秒、5秒（合计 15 秒）" in up, up
+        assert "诗词分镜导演" in out["system_prompt"]
+        assert "<poem>" in up
+        logger.info("  ✓ prompt includes per-scene durations (3×5s, total 15s)")
+
+    def test_prompt_auto_mode_uses_total_duration(self):
+        from core.screenwriter import build_poetry_scene_prompt
+        out = build_poetry_scene_prompt(
+            poem="春眠不觉晓", scene_count=0, scene_durations=[],
+            total_duration=30, style="")
+        up = out["user_prompt"]
+        assert "目标总时长：30 秒" in up, up
+        assert "场景数量：由你依据诗意自行决定" in up, up
+        logger.info("  ✓ auto prompt uses total duration (30s)")
+
+    def test_prompt_matches_in_program_llm(self):
+        from core.screenwriter import build_poetry_scene_prompt, Screenwriter
+        args = dict(poem="静夜思", scene_count=2, scene_durations=[6, 8],
+                    total_duration=14, style="水墨风")
+        via_endpoint = build_poetry_scene_prompt(**args)
+        sw = Screenwriter(api_key="", language="zh")
+        via_internal = sw._poetry_scene_prompts(
+            args["poem"], args["scene_count"], args["scene_durations"],
+            args["total_duration"], args["style"])
+        assert via_endpoint["system_prompt"] == via_internal[0], "system_prompt 不一致"
+        assert via_endpoint["user_prompt"] == via_internal[1], "user_prompt 不一致"
+        logger.info("  ✓ 端点提示词与程序内 LLM 提示词逐字一致")
+
+
 # ══════════════════════════════════════════════════════════════════════
 # Resume / Error 场景（可选）
 # ══════════════════════════════════════════════════════════════════════
