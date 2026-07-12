@@ -3434,7 +3434,7 @@ async function showProgress(taskId, dirName) {
   // 如果有 state，也标记当前 running 步骤
   if (state) {
     markCompletedStepsFromState(state);
-    const step = state.current_step || '';
+    const step = (state.current_step || '').replace(/^step_/, '');
     const status = state.current_status || '';
     if (step && status === 'running') {
       const stepEl = document.querySelector(`.step-item[data-step="${step}"]`);
@@ -3492,7 +3492,7 @@ async function pollTaskProgress(taskId) {
     markCompletedStepsFromState(state);
 
     // 更新当前步骤的图标（running/completed/failed）
-    const step = state.current_step || '';
+    const step = (state.current_step || '').replace(/^step_/, '');
     const status = state.current_status || '';
     if (step) {
       const stepEl = document.querySelector(`.step-item[data-step="${step}"]`);
@@ -3559,7 +3559,7 @@ function isStepDoneInState(state, stepKey, taskType) {
     },
     poetry: {
       build_scenes: 'step_build_scenes', video_generation: 'step_video_generation',
-      audio: 'step_audio', subtitle: 'step_subtitle', concatenate: 'step_concatenation',
+      audio: 'step_audio', subtitle: 'step_subtitle', concatenation: 'step_concatenation',
     },
   };
   const map = stepMap[taskType] || stepMap.creative;
@@ -3591,7 +3591,7 @@ function markCompletedStepsFromState(state) {
     },
     poetry: {
       build_scenes: 'step_build_scenes', video_generation: 'step_video_generation',
-      audio: 'step_audio', subtitle: 'step_subtitle', concatenate: 'step_concatenation',
+      audio: 'step_audio', subtitle: 'step_subtitle', concatenation: 'step_concatenation',
     },
   };
   const map = stepMap[taskType] || stepMap.creative;
