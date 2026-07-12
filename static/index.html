@@ -3815,6 +3815,7 @@ async function viewTask(taskId) {
     const r = await fetch(api('/api/tasks/' + taskId));
     const state = await r.json();
     currentTaskType = state.task_type || 'creative';
+    switchMainTab('create');
     showTaskDetail(taskId, state);
   } catch(e) { alert(t('failLoad') + ': ' + e.message); }
 }
@@ -3825,6 +3826,7 @@ async function viewRunningTask(taskId) {
     const state = await r.json();
     currentTaskType = state.task_type || 'creative';
   } catch(e) { currentTaskType = 'creative'; }
+  switchMainTab('create');
   setRunning(taskId);
   await showProgress(taskId, null);
   await startPolling(taskId);
@@ -3842,6 +3844,7 @@ async function resumeTask(taskId) {
       const st = await sr.json();
       currentTaskType = st.task_type || 'creative';
     } catch(e) { currentTaskType = 'creative'; }
+    switchMainTab('create');
     setRunning(taskId);
     currentDirName = d.dir_name;
     await showProgress(taskId, d.dir_name);
